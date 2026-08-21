@@ -1651,15 +1651,19 @@ function finishAbdicht(zeilen, warn, roh, stunden){
 // RICHTIGE sein: eine Dispersionsabdichtung ist kein Ersatz fuer eine
 // zementaere 2K-Schlaemme. Diese Tabelle haelt Eriks Zuordnungen fest.
 // Erweiterbar: Fremdprodukt (klein geschrieben) -> Hausprodukt je System.
+// Je System entweder ein Name oder {name, nicht:[Ausschlusswoerter]} - die
+// Ausschlusswoerter verhindern Fehlgriffe bei aehnlich heissenden Artikeln.
 const ABD_GLEICHWERTIG = {
   'pci lastogum': {
     sakret: 'Sakret OAD Objektabdichtung',
-    raw:    null,
+    raw:    null,   // RAW-Entsprechung der Dispersionsabdichtung: noch offen
     typ:    'Dispersionsabdichtung, gebrauchsfertig (Wand, W1-I)'
   },
   'pci seccoral': {
     sakret: 'Sakret Flexible Dichtungsschlämme FDS',
-    raw:    null,
+    // "RAW Dichtungsschlämme" ist laut Erik die RAW-Fassung der Sakret FDS.
+    // DSFLEX ausschliessen: das ist die 1K-flexible Variante, nicht dieselbe Bauart.
+    raw:    {name:'RAW Dichtungsschlämme', nicht:['dsflex','dispersion']},
     typ:    'zementäre 2K-Dichtungsschlämme (Boden, W2-I)'
   },
 };
@@ -1677,10 +1681,12 @@ function abdichtErsatz(fabrikat, system){
   let treffer=null;
   for(const k in ABD_GLEICHWERTIG){ if(key.indexOf(k)>-1){ treffer=ABD_GLEICHWERTIG[k]; break; } }
   if(!treffer) return {bekannt:false};
-  const name=treffer[system]||null;
-  if(!name) return {bekannt:true, name:null, typ:treffer.typ, systemFehlt:true};
-  const art=findArtikel(name);
-  return {bekannt:true, name:name, typ:treffer.typ, artikel:art||null};
+  const eintrag=treffer[system];
+  if(!eintrag) return {bekannt:true, name:null, typ:treffer.typ, systemFehlt:true};
+  const name  = (typeof eintrag==='string') ? eintrag : eintrag.name;
+  const nicht = (typeof eintrag==='string') ? null    : (eintrag.nicht||null);
+  const art=findArtikel(name, nicht);
+  return {bekannt:true, name:name, nicht:nicht, typ:treffer.typ, artikel:art||null};
 }
 
 const W_KLASSEN = [['W0-I','W0-I (gering)'],['W1-I','W1-I (mäßig)'],
@@ -1787,14 +1793,23 @@ function epAbdichtFlaeche(p, system){
     const kg = ABD_FLUESSIG_KG;
     // Welches Produkt? Nennt das LV ein Fremdfabrikat, entscheidet die
     // Gleichwertigkeits-Tabelle - nicht pauschal die Hausschlaemme.
-    let cfg = c.fds, label = 'FDS-Schlämme';
-    if(ers && ers.bekannt && ers.name){
-      cfg = {name:ers.name, gebinde:gebindeAusArtikel(ers.artikel, c.fds.gebinde)};
-      label = ers.name;
+    // Nennt das LV ein Fabrikat, dessen Entsprechung wir NICHT sicher kennen,
+    // wird kein Material gerechnet. Lieber ein unvollstaendiger Preis als einer,
+    // der mit dem falschen Produkt zustande kam.
+    let cfg = c.fds, label = 'FDS-Schlämme', unklar = false;
+    if(fab){
+      if(ers && ers.artikel){
+        cfg = {name:ers.artikel.name, nicht:ers.nicht, gebinde:gebindeAusArtikel(ers.artikel, c.fds.gebinde)};
+        label = ers.artikel.name;
+      } else {
+        unklar = true;   // Warnung steht schon im Fabrikatsblock oben
+      }
     }
-    const fds=artInfo(cfg, warn, label);
+    const fds = unklar ? {found:false, je:0, txt:'fehlt'} : artInfo(cfg, warn, label);
     const matK=fds.found?fds.je*kg:0;
-    zeilen.push(['Flüssigabdichtung 2 Lagen'+(wk?' ('+wk+')':''), fds.found?(fds.txt+' × '+String(kg).replace('.',',')):'fehlt', matK]);
+    zeilen.push(['Flüssigabdichtung 2 Lagen'+(wk?' ('+wk+')':''),
+      unklar ? 'kein gleichwertiges Produkt zugeordnet – Preis anfragen'
+             : (fds.found?(fds.txt+' × '+String(kg).replace('.',',')):'fehlt'), matK]);
     const r=finishAbdicht(zeilen, warn, matK, ABD_FLUESSIG_H);
     // Vergleich: was würde die Dichtbahn kosten?
     const bahnV=artInfo(c.bahn, [], 'Dichtbahn');
