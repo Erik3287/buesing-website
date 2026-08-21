@@ -1721,8 +1721,14 @@ function preisAlter(a){
   const monate=(heute.getFullYear()-d.getFullYear())*12 + (heute.getMonth()-d.getMonth());
   return {alt: monate>PREIS_MAX_MONATE, monate:monate, grund:'von '+d.toLocaleDateString('de-DE')};
 }
+// Artikel mit EK 0,00 sind genauso gefaehrlich wie fehlende: sie werden
+// gefunden, tragen aber nichts zum Preis bei - die Position sieht rechenbar
+// aus und ist es nicht.
+let PREIS_NULL_SAMMLER = null;
 function preisAltMelden(a){
-  if(!PREIS_ALT_SAMMLER || !a || !a.name) return;
+  if(!a || !a.name) return;
+  if(PREIS_NULL_SAMMLER && !(parseFloat(a.ek)>0)) PREIS_NULL_SAMMLER.push(a.name);
+  if(!PREIS_ALT_SAMMLER) return;
   const r=preisAlter(a);
   if(r.alt) PREIS_ALT_SAMMLER.push(a.name+' ('+r.grund+')');
 }
@@ -1792,7 +1798,12 @@ function finishAbdicht(zeilen, warn, roh, stunden){
 const ABD_GLEICHWERTIG = {
   'pci lastogum': {
     sakret: 'Sakret OAD Objektabdichtung',
-    raw:    null,   // RAW-Entsprechung der Dispersionsabdichtung: noch offen
+    // RAW fuehrt sie in dunkelgrau und blaugrau - dasselbe Material, nur
+    // andere Farbe. Das ist kein Zufall: DIN 18534 verlangt fluessige
+    // Abdichtungen in mindestens zwei Schichten, bei Polymerdispersion in
+    // unterschiedlichen Farben, damit die Schichtdicke kontrollierbar ist.
+    // Fuer die Kalkulation zaehlt der Gesamtverbrauch, nicht die Aufteilung.
+    raw:    {name:'RAW Dispersionsabdichtung', nicht:['schlämme','schlaemme']},
     typ:    'Dispersionsabdichtung, gebrauchsfertig (Wand, W1-I)'
   },
   'pci seccoral': {
@@ -2057,7 +2068,8 @@ function epAbdichtFlaeche(p, system){
     // Vergleich: was würde die Dichtbahn kosten? Zaehlt NICHT zum EP, deshalb
     // sollen die dabei benutzten Artikel auch keinen "Preis prüfen"-Hinweis
     // ausloesen - Sammler kurz stilllegen.
-    const _sammlerAus = PREIS_ALT_SAMMLER; PREIS_ALT_SAMMLER = null;
+    const _sammlerAus = PREIS_ALT_SAMMLER, _nullAus = PREIS_NULL_SAMMLER;
+    PREIS_ALT_SAMMLER = null; PREIS_NULL_SAMMLER = null;
     const bahnV=artInfo(c.bahn, [], 'Dichtbahn');
     const kCfgV=sys.kleber_klein, kAV=findArtikel(kCfgV.name, kCfgV.nicht);
     if(bahnV.found && kAV){
@@ -2065,7 +2077,7 @@ function epAbdichtFlaeche(p, system){
       const epB=Math.round((roh*1.20 + ABD_BAHN_H*LOHN())*100)/100;
       r.vergleich={label:'Dichtbahn (dein Standard) wäre', ep:epB, diff:epB-r.ep};
     }
-    PREIS_ALT_SAMMLER = _sammlerAus;
+    PREIS_ALT_SAMMLER = _sammlerAus; PREIS_NULL_SAMMLER = _nullAus;
     return r;
   }
   // --- Standard: Dichtbahn ---
@@ -2101,9 +2113,10 @@ function epAbdichtFlaeche(p, system){
   zeilen.push(['FDS Stöße 0,4 kg', fds.found?fds.txt+' × 0,4':'fehlt', fdsK]);
   const zub = mitZubehoer ? abdZubehoer(wk, system, warn, zeilen, nurStoss) : {kosten:0, std:0};
   const r=abdAufkantungAnwenden(finishAbdicht(zeilen, warn, bahnK+kleber+fdsK+zub.kosten, ABD_BAHN_H+zub.std));
-  const _sAus = PREIS_ALT_SAMMLER; PREIS_ALT_SAMMLER = null;
+  const _sAus = PREIS_ALT_SAMMLER, _nAus = PREIS_NULL_SAMMLER;
+  PREIS_ALT_SAMMLER = null; PREIS_NULL_SAMMLER = null;
   const fl=abdichtFluessigKosten(p, system, ers);
-  PREIS_ALT_SAMMLER = _sAus;
+  PREIS_ALT_SAMMLER = _sAus; PREIS_NULL_SAMMLER = _nAus;
   if(fl) r.vergleich={label:'Flüssigabdichtung ('+fl.produkt+') wäre', ep:fl.ep, diff:fl.ep-r.ep};
   return r;
 }
@@ -2547,13 +2560,18 @@ function epDuschelement(p, system){
   return {ep:Math.round((kalk+lohnEl+lohnMo)*100)/100, zeilen, warn};
 }
 function berechneEP(p, system){
-  PREIS_ALT_SAMMLER = [];
+  PREIS_ALT_SAMMLER = []; PREIS_NULL_SAMMLER = [];
   const r = berechneEPKern(p, system);
-  if(r && PREIS_ALT_SAMMLER.length){
-    const einmalig = PREIS_ALT_SAMMLER.filter(function(v,i,a){ return a.indexOf(v)===i; });
-    r.warn = (r.warn||[]).concat('PREIS|Preis prüfen: '+einmalig.join(' · '));
+  const einmal = function(arr){ return arr.filter(function(v,i,a){ return a.indexOf(v)===i; }); };
+  if(r && PREIS_NULL_SAMMLER.length){
+    // ARTIKEL| macht die Position rot - ein Preis von 0,00 EUR ist kein Preis
+    r.warn = (r.warn||[]).concat(einmal(PREIS_NULL_SAMMLER).map(function(n){
+      return 'ARTIKEL|'+n+' (kein EK hinterlegt)'; }));
   }
-  PREIS_ALT_SAMMLER = null;
+  if(r && PREIS_ALT_SAMMLER.length){
+    r.warn = (r.warn||[]).concat('PREIS|Preis prüfen: '+einmal(PREIS_ALT_SAMMLER).join(' · '));
+  }
+  PREIS_ALT_SAMMLER = null; PREIS_NULL_SAMMLER = null;
   return r;
 }
 function berechneEPKern(p, system){
