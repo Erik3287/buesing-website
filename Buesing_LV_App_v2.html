@@ -409,6 +409,7 @@ tr:hover td{background:#fafafa}
         </tr></thead>
         <tbody id="pb"></tbody>
       </table>
+      <div id="preis-alt-hinweis" style="display:none;margin-top:10px;padding:10px 12px;border-radius:8px;background:#fff8e5;border:1px solid #e8c86a;font-size:12.5px"></div>
     </div>
   </div>
   
@@ -856,7 +857,7 @@ let PREISE = [
   {id:29,name:'RAW Grundierung universal Konzentrat',format:'',ek:3.11,eu:'/kg',lief:'Keramundo',dat:'–',kat:'grundierung'},
   {id:30,name:'Sakret Dichtbahn O-DI',format:'30m Rolle',ek:114.80,eu:'/Rolle',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
   {id:31,name:'Sakret Flexible Dichtungsschlämme FDS',format:'15kg',ek:62.96,eu:'/15kg',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
-  {id:311,name:'Sakret OAD Objektabdichtung',format:'',ek:0,eu:'/Eimer',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
+  {id:311,name:'Sakret OAD Objektabdichtung',format:'20kg',ek:84.60,eu:'/20kg',lief:'Krüger Hannover',dat:'01.01.2024',kat:'abdichtung'},
   {id:32,name:'Sakret Dichtband Wannenanschluss DBW',format:'10m',ek:28.06,eu:'/10m',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
   {id:33,name:'Sakret Dichtband flexibel O-DB',format:'50m',ek:30.40,eu:'/50m',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
   {id:34,name:'Sakret Dichkleber easy DKe',format:'310ml',ek:10.51,eu:'/310ml',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
@@ -1604,7 +1605,37 @@ function echtesGebinde(a, cfgGebinde){
   }
   return cfgGebinde;
 }
+// ===== PREISALTER (Erik 21.08.) ==========================================
+// Ein Preis aus einem alten Lieferantenblatt rechnet genauso still mit wie ein
+// aktueller. Deshalb sammelt die Kalkulation, welche Artikel ueberaltert sind,
+// und haengt es als Hinweis an die Position.
+const PREIS_MAX_MONATE = 12;
+let PREIS_ALT_SAMMLER = null;
+
+function preisDatum(a){
+  const d=String((a&&a.dat)||'').trim();
+  const m=d.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if(m) return new Date(+m[3], +m[2]-1, +m[1]);
+  const j=d.match(/^(20\d{2})$/);            // nur Jahreszahl
+  if(j) return new Date(+j[1], 0, 1);
+  return null;
+}
+// {alt:true/false, monate, grund}
+function preisAlter(a){
+  const d=preisDatum(a);
+  if(!d) return {alt:true, monate:null, grund:'ohne Datum'};
+  const heute=new Date();
+  const monate=(heute.getFullYear()-d.getFullYear())*12 + (heute.getMonth()-d.getMonth());
+  return {alt: monate>PREIS_MAX_MONATE, monate:monate, grund:'von '+d.toLocaleDateString('de-DE')};
+}
+function preisAltMelden(a){
+  if(!PREIS_ALT_SAMMLER || !a || !a.name) return;
+  const r=preisAlter(a);
+  if(r.alt) PREIS_ALT_SAMMLER.push(a.name+' ('+r.grund+')');
+}
+
 function preisJe(a, gebinde){
+  preisAltMelden(a);
   const ek=parseFloat(a.ek)||0;
   const eu=(a.eu||'').toLowerCase().replace(/^\//,'');
   // "Stk" bei erkennbarer Meterware ist KEIN echter Einzelpreis -> durch Rollenlänge teilen
@@ -1811,7 +1842,10 @@ function epAbdichtFlaeche(p, system){
       unklar ? 'kein gleichwertiges Produkt zugeordnet – Preis anfragen'
              : (fds.found?(fds.txt+' × '+String(kg).replace('.',',')):'fehlt'), matK]);
     const r=finishAbdicht(zeilen, warn, matK, ABD_FLUESSIG_H);
-    // Vergleich: was würde die Dichtbahn kosten?
+    // Vergleich: was würde die Dichtbahn kosten? Zaehlt NICHT zum EP, deshalb
+    // sollen die dabei benutzten Artikel auch keinen "Preis prüfen"-Hinweis
+    // ausloesen - Sammler kurz stilllegen.
+    const _sammlerAus = PREIS_ALT_SAMMLER; PREIS_ALT_SAMMLER = null;
     const bahnV=artInfo(c.bahn, [], 'Dichtbahn');
     const kCfgV=sys.kleber_klein, kAV=findArtikel(kCfgV.name, kCfgV.nicht);
     if(bahnV.found && kAV){
@@ -1819,6 +1853,7 @@ function epAbdichtFlaeche(p, system){
       const epB=Math.round((roh*1.20 + ABD_BAHN_H*LOHN())*100)/100;
       r.vergleich={label:'Dichtbahn (dein Standard) wäre', ep:epB, diff:epB-r.ep};
     }
+    PREIS_ALT_SAMMLER = _sammlerAus;
     return r;
   }
   // --- Standard: Dichtbahn ---
@@ -1841,7 +1876,9 @@ function epAbdichtFlaeche(p, system){
   const fdsK=fds.found?fds.je*0.4:0;
   zeilen.push(['FDS Stöße 0,4 kg', fds.found?fds.txt+' × 0,4':'fehlt', fdsK]);
   const r=finishAbdicht(zeilen, warn, bahnK+kleber+fdsK, ABD_BAHN_H);
+  const _sAus = PREIS_ALT_SAMMLER; PREIS_ALT_SAMMLER = null;
   const fl=abdichtFluessigKosten(p, system);
+  PREIS_ALT_SAMMLER = _sAus;
   if(fl) r.vergleich={label:'Flüssigabdichtung wäre', ep:fl.ep, diff:fl.ep-r.ep};
   return r;
 }
@@ -2232,6 +2269,16 @@ function epDuschelement(p, system){
   return {ep:Math.round((kalk+lohnEl+lohnMo)*100)/100, zeilen, warn};
 }
 function berechneEP(p, system){
+  PREIS_ALT_SAMMLER = [];
+  const r = berechneEPKern(p, system);
+  if(r && PREIS_ALT_SAMMLER.length){
+    const einmalig = PREIS_ALT_SAMMLER.filter(function(v,i,a){ return a.indexOf(v)===i; });
+    r.warn = (r.warn||[]).concat('PREIS|Preis prüfen: '+einmalig.join(' · '));
+  }
+  PREIS_ALT_SAMMLER = null;
+  return r;
+}
+function berechneEPKern(p, system){
   const t=p.typ;
   if(t==='wand'||t==='boden') return epFliese(p, system);
   if(t==='abdicht_flaeche') return epAbdichtFlaeche(p, system);
@@ -3171,11 +3218,23 @@ function renderP(){
       return av.toString().localeCompare(bv.toString(),'de')*sortDir;
     });
   }
+  const veraltet=liste.filter(function(x){ return preisAlter(x).alt; });
+  const hw=document.getElementById('preis-alt-hinweis');
+  if(hw){
+    if(veraltet.length){
+      hw.style.display='block';
+      hw.innerHTML='<b>⚠ '+veraltet.length+' von '+liste.length+' Preisen sind älter als '+PREIS_MAX_MONATE
+        +' Monate oder haben kein Datum.</b><br>Sie werden weiterhin gerechnet, aber jede Position, die sie benutzt, '
+        +'bekommt einen Hinweis „Preis prüfen". Vor einem verbindlichen Angebot beim Lieferanten nachfragen.';
+    } else hw.style.display='none';
+  }
   document.getElementById('pb').innerHTML=liste.map(p=>{
     const vk=(p.ek*1.2).toFixed(2);
-    const w=p.dat&&p.dat.includes('2024');
+    const al=preisAlter(p);
+    const w=al.alt;
+    const wtxt=al.monate===null?'kein Datum':(al.monate>=24?Math.floor(al.monate/12)+' Jahre alt':al.monate+' Mon. alt');
     return `<tr id="row-${p.id}">
-      <td><b>${p.name}</b>${w?' <span class="bdg bw">2024!</span>':''}${p.artnr?`<div style="color:var(--muted);font-size:11px">Art.-Nr. ${p.artnr}</div>`:''}</td>
+      <td><b>${p.name}</b>${w?` <span class="bdg bw" title="Preis ${esc(al.grund)} – bitte aktualisieren">${wtxt}</span>`:''}${p.artnr?`<div style="color:var(--muted);font-size:11px">Art.-Nr. ${p.artnr}</div>`:''}</td>
       <td style="color:var(--muted);font-size:12px">${p.format||'–'}</td>
       <td style="font-size:12px"><span style="display:flex;align-items:center">${liefLogo(p.lief)}${p.lief||'–'}</span></td>
       <td style="text-align:right;font-weight:600">${fmt(p.ek)} €${p.eu}</td>
