@@ -2254,19 +2254,32 @@ function importPos(roh){
 // LV-Konvention "wie vor": die Position uebernimmt die Ausfuehrungsart der
 // vorherigen Position und nennt nur die Abweichung. Ohne das rutscht z.B. eine
 // Flueessigabdichtung still auf den Standard "Dichtbahn" zurueck.
-const WIE_VOR = /^\s*(wie\s+(vor|zuvor|vorstehend|oben)|wie\s+pos(ition)?\b)/i;
+// Nicht streng am Zeilenanfang ankern: die KI stellt dem Langtext oft noch die
+// Ueberschrift voran. Deshalb im ERSTEN Stueck des Textes suchen.
+const WIE_VOR = /\b(wie\s+(vor|zuvor|vorstehend|oben|beschrieben)|wie\s+pos(ition)?\.?\s*[0-9])/i;
+function istWieVor(p){
+  const kopf=((p.desc||'')+' '+(p.langtext||'')).slice(0,160);
+  return WIE_VOR.test(kopf);
+}
 function wieVorUebernehmen(liste){
-  const erben=['abdichtArt','spachtelModus','umfang','oberflaeche','stufe','untergrund'];
+  const erben=['abdichtArt','wKlasse','spachtelModus','spachtelArt','umfang','oberflaeche','stufe','untergrund','silikonArt','schutzArt'];
   let uebernommen=0;
   for(let i=1;i<liste.length;i++){
-    const p=liste[i], v=liste[i-1];
-    if(!WIE_VOR.test(p.langtext||'') && !WIE_VOR.test(p.desc||'')) continue;
-    if(p.typ!==v.typ) continue;                       // nur bei gleichem Positionstyp
-    let geerbt=false;
-    erben.forEach(function(f){ if(p[f]===undefined && v[f]!==undefined){ p[f]=v[f]; geerbt=true; } });
-    if(geerbt){
+    const p=liste[i];
+    if(!istWieVor(p)) continue;
+    // Vorbild ist die naechste VORHERIGE Position mit demselben Typ -
+    // nicht zwingend die direkt darueber (dazwischen koennen andere Gewerke stehen).
+    let v=null;
+    for(let j=i-1;j>=0;j--){ if(liste[j].typ===p.typ){ v=liste[j]; break; } }
+    if(!v) continue;
+    let geerbt=[];
+    erben.forEach(function(f){
+      if((p[f]===undefined||p[f]==='') && v[f]!==undefined && v[f]!=='' ){ p[f]=v[f]; geerbt.push(f); }
+    });
+    if(geerbt.length){
+      p._wieVor = v.nr || ('#'+(liste.indexOf(v)+1));
       autoEP(p, LV.system||'sakret');
-      p.notiz=(p.notiz?p.notiz+' · ':'')+'„wie vor" – Ausführung von Pos. '+(v.nr||(i))+' übernommen';
+      p.notiz=(p.notiz?p.notiz+' · ':'')+'„wie vor" – Ausführung von Pos. '+p._wieVor+' übernommen';
       uebernommen++;
     }
   }
@@ -2454,7 +2467,10 @@ function renderCalcHTML(i){
       +'<select onchange="setAbdichtArt('+i+',this.value)" style="width:auto;padding:6px 8px">'
       +'<option value="bahn"'+(art==='bahn'?' selected':'')+'>Dichtbahn</option>'
       +'<option value="fluessig"'+(art==='fluessig'?' selected':'')+'>Flüssigabdichtung 2 Lagen</option>'
-      +'</select><div style="font-size:11px;margin-top:3px;max-width:340px">'+hinweis+'</div></div>';
+      +'</select><div style="font-size:11px;margin-top:3px;max-width:340px">'+hinweis
+      + (p._wieVor?'<br><span style="color:var(--green)">✓ „wie vor" – von Pos. '+esc(String(p._wieVor))+' übernommen</span>':'')
+      + (istWieVor(p)&&!p._wieVor?'<br><span style="color:var(--red)">⚠ Text sagt „wie vor", aber es gab keine passende Vorgänger-Position</span>':'')
+      +'</div></div>';
 
     // Fabrikat aus dem LV - Eriks Regel: nie automatisch ersetzen
     const fab=abdichtFabrikat(txtRoh);
