@@ -1908,6 +1908,51 @@ function abdichtFluessigKosten(p, system, ers){
   const roh=Math.round((mat*1.20 + ABD_FLUESSIG_H*LOHN())*100)/100;
   return {mat, ep:abdAufkantungAnwenden({ep:roh, zeilen:[]}).ep, je:fds.je, txt:fds.txt, kg:kg, produkt:label};
 }
+// Hat das LV eigene Positionen fuer Band, Ecken oder Manschetten? Dann darf
+// das Zubehoer nicht zusaetzlich im m²-Preis stecken - sonst doppelt.
+function lvHatZubehoerPositionen(){
+  if(!LV || !LV.pos) return false;
+  return LV.pos.some(function(x){ return ['dichtband','manschette','dichtecke'].indexOf(x.typ)>-1; });
+}
+// Systemzubehoer der Flaechenabdichtung: Dichtband an den Rand- und
+// Eckanschluessen, Dichtecken, Manschetten. Wie viel je m² noetig ist, steht
+// klassenweise in Eriks Abdichtungs-Tabelle (Reiter DIN 18534) - dort wird
+// nachgeschlagen statt geraten. Ohne Zubehoer ist eine Flaechenabdichtung
+// nicht ausfuehrbar; frueher enthielt der m²-Preis davon nichts.
+function abdZubehoer(wk, system, warn, zeilen){
+  const geladen = (typeof ABDICHTUNG!=='undefined' && ABDICHTUNG.length);
+  const a = geladen ? ABDICHTUNG.find(function(x){ return x.klasse===wk; }) : null;
+  if(!a){
+    warn.push('PRUEFEN|Für '+(wk||'diese Klasse')+' sind keine Systemfaktoren geladen – Dichtband, Ecken und Manschetten stecken NICHT im Preis');
+    return {kosten:0, std:0};
+  }
+  const c=ABDICHT[system]||ABDICHT.sakret;
+  const vf=1+(parseFloat(a.verschnitt)||0)/100;
+  const fdsInfo=artInfo(c.fds, [], 'FDS');
+  const fdsJe=fdsInfo.found?fdsInfo.je:0;
+  let kosten=0, std=0;
+
+  const mBand=(parseFloat(a.f_dichtband)||0)*vf;
+  if(mBand>0){
+    const b=artInfo(c.band, warn, 'Dichtband');
+    const k=mBand*((b.found?b.je:0)+fdsJe*0.4);
+    kosten+=k; std+=mBand*0.0717;
+    zeilen.push(['Dichtband '+fmt(mBand)+' m/m²'+(wk?' ('+wk+')':''),
+      (b.found?b.txt:'fehlt')+' + FDS 0,4/m', k]);
+  }
+  [['f_innenecke','Innenecke',c.ecke,0.0533],
+   ['f_aussenecke','Außenecke',c.eckeAussen||c.ecke,0.0533],
+   ['f_wandmanschette','Manschette',c.manschette,0.0583]].forEach(function(e){
+    const n=parseFloat(a[e[0]])||0;
+    if(!(n>0)) return;
+    const t=abdStueckPreis(e[2], warn, e[1]);
+    const k=n*((t.found?t.je:0)+fdsJe*0.225);
+    kosten+=k; std+=n*e[3];
+    zeilen.push([fmt(n)+'× '+e[1]+' je m²', (t.found?t.txt:'fehlt')+' + FDS 0,225', k]);
+  });
+  return {kosten, std};
+}
+
 function epAbdichtFlaeche(p, system){
   const warn=[], zeilen=[];
   const c=ABDICHT[system]||ABDICHT.sakret;
@@ -1950,6 +1995,11 @@ function epAbdichtFlaeche(p, system){
     }
   }
 
+  // Steckt das Systemzubehoer in diesem m²-Preis? Standard: ja - ausser das LV
+  // fuehrt eigene Positionen dafuer, dann waere es doppelt berechnet.
+  const mitZubehoer = (p.zubehoerEnthalten===undefined || p.zubehoerEnthalten===null)
+    ? !lvHatZubehoerPositionen() : !!p.zubehoerEnthalten;
+
   // Bauweise: Eriks Standard ist und bleibt die DICHTBAHN - sichere
   // Schichtdicke, keine Trocknungszeit, sofort weiterarbeiten. Was das LV
   // verlangt, wird erkannt und angezeigt, entscheidet aber NICHT automatisch.
@@ -1983,7 +2033,8 @@ function epAbdichtFlaeche(p, system){
       unklar ? 'kein gleichwertiges Produkt zugeordnet – Preis anfragen'
              : (fds.found?(fds.txt+' × '+String(kg).replace('.',',')+' kg'
                  +(vb?' ('+String(vb.roh).replace('.',',')+' + 6 % Schichtdicke + '+fmt(vb.verlust)+' % Verlust)':'')):'fehlt'), matK]);
-    const r=abdAufkantungAnwenden(finishAbdicht(zeilen, warn, matK, ABD_FLUESSIG_H));
+    const zub = mitZubehoer ? abdZubehoer(wk, system, warn, zeilen) : {kosten:0, std:0};
+    const r=abdAufkantungAnwenden(finishAbdicht(zeilen, warn, matK+zub.kosten, ABD_FLUESSIG_H+zub.std));
     // Vergleich: was würde die Dichtbahn kosten? Zaehlt NICHT zum EP, deshalb
     // sollen die dabei benutzten Artikel auch keinen "Preis prüfen"-Hinweis
     // ausloesen - Sammler kurz stilllegen.
@@ -2026,7 +2077,8 @@ function epAbdichtFlaeche(p, system){
   const fds=artInfo(c.fds, warn, 'FDS-Schlämme');
   const fdsK=fds.found?fds.je*0.4:0;
   zeilen.push(['FDS Stöße 0,4 kg', fds.found?fds.txt+' × 0,4':'fehlt', fdsK]);
-  const r=abdAufkantungAnwenden(finishAbdicht(zeilen, warn, bahnK+kleber+fdsK, ABD_BAHN_H));
+  const zub = mitZubehoer ? abdZubehoer(wk, system, warn, zeilen) : {kosten:0, std:0};
+  const r=abdAufkantungAnwenden(finishAbdicht(zeilen, warn, bahnK+kleber+fdsK+zub.kosten, ABD_BAHN_H+zub.std));
   const _sAus = PREIS_ALT_SAMMLER; PREIS_ALT_SAMMLER = null;
   const fl=abdichtFluessigKosten(p, system, ers);
   PREIS_ALT_SAMMLER = _sAus;
@@ -2848,6 +2900,19 @@ function renderCalcHTML(i){
       + (istWieVor(p)&&!p._wieVor?'<br><span style="color:var(--red)">⚠ Text sagt „wie vor", aber es gab keine passende Vorgänger-Position</span>':'')
       +'</div></div>';
 
+    // Systemzubehoer: Dichtband, Ecken, Manschetten im m²-Preis?
+    const eigenePos = lvHatZubehoerPositionen();
+    const zubAn = (p.zubehoerEnthalten===undefined||p.zubehoerEnthalten===null) ? !eigenePos : !!p.zubehoerEnthalten;
+    felder += '<div style="min-width:230px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Systemzubehör im m²-Preis</div>'
+      +'<select onchange="setZubehoer('+i+',this.value)" style="width:auto;padding:6px 8px">'
+      +'<option value="ja"'+(zubAn?' selected':'')+'>enthalten (Band, Ecken, Manschetten)</option>'
+      +'<option value="nein"'+(!zubAn?' selected':'')+'>nicht enthalten</option>'
+      +'</select><div style="font-size:11px;margin-top:3px;max-width:330px">'
+      + (eigenePos
+          ? '<span style="color:#e0a800">🟡 Das LV hat eigene Positionen für Band/Ecken/Manschetten – hier normalerweise NICHT nochmal enthalten</span>'
+          : '<span style="color:var(--muted)">Mengen je m² aus deiner Abdichtungs-Tabelle (Reiter DIN 18534)</span>')
+      +'</div></div>';
+
     // Fabrikat aus dem LV - Eriks Regel: nie automatisch ersetzen
     const fab=abdichtFabrikat(txtRoh);
     if(fab){
@@ -3072,6 +3137,11 @@ function setBaustelle(i,v){ LV.pos[i].baustellePreis=(v===''?null:v); const el=d
 // gleich mitziehen, so wie beim Typwechsel. Geprueft-gruene bleiben unberuehrt.
 function setAbdichtArt(i,v){
   const p=LV.pos[i]; p.abdichtArt=v; p._artManuell=true;
+  if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
+  renderLV(); scheduleSave();
+}
+function setZubehoer(i,v){
+  const p=LV.pos[i]; p.zubehoerEnthalten=(v==='ja');
   if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
   renderLV(); scheduleSave();
 }
