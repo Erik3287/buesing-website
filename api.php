@@ -120,7 +120,38 @@ switch ($action) {
     // ===== ALLE PREISE SPEICHERN (überschreibt alles) =====
     case 'save_preise':
         $data = json_decode(file_get_contents('php://input'), true);
-        if (!isset($data['preise'])) { echo json_encode(['error' => 'Keine Daten']); break; }
+        if (!isset($data['preise']) || !is_array($data['preise'])) {
+            echo json_encode(['ok' => false, 'error' => 'Keine Daten empfangen - nichts gespeichert.']);
+            break;
+        }
+
+        // ===== SCHUTZ GEGEN VERSEHENTLICHES LEERRAEUMEN =====
+        // Die App schickt bei jeder Aenderung die GANZE Preisliste, und hier
+        // wird alles geloescht und neu eingetragen. War die Datenbank beim
+        // Laden nicht erreichbar, ist die Liste im Browser leer - dann wuerde
+        // hier die komplette Preisdatenbank verschwinden, und die App meldet
+        // trotzdem "gespeichert".
+        // Deshalb: leere Liste nie annehmen, und einen starken Schwund nur
+        // nach ausdruecklicher Bestaetigung.
+        $neu  = count($data['preise']);
+        $alt  = (int) $pdo->query("SELECT COUNT(*) FROM preise")->fetchColumn();
+        $ok   = !empty($data['bestaetigt']);   // Notausgang, falls wirklich gewollt
+
+        if ($neu === 0 && $alt > 0 && !$ok) {
+            echo json_encode(['ok' => false, 'schutz' => true, 'alt' => $alt, 'neu' => 0,
+                'error' => 'Es wurde eine LEERE Preisliste geschickt, in der Datenbank stehen aber '
+                         . $alt . ' Artikel. Nichts geloescht. Meist ist die Datenbank beim Laden '
+                         . 'nicht erreichbar gewesen - Seite neu laden und pruefen.']);
+            break;
+        }
+        if ($alt >= 10 && $neu < $alt / 2 && !$ok) {
+            echo json_encode(['ok' => false, 'schutz' => true, 'alt' => $alt, 'neu' => $neu,
+                'error' => 'Die geschickte Liste hat nur ' . $neu . ' Artikel, in der Datenbank '
+                         . 'stehen ' . $alt . '. Das sieht nach einem Fehler aus - nichts geaendert. '
+                         . 'Wenn das so gewollt ist, bitte bestaetigen.']);
+            break;
+        }
+
         // Gibt es die artnr-Spalte schon? (sonst ueberspringen, damit nichts abstuerzt)
         $hatArtnr = false;
         foreach ($pdo->query("SHOW COLUMNS FROM preise")->fetchAll(PDO::FETCH_ASSOC) as $c) {

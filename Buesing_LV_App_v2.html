@@ -792,6 +792,16 @@ async function dbSavePreise(){
       body: JSON.stringify({preise: PREISE})
     });
     const data = await res.json();
+    // Der Schutz im Backend meldet sich mit schutz:true, wenn die geschickte
+    // Liste verdaechtig klein oder leer ist. Das darf nicht stillschweigend
+    // untergehen - sonst denkt man, es sei gespeichert.
+    if(data && data.schutz){
+      alert('Preise NICHT gespeichert\n\n' + (data.error||'')
+        + '\n\nIn der Datenbank: ' + (data.alt||0) + ' Artikel'
+        + '\nGeschickt wurde: ' + (data.neu||0) + ' Artikel');
+      return false;
+    }
+    if(data && data.ok !== true && data.error) toast('Preise nicht gespeichert: '+data.error);
     return data.ok === true;
   }catch(e){ console.error('DB speichern fehlgeschlagen:', e); return false; }
 }
