@@ -1235,8 +1235,13 @@ const TYP_REGELN = [
 // Dichtband-Position als Flaechenabdichtung durchgerutscht.
 function typNorm(t){
   return (t||'').toLowerCase()
+    .replace(/\u00ad/g,'')            // weiches Trennzeichen
+    .replace(/[-\u2010-\u2015]\s*\n\s*/g,'')  // Trennung am Zeilenende zusammenziehen
     .replace(/ä/g,'a').replace(/ö/g,'o').replace(/ü/g,'u')
-    .replace(/ß/g,'ss');
+    .replace(/ß/g,'ss')
+    // uebrige Bindestriche raus: LV-Texte schreiben "Boden-/Wandanschluss",
+    // die Regeln kennen nur ganze Woerter.
+    .replace(/[-\u2010-\u2015]/g,'');
 }
 // Welche Einheit passt zu welchem Typ? Eine Flaechenabdichtung in "m"
 // abzurechnen ist ein Widerspruch - der faellt sonst niemandem auf.
@@ -1840,14 +1845,24 @@ function abdVerbrauch(artikelName){
 }
 
 function erkenneWKlasse(text){
-  const t=(text||'').toUpperCase().replace(/\s+/g,'');
-  const m=t.match(/W([0-3])\s*-?\s*I\b/) || t.match(/WASSEREINWIRKUNGSKLASSE:?W?([0-3])/);
-  return m ? ('W'+m[1]+'-I') : null;
+  // Silbentrennung zusammenziehen, Leerraum vereinheitlichen - aber NICHT
+  // ganz entfernen: sonst wird aus "bis W2-I für" das Wort "W2-IFÜR" und die
+  // Wortgrenze im Muster greift nicht mehr. Genau daran ist die Klasse in
+  // einem echten LV-Text unerkannt geblieben.
+  const t=String(text||'').toUpperCase()
+    .replace(/\u00ad/g,'')
+    .replace(/[-\u2010-\u2015]\s*\n\s*/g,'')
+    .replace(/\s+/g,' ');
+  let m=t.match(/\bW\s*([0-3])\s*[-\u2010-\u2015]\s*I\b/);
+  if(m) return 'W'+m[1]+'-I';
+  m=t.match(/WASSEREINWIRKUNGSKLASSE\s*:?\s*W?\s*([0-3])/);
+  if(m) return 'W'+m[1]+'-I';
+  return null;
 }
 
 // Verlangt der LV-Text ausdruecklich eine Fluessigabdichtung oder eine Bahn?
 function erkenneAbdichtArt(text){
-  const t=(text||'').toLowerCase();
+  const t=typNorm(text);
   if(/dichtbahn|dichtungsfolie|abdichtungsbahn|dichtmatte|verbundmatte/.test(t)) return 'bahn';
   if(/flüssige?\s+(flächen)?abdichtung|streichen oder spachteln|im zweimaligen|deckenden auftrag|dichtungsschlämme|reaktionsharz|flüssigfolie/.test(t)) return 'fluessig';
   return null;
