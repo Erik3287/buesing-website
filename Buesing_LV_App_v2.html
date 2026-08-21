@@ -2094,11 +2094,11 @@ function epAbdichtFlaeche(p, system){
     warn.push('PRUEFEN|'+(wk||'Diese Klasse')+(chem?' mit chemischer Einwirkung':'')+': Bahnen auf Stoß verlegen, jede Stoßfuge mit Dichtband und FDS überkleben – das Band dafür steckt im Preis');
   if(wk==='W3-I') warn.push('PRUEFEN|W3-I mit Dichtbahn ist nur als Sonderkonstruktion mit Herstellerfreigabe und AbP zulässig – vor Angebotsabgabe beim Hersteller klären');
   // Auf Stoss entfaellt die Ueberlappung; sonst 5 cm auf 1,00 m Bahnbreite.
-  const vf = nurStoss ? 1.00 : DICHTBAHN_UEBERLAPPUNG;
+  const vf = nurStoss ? 1.00 : dichtbahnUeberlappung();
   const vftxt = vf.toFixed(2).replace('.',',');
   const bahn=artInfo(c.bahn, warn, 'Dichtbahn');
   const bahnK=bahn.found?bahn.je*vf:0;
-  zeilen.push(['Dichtbahn (× '+vftxt+', '+(nurStoss?'auf Stoß':'5 cm Überlappung')+(wk?', '+wk:'')+')',
+  zeilen.push(['Dichtbahn (× '+vftxt+', '+(nurStoss?'auf Stoß':DICHTBAHN_UEBERLAPP_CM+' cm Überlappung')+(wk?', '+wk:'')+')',
     bahn.found?bahn.txt+' × '+vftxt:'fehlt', bahnK]);
   // Klebermenge je Klasse aus der Abdichtungs-Tabelle, sonst 1,2 kg wie bisher
   const aKl=(typeof ABDICHTUNG!=='undefined'&&ABDICHTUNG.length)?ABDICHTUNG.find(function(x){return x.klasse===wk;}):null;
@@ -2929,7 +2929,7 @@ function renderCalcHTML(i){
       +'</select><div style="font-size:11px;margin-top:3px">'
       + (erkWK ? '<span style="color:var(--green)">✓ im LV-Text erkannt: '+erkWK+'</span>'
                : '<span style="color:var(--red)">keine Klasse im Text gefunden</span>')
-      + (wk?'<br><span style="color:var(--muted)">Bahn-Verschnitt × '+(DICHTBAHN_FAKTOR[wk]||1.05).toFixed(2).replace('.',',')+'</span>':'')
+      + (wk?'<br><span style="color:var(--muted)">Bahn-Verschnitt × '+dichtbahnUeberlappung().toFixed(2).replace('.',',')+'</span>':'')
       +'</div></div>';
 
     const erkArt=erkenneAbdichtArt(txtRoh);
@@ -4799,7 +4799,11 @@ async function speichereAbdichtung(){
 // klassenabhaengige Ueberlappung. Frueher stand hier fuer W2-I faelschlich 1,10.
 // Bei Verlegung auf Stoss entfaellt die Ueberlappung; dafuer kommt Dichtband
 // ueber jede Stossfuge (laufende Meter, eigene Position).
-const DICHTBAHN_UEBERLAPPUNG = 1.05;
+// Ueberlappende Verlegung: Erik ueberlappt ca. 10 cm (Merkblatt fordert
+// mindestens 5 cm - das ist ein Minimum, nicht die Praxis). Auf 1,00 m
+// Bahnbreite sind 10 cm genau 10 % Mehrverbrauch. Bei Stossverlegung
+// entfaellt die Ueberlappung ganz.
+const DICHTBAHN_UEBERLAPP_CM = 10;
 // Bahnbreite. Bei Verlegung AUF STOSS braucht jede Stossfuge zwischen zwei
 // Bahnen zusaetzlich Dichtband - das faellt in der Flaeche an, nicht nur am
 // Rand. Stossmeter je m² = 1/Bahnbreite - 1/Raumbreite. Die Raumbreite steht
@@ -4808,7 +4812,10 @@ const DICHTBAHN_UEBERLAPPUNG = 1.05;
 // (2,6 m Raum -> 0,62), fuer grosse Flaechen trifft es zu. Aenderbar in den
 // Einstellungen, weil es je nach Objektgroesse spuerbar wirkt.
 const DICHTBAHN_BREITE = 1.00;
-const DICHTBAHN_FAKTOR = {'W0-I':1.05, 'W1-I':1.05, 'W2-I':1.05, 'W3-I':1.05};
+function dichtbahnUeberlappung(){
+  const b=DICHTBAHN_BREITE>0?DICHTBAHN_BREITE:1;
+  return 1 + (DICHTBAHN_UEBERLAPP_CM/100)/b;
+}
 // Vollflächige Schlämme-Alternative für den Kostenvergleich (RAW flexibel, 2 Lagen ~2mm):
 const SCHLAEMME_VOLL = 3.5; // kg/m²
 
@@ -4857,7 +4864,7 @@ function berechneAbdichtung(){
   if(!a){ box.innerHTML = '<div style="color:var(--muted)">Keine Faktoren für '+klasse+' geladen.</div>'; return; }
   const def = ABDICHT_SYSTEM[sys]; if(!def) return;
   const vf = 1 + (parseFloat(a.verschnitt)||0)/100;
-  const dbF = DICHTBAHN_FAKTOR[klasse]||1.05;
+  const dbF = dichtbahnUeberlappung();
 
   // [Label, key, Menge, Einheit, istStück]
   const komp = [
