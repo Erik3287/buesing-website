@@ -1362,6 +1362,10 @@ const ABDICHT = {
     // Die Standardlinie (DZM-W/50/100, DE innen/aussen) hat 10 Stueck. Der
     // Wert hier ist nur der Rueckfall - massgeblich ist die Stueckzahl im
     // Artikelnamen, die stueckJeGebinde() ausliest.
+    // Standard ist die KLEINSTE Manschette (Erik 21.08.): O-DZW, 120x120 mm,
+    // Loch 15 mm - fuer Armaturen und Rohre im Wandbereich. Groessere Rohre
+    // brauchen DZM 50 (DN 40/50) oder DZM 100 (DN 75/100); darauf weist die
+    // Kalkulation hin, wenn der Positionstext danach klingt.
     manschette:{name:'Sakret Dehnzonenmanschette O-DZW',      gebinde:50},
     ecke:      {name:'Sakret Dichtecken O-DE innen',          gebinde:50},
     eckeAussen:{name:'Sakret Dichtecken O-DE außen',          gebinde:50},
@@ -2153,6 +2157,13 @@ function epStueckAbdicht(p, system, typ){
   const fds=artInfo(c.fds, warn, 'FDS-Schlämme');
   const fdsK=fds.found?fds.je*0.225:0;
   zeilen.push(['FDS 0,225 kg', fds.found?fds.txt+' × 0,225':'fehlt', fdsK]);
+  // Gerechnet wird die kleinste Manschette. Deutet der Text auf ein grosses
+  // Rohr oder einen Bodenablauf, passt sie nicht - dann muss Erik ran.
+  if(typ==='manschette'){
+    const t=((p.desc||'')+' '+(p.langtext||'')).toLowerCase();
+    if(/dn\s*(50|70|75|100|110|125)|bodenablauf|bodenmanschette|ablaufrohr|fallrohr/.test(t))
+      warn.push('PRUEFEN|Der Text deutet auf ein größeres Rohr oder einen Bodenablauf – gerechnet ist die kleinste Manschette (O-DZW, Loch 15 mm). DZM 50 (DN 40/50) oder DZM 100 (DN 75/100) prüfen.');
+  }
   const std = typ==='manschette' ? 0.0583 : 0.0533;
   return finishAbdicht(zeilen, warn, matK+fdsK, std);
 }
