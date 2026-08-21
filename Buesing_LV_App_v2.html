@@ -1353,12 +1353,13 @@ const ABDICHT = {
     bahn:      {name:'Sakret Dichtbahn O-DI',                 gebinde:30},
     fds:       {name:'Sakret Flexible Dichtungsschlämme FDS', gebinde:15},
     band:      {name:'Sakret Dichtband flexibel O-DB',        gebinde:50},
-    // Merkblaetter 20.05.2026: Dehnzonenmanschette DZM-W/50/100 und Dichtecke
-    // DE innen/aussen kommen mit 10 Stueck im Karton - nicht 50. Ist ein
-    // Artikel je Stueck erfasst, greift ohnehin istEinzelpreis() und es wird
-    // gar nicht geteilt.
-    manschette:{name:'Sakret Dehnzonenmanschette O-DZW',      gebinde:10},
-    ecke:      {name:'Sakret Dichtecken O-DE innen',          gebinde:10},
+    // Erik arbeitet mit der OBJEKTLINIE (O-DZW, O-DE): 50 Stueck im Karton.
+    // Die Standardlinie (DZM-W/50/100, DE innen/aussen) hat 10 Stueck. Der
+    // Wert hier ist nur der Rueckfall - massgeblich ist die Stueckzahl im
+    // Artikelnamen, die stueckJeGebinde() ausliest.
+    manschette:{name:'Sakret Dehnzonenmanschette O-DZW',      gebinde:50},
+    ecke:      {name:'Sakret Dichtecken O-DE innen',          gebinde:50},
+    eckeAussen:{name:'Sakret Dichtecken O-DE außen',          gebinde:50},
   },
   raw: {
     bahn:      {name:'RAW Dichtmatte Polypropylen',      gebinde:30, nicht:['entkopplung']},
@@ -1366,6 +1367,7 @@ const ABDICHT = {
     band:      {name:'RAW Dichtband',                    gebinde:50, nicht:['wannen','schnittschutz']},
     manschette:{name:'RAW Dichtmanschette 150x150',      gebinde:1,  nicht:['boden']},
     ecke:      {name:'RAW Dichtecke innen',              gebinde:1,  nicht:['außen','aussen']},
+    eckeAussen:{name:'RAW Dichtecke außen',              gebinde:1,  nicht:['innen']},
   }
 };
 // Grundierung (Gebinde in Litern, Verbrauch L/m²)
@@ -1651,6 +1653,20 @@ function gebindeAusName(name){
 // Gebindegroesse aus dem Artikel selbst: erst die Einheit ("/12kg"), dann das
 // Format ("12kg"), dann der Name. Noetig, wenn ein gleichwertiges Produkt ein
 // anderes Gebinde hat als das Hausprodukt (OAD 12 kg statt FDS 15 kg).
+// Stueckzahl je Karton aus dem Artikel selbst. SAKRET fuehrt zwei Linien:
+// die Objektlinie (O-DE, O-DZW) mit 50 Stueck/Karton und die Standardlinie
+// (DE innen/aussen, DZM-W/50/100) mit 10 Stueck/Karton. Eriks Preisliste
+// traegt die Zahl im Namen - "(50 Stk)", "(10 Stk)" -, also wird sie dort
+// gelesen statt geraten. Ein fest eingetragener Wert traf sonst immer eine
+// der beiden Linien falsch.
+function stueckJeGebinde(a, rueckfall){
+  if(!a) return rueckfall;
+  for(const feld of [a.name, a.format, a.eu]){
+    const m=String(feld||'').match(/(\d+)\s*(?:stk|stück|stueck|st)\b/i);
+    if(m){ const v=parseInt(m[1],10); if(v>0) return v; }
+  }
+  return rueckfall;
+}
 function gebindeAusArtikel(a, rueckfall){
   if(!a) return rueckfall;
   for(const feld of [a.eu, a.format, a.name]){
@@ -2002,6 +2018,14 @@ function epAbdichtFlaeche(p, system){
   if(fl) r.vergleich={label:'Flüssigabdichtung ('+fl.produkt+') wäre', ep:fl.ep, diff:fl.ep-r.ep};
   return r;
 }
+// Ein Stueckartikel mit der Stueckzahl aus seinem eigenen Namen.
+function abdStueckPreis(cfg, warn, label){
+  if(!cfg) return {found:false, je:0, txt:'fehlt'};
+  const a=findArtikel(cfg.name, cfg.nicht);
+  if(!a) return artInfo(cfg, warn, label);
+  return artInfo({name:a.name, nicht:cfg.nicht, gebinde:stueckJeGebinde(a, cfg.gebinde)}, warn, label);
+}
+
 function epDichtband(p, system){
   const warn=[], zeilen=[];
   const c=ABDICHT[system]||ABDICHT.sakret;
@@ -2011,14 +2035,52 @@ function epDichtband(p, system){
   const fds=artInfo(c.fds, warn, 'FDS-Schlämme');
   const fdsK=fds.found?fds.je*0.4:0;
   zeilen.push(['FDS 0,4 kg/m', fds.found?fds.txt+' × 0,4':'fehlt', fdsK]);
-  return finishAbdicht(zeilen, warn, bandK+fdsK, 0.0717);
+
+  // Dichtecken, die das LV im Bandpreis mit verlangt ("einschl. erforderliche
+  // Dichtinnen- und -aussenecken als Formteile"). Wie viele es sind, kann die
+  // App nicht wissen - Erik traegt die Stueckzahl ein, die Kosten werden auf
+  // die laufenden Meter umgelegt. Ohne Eingabe fehlen sie im Preis, deshalb
+  // die Warnung.
+  const txt=(p.desc||'')+' '+(p.langtext||'');
+  const nenntEcken=/innenecke|außenecke|aussenecke|dichtecke|dichtinnen|formteil|eckanschl/i.test(txt);
+  const nenntMansch=/manschette|rohrdurchführ|rohrdurchfuehr|durchdringung/i.test(txt);
+  const eI=parseInt(p.eckenInnen)||0, eA=parseInt(p.eckenAussen)||0, eM=parseInt(p.eckenManschetten)||0;
+  const meter=parseFloat(p.menge)||0;
+  let eckenK=0, eckenStd=0;
+  if(eI+eA+eM>0 && meter>0){
+    const pI=eI>0 ? abdStueckPreis(c.ecke, warn, 'Dichtecke innen') : null;
+    const pA=eA>0 ? abdStueckPreis(c.eckeAussen||c.ecke, warn, 'Dichtecke außen') : null;
+    const pM=eM>0 ? abdStueckPreis(c.manschette, warn, 'Dichtmanschette') : null;
+    const fdsJe=fds.found?fds.je*0.225:0;          // FDS je Formteil wie bei der Einzelposition
+    const kI=eI*((pI&&pI.found?pI.je:0)+fdsJe);
+    const kA=eA*((pA&&pA.found?pA.je:0)+fdsJe);
+    const kM=eM*((pM&&pM.found?pM.je:0)+fdsJe);
+    eckenK=(kI+kA+kM)/meter;
+    // Einbauzeit je Formteil, auf den laufenden Meter umgelegt
+    eckenStd=((eI+eA)*0.0533 + eM*0.0583)/meter;
+    if(eI>0) zeilen.push([eI+'× Innenecke (auf '+fmt(meter)+' m umgelegt)',
+      (pI&&pI.found?pI.txt:'fehlt')+' + FDS 0,225', kI/meter]);
+    if(eA>0) zeilen.push([eA+'× Außenecke (auf '+fmt(meter)+' m umgelegt)',
+      (pA&&pA.found?pA.txt:'fehlt')+' + FDS 0,225', kA/meter]);
+    if(eM>0) zeilen.push([eM+'× Manschette (auf '+fmt(meter)+' m umgelegt)',
+      (pM&&pM.found?pM.txt:'fehlt')+' + FDS 0,225', kM/meter]);
+  }
+  if(nenntEcken && eI+eA===0)
+    warn.push('EINGABE|Der Text verlangt Dichtecken als Bestandteil dieser Position – Stückzahl im Rechner eintragen, sonst fehlen sie im Preis');
+  if(nenntMansch && eM===0)
+    warn.push('EINGABE|Der Text nennt Dichtmanschetten – gehören sie in diese Position, Stückzahl im Rechner eintragen');
+  return finishAbdicht(zeilen, warn, bandK+fdsK+eckenK, 0.0717+eckenStd);
 }
 function epStueckAbdicht(p, system, typ){
   const warn=[], zeilen=[];
   const c=ABDICHT[system]||ABDICHT.sakret;
   const teilCfg = typ==='manschette' ? c.manschette : c.ecke;
   const label = typ==='manschette' ? 'Manschette' : 'Dichtecke';
-  const t=artInfo(teilCfg, warn, label);
+  // erst den Artikel suchen, dann die Stueckzahl aus SEINEM Namen nehmen
+  const gefunden = findArtikel(teilCfg.name, teilCfg.nicht);
+  const cfg = gefunden ? {name:gefunden.name, nicht:teilCfg.nicht,
+                          gebinde:stueckJeGebinde(gefunden, teilCfg.gebinde)} : teilCfg;
+  const t=artInfo(cfg, warn, label);
   const matK=t.found?t.je:0;
   zeilen.push([label+' (je Stück)', t.found?t.txt:'fehlt', matK]);
   const fds=artInfo(c.fds, warn, 'FDS-Schlämme');
@@ -2717,6 +2779,26 @@ function renderCalcHTML(i){
       +(basis>0?(' (bei '+fmt(basis)+' € Bausumme)'):'')
       +'<br>Feld leer lassen = Vorschlag verwenden</div></div>';
   }
+  if(p.typ==='dichtband'){
+    const txtD=(p.desc||'')+' '+(p.langtext||'');
+    const nennt=/innenecke|außenecke|aussenecke|dichtecke|dichtinnen|formteil|eckanschl/i.test(txtD);
+    const eI=parseInt(p.eckenInnen)||0, eA=parseInt(p.eckenAussen)||0;
+    felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Innenecken (Stück)</div>'
+      +'<input type="number" step="1" min="0" value="'+(eI||'')+'" placeholder="0" oninput="setEcken('+i+',&quot;eckenInnen&quot;,this.value)" style="width:80px;padding:6px 8px"></div>'
+      +'<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Außenecken (Stück)</div>'
+      +'<input type="number" step="1" min="0" value="'+(eA||'')+'" placeholder="0" oninput="setEcken('+i+',&quot;eckenAussen&quot;,this.value)" style="width:80px;padding:6px 8px"></div>'
+      +'<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Manschetten (Stück)</div>'
+      +'<input type="number" step="1" min="0" value="'+((parseInt(p.eckenManschetten)||0)||'')+'" placeholder="0" oninput="setEcken('+i+',&quot;eckenManschetten&quot;,this.value)" style="width:80px;padding:6px 8px">'
+      +'<div style="font-size:11px;margin-top:3px;max-width:320px">'
+      + (function(){
+          const eM=parseInt(p.eckenManschetten)||0, ges=eI+eA+eM;
+          const nM=/manschette|rohrdurchführ|rohrdurchfuehr|durchdringung/i.test(txtD);
+          if(ges>0) return '<span style="color:var(--green)">✓ '+ges+' Formteile auf '+fmt(parseFloat(p.menge)||0)+' m umgelegt</span>';
+          if(nennt||nM) return '<span style="color:var(--red)">Der Text verlangt Formteile in dieser Position – ohne Stückzahl fehlen sie im Preis</span>';
+          return '<span style="color:var(--muted)">nur ausfüllen, wenn die Formteile im Bandpreis enthalten sind</span>';
+        })()
+      +'</div></div>';
+  }
   if(p.typ==='abdicht_flaeche'){
     const txtRoh=(p.desc||'')+' '+(p.langtext||'');
     const erkWK=erkenneWKlasse(txtRoh);
@@ -2977,6 +3059,12 @@ function setAbdichtArt(i,v){
   const p=LV.pos[i]; p.abdichtArt=v; p._artManuell=true;
   if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
   renderLV(); scheduleSave();
+}
+function setEcken(i,feld,v){
+  const p=LV.pos[i]; p[feld]=parseInt(v)||0;
+  if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
+  const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i);
+  scheduleSave();
 }
 function setWKlasse(i,v){
   const p=LV.pos[i]; p.wKlasse=v;
@@ -4585,8 +4673,8 @@ const ABDICHT_SYSTEM = {
     dichtbahn:  {name:'Sakret Dichtbahn O-DI',                     gebinde:30},
     schlaemme:  {name:'Sakret Flexible Dichtungsschlämme FDS',     gebinde:15},
     dichtband:  {name:'Sakret Dichtband flexibel O-DB',            gebinde:50},
-    innenecke:  {name:'Sakret Dichtecken O-DE innen',              gebinde:10},
-    aussenecke: {name:'Sakret Dichtecken O-DE außen',              gebinde:10},
+    innenecke:  {name:'Sakret Dichtecken O-DE innen',              gebinde:50},
+    aussenecke: {name:'Sakret Dichtecken O-DE außen',              gebinde:50},
     wandmansch: {name:'Sakret Dehnzonenmanschette DZM',            gebinde:10},
     bodenmansch:null   // Sakret: keine Bodenmanschette im Einsatz
   }
