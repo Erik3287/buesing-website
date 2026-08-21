@@ -851,7 +851,6 @@ let PREISE = [
   {id:18,name:'Sakret Objektkleber Flex OK C2TE S1 ⭐',format:'25kg',ek:12.22,eu:'/Sack',lief:'Krüger Hannover',dat:'22.05.2026',kat:'kleber'},
   {id:19,name:'Sakret ProfiFlex PF C2TE S1 ⭐',format:'25kg',ek:18.95,eu:'/Sack',lief:'Krüger Hannover',dat:'01.10.2024',kat:'kleber'},
   {id:20,name:'Sakret Fliesenkleber extra FKE C2TE',format:'25kg',ek:14.47,eu:'/Sack',lief:'Krüger Hannover',dat:'01.10.2024',kat:'kleber'},
-  {id:21,name:'RAW Flexkleber S1 FKS1',format:'25kg',ek:14.52,eu:'/Sack',lief:'Keramundo',dat:'24.01.2026',kat:'kleber'},
   {id:22,name:'PCI Nanofug Premium',format:'',ek:4.28,eu:'/kg',lief:'–',dat:'–',kat:'fuge'},
   {id:23,name:'PCI Nanofug Premium sandgrau',format:'',ek:4.12,eu:'/kg',lief:'–',dat:'–',kat:'fuge'},
   {id:24,name:'PCI Nanofug Standard silbergrau',format:'',ek:3.36,eu:'/kg',lief:'–',dat:'–',kat:'fuge'},
@@ -859,7 +858,6 @@ let PREISE = [
   {id:26,name:'PCI Silcofug E',format:'310ml',ek:6.95,eu:'/Kartusche',lief:'–',dat:'–',kat:'fuge'},
   {id:27,name:'Sakret Schnellhaftgrund',format:'5L',ek:64.97,eu:'/5L',lief:'Krüger Hannover',dat:'–',kat:'grundierung'},
   {id:28,name:'Sakret Universalgrundierung',format:'20L',ek:129.25,eu:'/20L',lief:'Krüger Hannover',dat:'–',kat:'grundierung'},
-  {id:29,name:'RAW Grundierung universal Konzentrat',format:'',ek:3.11,eu:'/kg',lief:'Keramundo',dat:'–',kat:'grundierung'},
   {id:30,name:'Sakret Dichtbahn O-DI',format:'30m Rolle',ek:114.80,eu:'/Rolle',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
   {id:31,name:'Sakret Flexible Dichtungsschlämme FDS',format:'15kg',ek:62.96,eu:'/15kg',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
   {id:311,name:'Sakret OAD Objektabdichtung',format:'20kg',ek:84.60,eu:'/20kg',lief:'Krüger Hannover',dat:'01.01.2024',kat:'abdichtung'},
@@ -878,7 +876,6 @@ let PREISE = [
   {id:44,name:'RAW Winkelprofil V2A gebürstet 10mm',format:'',ek:4.95,eu:'/m',lief:'Keramundo',dat:'–',kat:'profile'},
   {id:45,name:'RAW Winkelprofil V2A gebürstet 8mm',format:'',ek:4.86,eu:'/m',lief:'Keramundo',dat:'–',kat:'profile'},
   {id:46,name:'Schlüter Jolly J80TSLA hellanthrazit 8mm',format:'',ek:7.43,eu:'/m',lief:'Keramundo',dat:'–',kat:'profile'},
-  {id:47,name:'RAW Winkelprofil PVC weiß 8mm',format:'',ek:0.57,eu:'/m',lief:'Keramundo',dat:'–',kat:'profile'},
   {id:48,name:'Diplomat Premium (−30%)',format:'',ek:368.90,eu:'/m²',lief:'EMCO',dat:'–',kat:'emco'},
   {id:49,name:'Diplomat Original Rips (−30%)',format:'',ek:329.00,eu:'/m²',lief:'EMCO',dat:'–',kat:'emco'},
   {id:50,name:'Marschall Premium (−30%)',format:'',ek:483.70,eu:'/m²',lief:'EMCO',dat:'–',kat:'emco'},
@@ -3920,12 +3917,18 @@ function findArtikel(name, nicht){
   // Ausschluss-Woerter: verhindern Fehlgriffe bei aehnlichen Namen
   // (z.B. Dichtband vs. WANNENdichtband, Dichtungsschlaemme vs. DSFLEX)
   const tabu = (nicht||[]).map(sysNorm).filter(Boolean);
+  // Bei gleichem Score gewinnt der Artikel mit dem AKTUELLEREN Preis, ein
+  // Eintrag ohne Datum verliert. Sonst entscheidet die Reihenfolge in der
+  // Datenbank - und dann rechnet eine Dublette mit altem Preis mit, obwohl
+  // ein gepflegter Eintrag danebensteht.
+  const zeit = function(a){ const d=preisDatum(a); return d ? d.getTime() : -1; };
   let best=null, bestScore=0;
   PREISE.forEach(p=>{
     const n = sysNorm(p.name);
     if(tabu.some(t=>n.includes(t))) return;
     let score=0; ziel.forEach(w=>{ if(n.includes(w)) score++; });
     if(score>bestScore){ bestScore=score; best=p; }
+    else if(score===bestScore && score>0 && best && zeit(p)>zeit(best)){ best=p; }
   });
   // mindestens die Hälfte der Stichwörter (und min. 2) müssen passen
   return (bestScore>=Math.max(2, Math.ceil(ziel.length/2))) ? best : null;
