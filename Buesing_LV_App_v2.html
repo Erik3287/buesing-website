@@ -653,6 +653,7 @@ tr:hover td{background:#fafafa}
       <div class="g2">
         <div class="f"><label>Abdichtung — Verlust (%)</label><input type="number" step="1" id="sl-verlust" oninput="slRechne()"><div class="hint">Zu viel angerührtes Material, Reste, stellenweise dickerer Auftrag. Nur auf das Material.</div></div>
         <div class="f"><label>Abdichtung — Aufkantung (%)</label><input type="number" step="1" id="sl-aufk" oninput="slRechne()"><div class="hint">5 cm an den Wänden nach DIN 18534. Auf Material und Lohn, weil es echte Arbeit ist.</div></div>
+        <div class="f"><label>Dichtband je m² bei Verlegung auf Stoß</label><input type="number" step="0.05" id="sl-stoss" oninput="slRechne()"><div class="hint">Jede Stoßfuge zwischen zwei Bahnen wird überklebt. Bei 1,00 m Bahnbreite geometrisch 1,00 m/m²; kleine Bäder liegen bei etwa 0,6.</div></div>
       </div>
       <div id="sl-vergleich" style="font-size:12px;margin:8px 0 10px"></div>
       <button class="btn" onclick="slUebernehmen()">✓ Sätze übernehmen</button>
@@ -1341,6 +1342,10 @@ const KALK_STD = {
   // Wirkt auf Material UND Lohn - die Aufkantung ist echte Arbeit.
   // Groessenordnung: 4 m² Bad ~10 %, 7 m² ~8 %, 12 m² ~6 %, 20 m² ~4,5 %.
   abd_aufkantung:    6,       // %
+  // Dichtband je m² fuer die Bahnenstoesse, wenn auf Stoss verlegt wird
+  // (ab W2-I mit chemischer Einwirkung sowie W3-I). 1,00 = geometrischer
+  // Grenzwert bei 1,00 m Bahnbreite; kleine Raeume liegen darunter.
+  abd_stoss_je_m2:   1.00,    // m/m²
 };
 let KALK = Object.assign({}, KALK_STD);
 try{ const gesp=JSON.parse(localStorage.getItem('buesing_kalk')||'null');
@@ -1923,7 +1928,7 @@ function lvHatZubehoerPositionen(){
 // klassenweise in Eriks Abdichtungs-Tabelle (Reiter DIN 18534) - dort wird
 // nachgeschlagen statt geraten. Ohne Zubehoer ist eine Flaechenabdichtung
 // nicht ausfuehrbar; frueher enthielt der m²-Preis davon nichts.
-function abdZubehoer(wk, system, warn, zeilen){
+function abdZubehoer(wk, system, warn, zeilen, aufStoss){
   const geladen = (typeof ABDICHTUNG!=='undefined' && ABDICHTUNG.length);
   const a = geladen ? ABDICHTUNG.find(function(x){ return x.klasse===wk; }) : null;
   if(!a){
@@ -1936,13 +1941,23 @@ function abdZubehoer(wk, system, warn, zeilen){
   const fdsJe=fdsInfo.found?fdsInfo.je:0;
   let kosten=0, std=0;
 
-  const mBand=(parseFloat(a.f_dichtband)||0)*vf;
-  if(mBand>0){
-    const b=artInfo(c.band, warn, 'Dichtband');
-    const k=mBand*((b.found?b.je:0)+fdsJe*0.4);
-    kosten+=k; std+=mBand*0.0717;
-    zeilen.push(['Dichtband '+fmt(mBand)+' m/m²'+(wk?' ('+wk+')':''),
-      (b.found?b.txt:'fehlt')+' + FDS 0,4/m', k]);
+  const mRand=(parseFloat(a.f_dichtband)||0)*vf;
+  // Auf Stoss verlegt kommt Band ueber JEDE Stossfuge in der Flaeche dazu.
+  const mStoss = aufStoss ? (parseFloat(KALK.abd_stoss_je_m2)||0)*vf : 0;
+  const bandInfo = (mRand+mStoss)>0 ? artInfo(c.band, warn, 'Dichtband') : null;
+  const bandJe = bandInfo && bandInfo.found ? bandInfo.je : 0;
+  const bandTxt = bandInfo && bandInfo.found ? bandInfo.txt : 'fehlt';
+  if(mRand>0){
+    const k=mRand*(bandJe+fdsJe*0.4);
+    kosten+=k; std+=mRand*0.0717;
+    zeilen.push(['Dichtband Anschlüsse '+fmt(mRand)+' m/m²'+(wk?' ('+wk+')':''),
+      bandTxt+' + FDS 0,4/m', k]);
+  }
+  if(mStoss>0){
+    const k=mStoss*(bandJe+fdsJe*0.4);
+    kosten+=k; std+=mStoss*0.0717;
+    zeilen.push(['Dichtband Bahnenstöße '+fmt(mStoss)+' m/m² (auf Stoß verlegt)',
+      bandTxt+' + FDS 0,4/m', k]);
   }
   [['f_innenecke','Innenecke',c.ecke,0.0533],
    ['f_aussenecke','Außenecke',c.eckeAussen||c.ecke,0.0533],
@@ -2009,7 +2024,7 @@ function epAbdichtFlaeche(p, system){
   // verlangt, wird erkannt und angezeigt, entscheidet aber NICHT automatisch.
   // Die Wahl trifft Erik im Rechner; "wie vor" gibt sie an Folgepositionen weiter.
   p._lvVerlangt = erkenneAbdichtArt(txt) || '';
-  const art = p.abdichtArt || 'bahn';
+  const art = (p.abdichtArt==='bahn_stoss') ? 'bahn' : (p.abdichtArt || 'bahn');
   if(p._lvVerlangt==='fluessig' && art==='bahn')
     warn.push('PRUEFEN|Das LV verlangt eine Flüssigabdichtung – gerechnet ist die Dichtbahn (gleichwertig, keine Trocknungszeit). Bei „oder gleichwertig" zulässig, sonst als Nebenangebot kennzeichnen.');
   if(art==='fluessig'){
@@ -2037,7 +2052,7 @@ function epAbdichtFlaeche(p, system){
       unklar ? 'kein gleichwertiges Produkt zugeordnet – Preis anfragen'
              : (fds.found?(fds.txt+' × '+String(kg).replace('.',',')+' kg'
                  +(vb?' ('+String(vb.roh).replace('.',',')+' + 6 % Schichtdicke + '+fmt(vb.verlust)+' % Verlust)':'')):'fehlt'), matK]);
-    const zub = mitZubehoer ? abdZubehoer(wk, system, warn, zeilen) : {kosten:0, std:0};
+    const zub = mitZubehoer ? abdZubehoer(wk, system, warn, zeilen, false) : {kosten:0, std:0};
     const r=abdAufkantungAnwenden(finishAbdicht(zeilen, warn, matK+zub.kosten, ABD_FLUESSIG_H+zub.std));
     // Vergleich: was würde die Dichtbahn kosten? Zaehlt NICHT zum EP, deshalb
     // sollen die dabei benutzten Artikel auch keinen "Preis prüfen"-Hinweis
@@ -2060,8 +2075,11 @@ function epAbdichtFlaeche(p, system){
   //  bis W2-I ohne chemische Einwirkung: ueberlappend (min. 5 cm) ODER auf Stoss
   //  ab  W2-I MIT chemischer Einwirkung: nur auf Stoss, Stossfugen mit Dichtband
   //  W3-I: nur als Sonderkonstruktion mit Herstellerfreigabe und AbP
-  const nurStoss = chem && (wk==='W2-I' || wk==='W3-I');
-  if(nurStoss) warn.push('PRUEFEN|'+wk+' mit chemischer Einwirkung: Bahnen müssen auf Stoß verlegt und die Stoßfugen mit Dichtband + FDS überklebt werden – Dichtband als eigene Position aufnehmen');
+  // Auf Stoss verlegen: bei W3-I immer, bei W2-I sobald chemische Einwirkung
+  // dazukommt. Erik kann es ueber die Bauweise auch von Hand waehlen.
+  const nurStoss = (p.abdichtArt==='bahn_stoss') || wk==='W3-I' || (chem && wk==='W2-I');
+  if(nurStoss && p.abdichtArt!=='bahn_stoss')
+    warn.push('PRUEFEN|'+(wk||'Diese Klasse')+(chem?' mit chemischer Einwirkung':'')+': Bahnen auf Stoß verlegen, jede Stoßfuge mit Dichtband und FDS überkleben – das Band dafür steckt im Preis');
   if(wk==='W3-I') warn.push('PRUEFEN|W3-I mit Dichtbahn ist nur als Sonderkonstruktion mit Herstellerfreigabe und AbP zulässig – vor Angebotsabgabe beim Hersteller klären');
   // Auf Stoss entfaellt die Ueberlappung; sonst 5 cm auf 1,00 m Bahnbreite.
   const vf = nurStoss ? 1.00 : DICHTBAHN_UEBERLAPPUNG;
@@ -2081,7 +2099,7 @@ function epAbdichtFlaeche(p, system){
   const fds=artInfo(c.fds, warn, 'FDS-Schlämme');
   const fdsK=fds.found?fds.je*0.4:0;
   zeilen.push(['FDS Stöße 0,4 kg', fds.found?fds.txt+' × 0,4':'fehlt', fdsK]);
-  const zub = mitZubehoer ? abdZubehoer(wk, system, warn, zeilen) : {kosten:0, std:0};
+  const zub = mitZubehoer ? abdZubehoer(wk, system, warn, zeilen, nurStoss) : {kosten:0, std:0};
   const r=abdAufkantungAnwenden(finishAbdicht(zeilen, warn, bahnK+kleber+fdsK+zub.kosten, ABD_BAHN_H+zub.std));
   const _sAus = PREIS_ALT_SAMMLER; PREIS_ALT_SAMMLER = null;
   const fl=abdichtFluessigKosten(p, system, ers);
@@ -2894,7 +2912,9 @@ function renderCalcHTML(i){
       +'</div></div>';
 
     const erkArt=erkenneAbdichtArt(txtRoh);
-    const art=p.abdichtArt||'bahn';   // Eriks Standard, nicht der LV-Text
+    // Eriks Standard, nicht der LV-Text. W3-I zeigt automatisch "auf Stoß".
+    const wkNow=p.wKlasse||erkenneWKlasse(txtRoh)||'';
+    const art=p.abdichtArt || (wkNow==='W3-I' ? 'bahn_stoss' : 'bahn');
     const hinweis = (erkArt==='fluessig' && art==='bahn')
       ? '<span style="color:#e0a800">🟡 Das LV verlangt eine Flüssigabdichtung – gerechnet ist die Dichtbahn.<br>'
         +'Gleichwertig, aber ohne Trocknungszeit: sofort weiterarbeiten.'
@@ -2904,7 +2924,8 @@ function renderCalcHTML(i){
         : '<span style="color:var(--muted)">Standard: Dichtbahn (keine Trocknungszeit)</span>');
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Bauweise</div>'
       +'<select onchange="setAbdichtArt('+i+',this.value)" style="width:auto;padding:6px 8px">'
-      +'<option value="bahn"'+(art==='bahn'?' selected':'')+'>Dichtbahn (dein Standard)</option>'
+      +'<option value="bahn"'+(art==='bahn'?' selected':'')+'>Dichtbahn, überlappend (dein Standard)</option>'
+      +'<option value="bahn_stoss"'+(art==='bahn_stoss'?' selected':'')+'>Dichtbahn, auf Stoß + Dichtband</option>'
       +'<option value="fluessig"'+(art==='fluessig'?' selected':'')+'>Flüssigabdichtung 2 Lagen</option>'
       +'</select><div style="font-size:11px;margin-top:3px;max-width:340px">'+hinweis
       + (p._wieVor?'<br><span style="color:var(--green)">✓ „wie vor" – von Pos. '+esc(String(p._wieVor))+' übernommen</span>':'')
@@ -3982,6 +4003,7 @@ function slFuellen(){
   setz('sl-vor',KALK.lohn_vorarbeiter); setz('sl-fach',KALK.lohn_facharbeiter);
   setz('sl-helf',KALK.lohn_helfer);     setz('sl-mat',Math.round((KALK.mat_zuschlag-1)*100));
   setz('sl-verlust',KALK.abd_verlust); setz('sl-aufk',KALK.abd_aufkantung);
+  setz('sl-stoss',KALK.abd_stoss_je_m2);
   const h1=document.getElementById('sl-personal-h');
   if(h1) h1.textContent='Löhne, Lohnfortzahlung, Sozialabgaben, BG, SOKA – ohne Büro und Geschäftsführung';
   const h2=document.getElementById('sl-gemein-h');
@@ -4074,6 +4096,7 @@ function slUebernehmen(){
     mat_zuschlag:      1 + slFeld('sl-mat')/100,
     abd_verlust:       slFeld('sl-verlust'),
     abd_aufkantung:    slFeld('sl-aufk'),
+    abd_stoss_je_m2:   slFeld('sl-stoss'),
   };
   if(!(neu.lohn_facharbeiter>0)){ toast('Facharbeiter-Satz fehlt'); return; }
   const alt=LOHN();
@@ -4750,6 +4773,14 @@ async function speichereAbdichtung(){
 // Bei Verlegung auf Stoss entfaellt die Ueberlappung; dafuer kommt Dichtband
 // ueber jede Stossfuge (laufende Meter, eigene Position).
 const DICHTBAHN_UEBERLAPPUNG = 1.05;
+// Bahnbreite. Bei Verlegung AUF STOSS braucht jede Stossfuge zwischen zwei
+// Bahnen zusaetzlich Dichtband - das faellt in der Flaeche an, nicht nur am
+// Rand. Stossmeter je m² = 1/Bahnbreite - 1/Raumbreite. Die Raumbreite steht
+// im LV nicht, deshalb der geometrische Grenzwert 1/Bahnbreite: bei 1,00 m
+// Bahn also 1,00 m Band je m². Fuer kleine Baeder ist das etwas zu viel
+// (2,6 m Raum -> 0,62), fuer grosse Flaechen trifft es zu. Aenderbar in den
+// Einstellungen, weil es je nach Objektgroesse spuerbar wirkt.
+const DICHTBAHN_BREITE = 1.00;
 const DICHTBAHN_FAKTOR = {'W0-I':1.05, 'W1-I':1.05, 'W2-I':1.05, 'W3-I':1.05};
 // Vollflächige Schlämme-Alternative für den Kostenvergleich (RAW flexibel, 2 Lagen ~2mm):
 const SCHLAEMME_VOLL = 3.5; // kg/m²
