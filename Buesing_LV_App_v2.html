@@ -2108,9 +2108,12 @@ function epAbdichtFlaeche(p, system){
   let kleber=0;
   if(kA){ kleber=preisJe(kA,kCfg.gebinde)*klKg; zeilen.push(['Bahn-Kleber '+kltxt+' kg', preisTxt(kA,kCfg.gebinde,'kg')+' × '+kltxt, kleber]); }
   else { warn.push('ARTIKEL|'+kCfg.name); zeilen.push(['Bahn-Kleber '+kltxt+' kg','fehlt',0]); }
+  // FDS fuer die UEBERLAPPUNG - die gibt es nur bei ueberlappender Verlegung.
+  // Auf Stoss wird nicht ueberlappt; dort sitzt die Schlaemme unter dem
+  // Dichtband und ist in dessen Zeile schon mit 0,4 kg je Meter enthalten.
   const fds=artInfo(c.fds, warn, 'FDS-Schlämme');
-  const fdsK=fds.found?fds.je*0.4:0;
-  zeilen.push(['FDS Stöße 0,4 kg', fds.found?fds.txt+' × 0,4':'fehlt', fdsK]);
+  const fdsK=(!nurStoss && fds.found) ? fds.je*0.4 : 0;
+  if(!nurStoss) zeilen.push(['FDS Überlappung 0,4 kg', fds.found?fds.txt+' × 0,4':'fehlt', fdsK]);
   const zub = mitZubehoer ? abdZubehoer(wk, system, warn, zeilen, nurStoss) : {kosten:0, std:0};
   const r=abdAufkantungAnwenden(finishAbdicht(zeilen, warn, bahnK+kleber+fdsK+zub.kosten, ABD_BAHN_H+zub.std));
   const _sAus = PREIS_ALT_SAMMLER, _nAus = PREIS_NULL_SAMMLER;
