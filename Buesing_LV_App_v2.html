@@ -1848,8 +1848,11 @@ const W_KLASSEN = [['W0-I','W0-I (gering)'],['W1-I','W1-I (mäßig)'],
 // Frueher rechnete die App pauschal 2,5 kg/m² fuer jedes Produkt; bei der OAD
 // war das mehr als das Doppelte.
 const ABD_SCHICHTZUSCHLAG = 1.06;
+// RAW-Produkte haben laut Erik denselben Verbrauch wie das jeweils
+// entsprechende Sakret-Produkt: Dispersionsabdichtung wie OAD, RAW
+// Dichtungsschlaemme wie FDS.
 const ABD_VERBRAUCH = [
-  {muster:/\boad\b|objektabdicht/i,                        kg:1.0, quelle:'TM OAD 10.06.2026'},
+  {muster:/\boad\b|objektabdicht|dispersionsabdicht/i,     kg:1.0, quelle:'TM OAD 10.06.2026'},
   {muster:/\bfds\b|dichtungsschl|dichtschl/i,              kg:2.2, quelle:'TM FDS 10.06.2026'},
 ];
 // Liefert {kg, quelle} oder null, wenn fuer das Produkt nichts hinterlegt ist.
