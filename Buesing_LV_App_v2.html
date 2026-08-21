@@ -856,6 +856,7 @@ let PREISE = [
   {id:29,name:'RAW Grundierung universal Konzentrat',format:'',ek:3.11,eu:'/kg',lief:'Keramundo',dat:'–',kat:'grundierung'},
   {id:30,name:'Sakret Dichtbahn O-DI',format:'30m Rolle',ek:114.80,eu:'/Rolle',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
   {id:31,name:'Sakret Flexible Dichtungsschlämme FDS',format:'15kg',ek:62.96,eu:'/15kg',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
+  {id:311,name:'Sakret OAD Objektabdichtung',format:'',ek:0,eu:'/Eimer',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
   {id:32,name:'Sakret Dichtband Wannenanschluss DBW',format:'10m',ek:28.06,eu:'/10m',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
   {id:33,name:'Sakret Dichtband flexibel O-DB',format:'50m',ek:30.40,eu:'/50m',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
   {id:34,name:'Sakret Dichkleber easy DKe',format:'310ml',ek:10.51,eu:'/310ml',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
@@ -1583,6 +1584,17 @@ function gebindeAusName(name){
   m=n.match(/(\d+(?:[.,]\d+)?)\s*l\b/);          if(m) return {menge:parseFloat(m[1].replace(',','.')), einheit:'l'};
   return null;
 }
+// Gebindegroesse aus dem Artikel selbst: erst die Einheit ("/12kg"), dann das
+// Format ("12kg"), dann der Name. Noetig, wenn ein gleichwertiges Produkt ein
+// anderes Gebinde hat als das Hausprodukt (OAD 12 kg statt FDS 15 kg).
+function gebindeAusArtikel(a, rueckfall){
+  if(!a) return rueckfall;
+  for(const feld of [a.eu, a.format, a.name]){
+    const m=String(feld||'').toLowerCase().replace(/^\//,'').match(/(\d+(?:[.,]\d+)?)\s*(kg|l|ltr|liter)\b/);
+    if(m){ const v=parseFloat(m[1].replace(',','.')); if(v>0) return v; }
+  }
+  return rueckfall;
+}
 // Plausibles Gebinde: korrigiert Meterware, die faelschlich als Stk erfasst ist.
 function echtesGebinde(a, cfgGebinde){
   const eu=(a.eu||'').toLowerCase().replace(/^\//,'');
@@ -1633,12 +1645,50 @@ function finishAbdicht(zeilen, warn, roh, stunden){
 // Frueher kannte epAbdichtFlaeche() die W-Klasse ueberhaupt nicht: sie lebte
 // nur im Reiter "Abdichtung DIN 18534". Zwei Positionen mit W1-I und W2-I
 // bekamen deshalb denselben Preis.
+// ===== GLEICHWERTIGE ABDICHTUNGSPRODUKTE (Erik 21.08.) ====================
+// LVs schreiben ein Fremdfabrikat vor, meist mit "o.glw." (oder gleichwertig).
+// Dann darf ein gleichwertiges Produkt angeboten werden - aber es muss das
+// RICHTIGE sein: eine Dispersionsabdichtung ist kein Ersatz fuer eine
+// zementaere 2K-Schlaemme. Diese Tabelle haelt Eriks Zuordnungen fest.
+// Erweiterbar: Fremdprodukt (klein geschrieben) -> Hausprodukt je System.
+const ABD_GLEICHWERTIG = {
+  'pci lastogum': {
+    sakret: 'Sakret OAD Objektabdichtung',
+    raw:    null,
+    typ:    'Dispersionsabdichtung, gebrauchsfertig (Wand, W1-I)'
+  },
+  'pci seccoral': {
+    sakret: 'Sakret Flexible Dichtungsschlämme FDS',
+    raw:    null,
+    typ:    'zementäre 2K-Dichtungsschlämme (Boden, W2-I)'
+  },
+};
+
+// "oder gleichwertig" in allen ueblichen Schreibweisen, auch abgekuerzt
+function istGleichwertigTxt(t){
+  return /oder\s+(gleichwertig|gleichw|ähnlich|aehnlich|vergleichbar)|o\.?\s?glw\.?|o\.?\s?gl\.?\b|od\.?\s*gleichw/i.test(t||'');
+}
+
+// Zu einem im LV genannten Fabrikat das passende eigene Produkt finden.
+// Liefert immer eine Auskunft, nie stillschweigend einen Ersatz.
+function abdichtErsatz(fabrikat, system){
+  if(!fabrikat) return null;
+  const key=String(fabrikat).toLowerCase().replace(/\s+/g,' ').trim();
+  let treffer=null;
+  for(const k in ABD_GLEICHWERTIG){ if(key.indexOf(k)>-1){ treffer=ABD_GLEICHWERTIG[k]; break; } }
+  if(!treffer) return {bekannt:false};
+  const name=treffer[system]||null;
+  if(!name) return {bekannt:true, name:null, typ:treffer.typ, systemFehlt:true};
+  const art=findArtikel(name);
+  return {bekannt:true, name:name, typ:treffer.typ, artikel:art||null};
+}
+
 const W_KLASSEN = [['W0-I','W0-I (gering)'],['W1-I','W1-I (mäßig)'],
                    ['W2-I','W2-I (hoch)'],['W3-I','W3-I (sehr hoch)']];
-// Flüssigverbrauch je Klasse in kg/m² (Gesamtauftrag, nicht je Lage).
-// W1-I ist Eriks bestaetigter Wert. Die uebrigen sind noch NICHT bestaetigt -
-// dort warnt die Kalkulation, statt still zu raten.
-const ABD_FLUESSIG_KG_KLASSE = {'W1-I':2.5};
+// Fluessigverbrauch: 2,5 kg/m² Gesamtauftrag - von Erik am 21.08. bestaetigt,
+// und zwar UNABHAENGIG von der Wassereinwirkungsklasse. Der Unterschied
+// zwischen W1-I und W2-I steckt nicht in der Menge, sondern im PRODUKT
+// (Dispersion gegen zementaere 2K-Schlaemme) - siehe ABD_GLEICHWERTIG.
 
 function erkenneWKlasse(text){
   const t=(text||'').toUpperCase().replace(/\s+/g,'');
@@ -1660,7 +1710,10 @@ const ABD_MARKEN = ['pci','schomburg','ardex','mapei','sopro','botament','kiesel
 function abdichtFabrikat(text){
   const s=(text||'').replace(/\s+/g,' ');
   let m=s.match(/\bProdukt\s*:?\s*([^\n,;]{2,60})/i);
-  if(m){ let n=m[1].trim().replace(/\b(o\.?\s?glw\.?|oder gleichwertig|o\.?\s?ä\.?|oder ähnlich).*$/i,'').replace(/[.\s]+$/,'').trim();
+  if(m){ let n=m[1].trim()
+           .replace(/\b(o\.?\s?glw\.?|oder gleichwertig|o\.?\s?ä\.?|oder ähnlich).*$/i,'')
+           .split(/\.\s+[A-ZÄÖÜ]/)[0]      // am Satzende abschneiden
+           .replace(/[.\s]+$/,'').trim();
          if(n.length>=3) return n; }
   const t=s.toLowerCase();
   for(const mk of ABD_MARKEN){
@@ -1695,21 +1748,51 @@ function epAbdichtFlaeche(p, system){
   if(!wk) warn.push('PRUEFEN|Keine Wassereinwirkungsklasse im Text erkannt – bitte im Rechner wählen');
   if(wk==='W0-I') warn.push('PRUEFEN|W0-I: nach DIN 18534 ist in der Regel keine Abdichtung erforderlich – Position prüfen');
 
-  // Eriks Regel: nennt das LV ein Fabrikat, muss GENAU das angeboten werden.
+  // Fabrikat aus dem LV auswerten.
+  //  - ohne "oder gleichwertig": es MUSS exakt dieses Produkt sein
+  //  - mit  "oder gleichwertig": ein passendes eigenes Produkt ist erlaubt,
+  //    aber es muss fachlich gleichwertig sein (Dispersion != 2K-Schlaemme)
   const fab = abdichtFabrikat(txt);
+  const glw = istGleichwertigTxt(txt);
+  let ers = null;
   if(fab){
-    const eigen = findArtikel(fab);
-    if(!eigen) warn.push('ARTIKEL|'+fab+' (im LV gefordert – nicht in der Preisdatenbank)');
-    else zeilen.push(['Fabrikat laut LV', eigen.name, 0]);
+    const direkt = findArtikel(fab);
+    if(direkt){
+      ers = {bekannt:true, name:direkt.name, artikel:direkt, direkt:true};
+      zeilen.push(['Fabrikat laut LV', direkt.name, 0]);
+    } else if(!glw){
+      warn.push('ARTIKEL|'+fab+' (im LV ohne „oder gleichwertig" gefordert – muss genau so angeboten werden)');
+    } else {
+      ers = abdichtErsatz(fab, system);
+      if(!ers.bekannt){
+        warn.push('ARTIKEL|gleichwertiges Produkt zu '+fab+' (Zuordnung noch nicht hinterlegt)');
+      } else if(ers.systemFehlt){
+        warn.push('ARTIKEL|gleichwertiges Produkt zu '+fab+' im '+system.toUpperCase()+'-System (noch nicht hinterlegt)');
+      } else if(!ers.artikel){
+        warn.push('ARTIKEL|'+ers.name+' (gleichwertig zu '+fab+') – fehlt in der Preisdatenbank');
+      } else {
+        zeilen.push([fab+' → gleichwertig', ers.artikel.name, 0]);
+      }
+    }
   }
 
-  // Art: Text schlaegt Standard, manuelle Wahl schlaegt Text
-  const art = p.abdichtArt || erkenneAbdichtArt(txt) || 'bahn';
+  // Art: manuelle Wahl schlaegt Text, Text schlaegt Standard.
+  // Erkanntes festhalten, damit "wie vor" es weitergeben kann.
+  if(!p._artManuell){
+    const e = erkenneAbdichtArt(txt);
+    if(e && !p.abdichtArt) p.abdichtArt = e;
+  }
+  const art = p.abdichtArt || 'bahn';
   if(art==='fluessig'){
-    const kg = ABD_FLUESSIG_KG_KLASSE[wk] || ABD_FLUESSIG_KG;
-    if(wk && !ABD_FLUESSIG_KG_KLASSE[wk])
-      warn.push('PRUEFEN|Verbrauch für '+wk+' ist noch nicht hinterlegt – gerechnet wird mit dem W1-I-Wert '+String(ABD_FLUESSIG_KG).replace('.',',')+' kg/m²');
-    const fds=artInfo(c.fds, warn, 'FDS-Schlämme');
+    const kg = ABD_FLUESSIG_KG;
+    // Welches Produkt? Nennt das LV ein Fremdfabrikat, entscheidet die
+    // Gleichwertigkeits-Tabelle - nicht pauschal die Hausschlaemme.
+    let cfg = c.fds, label = 'FDS-Schlämme';
+    if(ers && ers.bekannt && ers.name){
+      cfg = {name:ers.name, gebinde:gebindeAusArtikel(ers.artikel, c.fds.gebinde)};
+      label = ers.name;
+    }
+    const fds=artInfo(cfg, warn, label);
     const matK=fds.found?fds.je*kg:0;
     zeilen.push(['Flüssigabdichtung 2 Lagen'+(wk?' ('+wk+')':''), fds.found?(fds.txt+' × '+String(kg).replace('.',',')):'fehlt', matK]);
     const r=finishAbdicht(zeilen, warn, matK, ABD_FLUESSIG_H);
@@ -2188,7 +2271,8 @@ function autoEP(p, system){
   // Welche Warnungen sind echte Show-Stopper?
   const warn    = r.warn || [];
   const fehlend = warn.filter(function(w){ return String(w).indexOf('ARTIKEL|') === 0; })
-                      .map(function(w){ return String(w).split('|')[1]; });
+                      .map(function(w){ return String(w).split('|')[1]; })
+                      .filter(function(v,i,a){ return a.findIndex(function(x){ return x.indexOf(v)===0||v.indexOf(x)===0; })===i; });
   const hinweis = warn.filter(function(w){ return String(w).indexOf('ARTIKEL|') !== 0; })
                       .map(function(w){ const s = String(w); const i = s.indexOf('|');
                                         return i > -1 ? s.slice(i+1) : s; });
@@ -2475,13 +2559,25 @@ function renderCalcHTML(i){
     // Fabrikat aus dem LV - Eriks Regel: nie automatisch ersetzen
     const fab=abdichtFabrikat(txtRoh);
     if(fab){
+      const glw=istGleichwertigTxt(txtRoh);
       const da=findArtikel(fab);
-      felder += '<div style="min-width:230px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Fabrikat laut LV</div>'
+      let zeile;
+      if(da){
+        zeile='<span style="color:var(--green)">✓ genau dieses Produkt liegt in der Preisdatenbank</span>';
+      } else if(!glw){
+        zeile='<span style="color:var(--red)">✗ ohne „oder gleichwertig" gefordert – muss genau so angeboten werden, Preis anfragen</span>';
+      } else {
+        const e=abdichtErsatz(fab, LV.system||'sakret');
+        if(!e.bekannt)      zeile='<span style="color:var(--red)">✗ keine gleichwertige Entsprechung hinterlegt</span>';
+        else if(e.systemFehlt) zeile='<span style="color:var(--red)">✗ für das '+(LV.system||'sakret').toUpperCase()+'-System noch keine Entsprechung hinterlegt</span>';
+        else if(!e.artikel) zeile='<span style="color:var(--red)">→ gleichwertig: '+esc(e.name)+'<br>✗ fehlt noch in der Preisdatenbank</span>';
+        else                zeile='<span style="color:var(--green)">→ gleichwertig: '+esc(e.artikel.name)+' ✓</span>';
+        if(e.typ) zeile+='<br><span style="color:var(--muted)">'+esc(e.typ)+'</span>';
+      }
+      felder += '<div style="min-width:240px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Fabrikat laut LV'
+        +(glw?' <span style="color:var(--muted)">(o. glw.)</span>':'')+'</div>'
         +'<div style="font-weight:600;font-size:13px">'+esc(fab)+'</div>'
-        +'<div style="font-size:11px;margin-top:3px">'
-        + (da ? '<span style="color:var(--green)">✓ in der Preisdatenbank: '+esc(da.name)+'</span>'
-              : '<span style="color:var(--red)">✗ nicht in der Preisdatenbank – Preis anfragen, nicht ersetzen</span>')
-        +'</div></div>';
+        +'<div style="font-size:11px;margin-top:3px;line-height:1.4">'+zeile+'</div></div>';
     }
   }
   if(p.typ==='sauberlaufrahmen'){
@@ -2680,7 +2776,7 @@ function setRutsch(i,v){ LV.pos[i].rutsch=v; const el=document.getElementById('c
 function setSilikon(i,v){ LV.pos[i].silikonArt=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 function setSchutz(i,v){ LV.pos[i].schutzArt=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 function setBaustelle(i,v){ LV.pos[i].baustellePreis=(v===''?null:v); const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
-function setAbdichtArt(i,v){ LV.pos[i].abdichtArt=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
+function setAbdichtArt(i,v){ LV.pos[i].abdichtArt=v; LV.pos[i]._artManuell=true; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 function setWKlasse(i,v){ LV.pos[i].wKlasse=v; const row=document.getElementById('calc-'+i); if(row) row.querySelector('td').innerHTML=renderCalcHTML(i); scheduleSave(); }
 function setEmco(i,feld,v){ const p=LV.pos[i]; p[feld]=(feld==='emcoMatte'||feld==='emcoRahmen')?v:(parseFloat(v)||0); const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 function setEmcoPct(i,feld,v){ LV.pos[i][feld]=(parseFloat(v)||0)/100; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
