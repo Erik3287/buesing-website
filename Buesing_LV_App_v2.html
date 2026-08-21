@@ -1722,10 +1722,28 @@ function abdichtErsatz(fabrikat, system){
 
 const W_KLASSEN = [['W0-I','W0-I (gering)'],['W1-I','W1-I (mäßig)'],
                    ['W2-I','W2-I (hoch)'],['W3-I','W3-I (sehr hoch)']];
-// Fluessigverbrauch: 2,5 kg/m² Gesamtauftrag - von Erik am 21.08. bestaetigt,
-// und zwar UNABHAENGIG von der Wassereinwirkungsklasse. Der Unterschied
-// zwischen W1-I und W2-I steckt nicht in der Menge, sondern im PRODUKT
-// (Dispersion gegen zementaere 2K-Schlaemme) - siehe ABD_GLEICHWERTIG.
+// ===== VERBRAUCH FLUESSIGABDICHTUNG (Merkblaetter 10.06.2026) =============
+// Der Verbrauch haengt am PRODUKT, nicht an der Wassereinwirkungsklasse.
+// Belegt aus den technischen Merkblaettern der SAKRET Bausysteme:
+//   OAD Objektabdichtung (Dispersion)      1,0 kg/m²
+//   FDS Flexible Dichtungsschlaemme        2,2 kg/m²
+// Dazu der Schichtdickenzuschlag d_v von 6 % nach DIN 18534-3 - NICHT die
+// 25 %, die auf der Sakret-Webseite fuer die Nass-Schichtdicke genannt werden.
+// Frueher rechnete die App pauschal 2,5 kg/m² fuer jedes Produkt; bei der OAD
+// war das mehr als das Doppelte.
+const ABD_SCHICHTZUSCHLAG = 1.06;
+const ABD_VERBRAUCH = [
+  {muster:/\boad\b|objektabdicht/i,                        kg:1.0, quelle:'TM OAD 10.06.2026'},
+  {muster:/\bfds\b|dichtungsschl|dichtschl/i,              kg:2.2, quelle:'TM FDS 10.06.2026'},
+];
+// Liefert {kg, quelle} oder null, wenn fuer das Produkt nichts hinterlegt ist.
+function abdVerbrauch(artikelName){
+  const n=String(artikelName||'');
+  for(const e of ABD_VERBRAUCH){
+    if(e.muster.test(n)) return {kg:Math.round(e.kg*ABD_SCHICHTZUSCHLAG*100)/100, roh:e.kg, quelle:e.quelle};
+  }
+  return null;
+}
 
 function erkenneWKlasse(text){
   const t=(text||'').toUpperCase().replace(/\s+/g,'');
@@ -1784,6 +1802,8 @@ function epAbdichtFlaeche(p, system){
   const wk = p.wKlasse || '';
   if(!wk) warn.push('PRUEFEN|Keine Wassereinwirkungsklasse im Text erkannt – bitte im Rechner wählen');
   if(wk==='W0-I') warn.push('PRUEFEN|W0-I: nach DIN 18534 ist in der Regel keine Abdichtung erforderlich – Position prüfen');
+  // Zusaetzliche chemische Einwirkung? Aendert ab W2-I die Bauweise.
+  const chem = /chemisch|säurefest|saeurefest|gewerbliche küche|wäscherei|waescherei|brauerei|reinigungsmittel/i.test(txt);
 
   // Fabrikat aus dem LV auswerten.
   //  - ohne "oder gleichwertig": es MUSS exakt dieses Produkt sein
@@ -1821,7 +1841,7 @@ function epAbdichtFlaeche(p, system){
   }
   const art = p.abdichtArt || 'bahn';
   if(art==='fluessig'){
-    const kg = ABD_FLUESSIG_KG;
+    // Menge richtet sich nach dem tatsaechlich eingesetzten Produkt.
     // Welches Produkt? Nennt das LV ein Fremdfabrikat, entscheidet die
     // Gleichwertigkeits-Tabelle - nicht pauschal die Hausschlaemme.
     // Nennt das LV ein Fabrikat, dessen Entsprechung wir NICHT sicher kennen,
@@ -1837,10 +1857,14 @@ function epAbdichtFlaeche(p, system){
       }
     }
     const fds = unklar ? {found:false, je:0, txt:'fehlt'} : artInfo(cfg, warn, label);
+    const vb = fds.found ? abdVerbrauch(fds.art ? fds.art.name : cfg.name) : null;
+    const kg = vb ? vb.kg : ABD_FLUESSIG_KG;
+    if(fds.found && !vb) warn.push('PRUEFEN|Für dieses Produkt ist kein Verbrauch hinterlegt – gerechnet mit '+String(ABD_FLUESSIG_KG).replace('.',',')+' kg/m²');
     const matK=fds.found?fds.je*kg:0;
     zeilen.push(['Flüssigabdichtung 2 Lagen'+(wk?' ('+wk+')':''),
       unklar ? 'kein gleichwertiges Produkt zugeordnet – Preis anfragen'
-             : (fds.found?(fds.txt+' × '+String(kg).replace('.',',')):'fehlt'), matK]);
+             : (fds.found?(fds.txt+' × '+String(kg).replace('.',',')+' kg'
+                 +(vb?' ('+String(vb.roh).replace('.',',')+' + 6 % Schichtdicke)':'')):'fehlt'), matK]);
     const r=finishAbdicht(zeilen, warn, matK, ABD_FLUESSIG_H);
     // Vergleich: was würde die Dichtbahn kosten? Zaehlt NICHT zum EP, deshalb
     // sollen die dabei benutzten Artikel auch keinen "Preis prüfen"-Hinweis
@@ -1859,11 +1883,20 @@ function epAbdichtFlaeche(p, system){
   // --- Standard: Dichtbahn ---
   // Verschnitt je Wassereinwirkungsklasse (W2-I braucht mehr Ueberlappung):
   // W1-I 1,05 · W2-I 1,10 · W3-I 1,05 - dieselben Faktoren wie im DIN-18534-Reiter.
-  const vf = DICHTBAHN_FAKTOR[wk] || 1.05;
+  // Merkblatt Dichtbahn DI (10.06.2026):
+  //  bis W2-I ohne chemische Einwirkung: ueberlappend (min. 5 cm) ODER auf Stoss
+  //  ab  W2-I MIT chemischer Einwirkung: nur auf Stoss, Stossfugen mit Dichtband
+  //  W3-I: nur als Sonderkonstruktion mit Herstellerfreigabe und AbP
+  const nurStoss = chem && (wk==='W2-I' || wk==='W3-I');
+  if(nurStoss) warn.push('PRUEFEN|'+wk+' mit chemischer Einwirkung: Bahnen müssen auf Stoß verlegt und die Stoßfugen mit Dichtband + FDS überklebt werden – Dichtband als eigene Position aufnehmen');
+  if(wk==='W3-I') warn.push('PRUEFEN|W3-I mit Dichtbahn ist nur als Sonderkonstruktion mit Herstellerfreigabe und AbP zulässig – vor Angebotsabgabe beim Hersteller klären');
+  // Auf Stoss entfaellt die Ueberlappung; sonst 5 cm auf 1,00 m Bahnbreite.
+  const vf = nurStoss ? 1.00 : DICHTBAHN_UEBERLAPPUNG;
   const vftxt = vf.toFixed(2).replace('.',',');
   const bahn=artInfo(c.bahn, warn, 'Dichtbahn');
   const bahnK=bahn.found?bahn.je*vf:0;
-  zeilen.push(['Dichtbahn (× '+vftxt+(wk?', '+wk:'')+')', bahn.found?bahn.txt+' × '+vftxt:'fehlt', bahnK]);
+  zeilen.push(['Dichtbahn (× '+vftxt+', '+(nurStoss?'auf Stoß':'5 cm Überlappung')+(wk?', '+wk:'')+')',
+    bahn.found?bahn.txt+' × '+vftxt:'fehlt', bahnK]);
   // Klebermenge je Klasse aus der Abdichtungs-Tabelle, sonst 1,2 kg wie bisher
   const aKl=(typeof ABDICHTUNG!=='undefined'&&ABDICHTUNG.length)?ABDICHTUNG.find(function(x){return x.klasse===wk;}):null;
   const klKg=(aKl&&parseFloat(aKl.f_abdichtung)>0)?parseFloat(aKl.f_abdichtung):1.2;
@@ -4414,7 +4447,13 @@ async function speichereAbdichtung(){
 // ABDICHTUNG – Preisrechnung je System (Bahn-Methode)
 // ============================================
 // Dichtbahn-Faktor (m²/m² inkl. Überlappung) – Startwerte, im Code editierbar:
-const DICHTBAHN_FAKTOR = {'W1-I':1.05, 'W2-I':1.10, 'W3-I':1.05};
+// Ueberlappende Verlegung: mindestens 5 cm Ueberlappung auf 1,00 m Bahnbreite
+// = 5 % Mehrverbrauch. Gilt fuer ALLE Klassen - das Merkblatt kennt keine
+// klassenabhaengige Ueberlappung. Frueher stand hier fuer W2-I faelschlich 1,10.
+// Bei Verlegung auf Stoss entfaellt die Ueberlappung; dafuer kommt Dichtband
+// ueber jede Stossfuge (laufende Meter, eigene Position).
+const DICHTBAHN_UEBERLAPPUNG = 1.05;
+const DICHTBAHN_FAKTOR = {'W0-I':1.05, 'W1-I':1.05, 'W2-I':1.05, 'W3-I':1.05};
 // Vollflächige Schlämme-Alternative für den Kostenvergleich (RAW flexibel, 2 Lagen ~2mm):
 const SCHLAEMME_VOLL = 3.5; // kg/m²
 
