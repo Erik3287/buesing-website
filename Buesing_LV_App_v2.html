@@ -650,6 +650,10 @@ tr:hover td{background:#fafafa}
         <div class="f"><label>Azubi / Helfer (€/h)</label><input type="number" step="0.5" id="sl-helf" oninput="slRechne()"></div>
         <div class="f"><label>Materialaufschlag (%)</label><input type="number" step="1" id="sl-mat" oninput="slRechne()"></div>
       </div>
+      <div class="g2">
+        <div class="f"><label>Abdichtung — Verlust (%)</label><input type="number" step="1" id="sl-verlust" oninput="slRechne()"><div class="hint">Zu viel angerührtes Material, Reste, stellenweise dickerer Auftrag. Nur auf das Material.</div></div>
+        <div class="f"><label>Abdichtung — Aufkantung (%)</label><input type="number" step="1" id="sl-aufk" oninput="slRechne()"><div class="hint">5 cm an den Wänden nach DIN 18534. Auf Material und Lohn, weil es echte Arbeit ist.</div></div>
+      </div>
       <div id="sl-vergleich" style="font-size:12px;margin:8px 0 10px"></div>
       <button class="btn" onclick="slUebernehmen()">✓ Sätze übernehmen</button>
       <button class="bg" onclick="slAusRechner()" title="Den errechneten Verrechnungslohn in die drei Felder oben schreiben">↧ Errechneten Satz eintragen</button>
@@ -1277,6 +1281,16 @@ const KALK_STD = {
   lohn_facharbeiter: 55.00,   // Standardsatz aller Rezepte
   lohn_helfer:       49.50,
   mat_zuschlag:      1.20,    // BGK 8 + AGK 6 + Gewinn 4 + Wagnis 2
+  // --- Abdichtung, zwei getrennte Zuschlaege (Erik 21.08.) ---
+  // Verlust: zu viel angeruehrtes Material, Reste, streckenweise dickerer
+  // Auftrag. Wirkt nur aufs MATERIAL. 2,2 x 1,06 x 1,07 = 2,50 kg/m² - genau
+  // Eriks Praxiswert fuer die FDS, und dieselbe Logik gilt fuer die OAD.
+  abd_verlust:       7,       // %
+  // Aufkantung: Bodenabdichtungen sind nach DIN 18534 an den Waenden mind.
+  // 5 cm hochzufuehren. Der Raumumfang steht nie im LV, deshalb pauschal.
+  // Wirkt auf Material UND Lohn - die Aufkantung ist echte Arbeit.
+  // Groessenordnung: 4 m² Bad ~10 %, 7 m² ~8 %, 12 m² ~6 %, 20 m² ~4,5 %.
+  abd_aufkantung:    6,       // %
 };
 let KALK = Object.assign({}, KALK_STD);
 try{ const gesp=JSON.parse(localStorage.getItem('buesing_kalk')||'null');
@@ -1294,8 +1308,12 @@ const ABDICHT = {
     bahn:      {name:'Sakret Dichtbahn O-DI',                 gebinde:30},
     fds:       {name:'Sakret Flexible Dichtungsschlämme FDS', gebinde:15},
     band:      {name:'Sakret Dichtband flexibel O-DB',        gebinde:50},
-    manschette:{name:'Sakret Dehnzonenmanschette O-DZW',      gebinde:50},
-    ecke:      {name:'Sakret Dichtecken O-DE innen',          gebinde:50},
+    // Merkblaetter 20.05.2026: Dehnzonenmanschette DZM-W/50/100 und Dichtecke
+    // DE innen/aussen kommen mit 10 Stueck im Karton - nicht 50. Ist ein
+    // Artikel je Stueck erfasst, greift ohnehin istEinzelpreis() und es wird
+    // gar nicht geteilt.
+    manschette:{name:'Sakret Dehnzonenmanschette O-DZW',      gebinde:10},
+    ecke:      {name:'Sakret Dichtecken O-DE innen',          gebinde:10},
   },
   raw: {
     bahn:      {name:'RAW Dichtmatte Polypropylen',      gebinde:30, nicht:['entkopplung']},
@@ -1657,6 +1675,18 @@ function artInfo(cfg, warn, label){
   if(!a){ warn.push('ARTIKEL|'+cfg.name); return {ek:0, gebinde:cfg.gebinde, je:0, txt:'fehlt', found:false}; }
   return {ek:parseFloat(a.ek)||0, gebinde:cfg.gebinde, je:preisJe(a,cfg.gebinde), art:a, txt:preisTxt(a,cfg.gebinde,''), found:true};
 }
+// Aufkantung wirkt auf den GANZEN Einheitspreis: die 5 cm an der Wand kosten
+// Material und Zeit. Nur bei FLAECHENabdichtung - nicht bei Dichtband (lfm)
+// und nicht bei Manschetten/Ecken (Stueck), die haben ihre eigene Menge.
+function abdAufkantungAnwenden(r){
+  const z=parseFloat(KALK.abd_aufkantung)||0;
+  if(!r || !(z>0) || !(r.ep>0)) return r;
+  const alt=r.ep;
+  r.ep=Math.round(alt*(1+z/100)*100)/100;
+  r.zeilen.push(['+ Aufkantung 5 cm an den Wänden',
+    fmt(z)+' % pauschal – Raumumfang steht nicht im LV', r.ep-alt]);
+  return r;
+}
 function finishAbdicht(zeilen, warn, roh, stunden){
   const kalk=roh*1.20;
   zeilen.push(['Material roh','',roh]);
@@ -1739,8 +1769,11 @@ const ABD_VERBRAUCH = [
 // Liefert {kg, quelle} oder null, wenn fuer das Produkt nichts hinterlegt ist.
 function abdVerbrauch(artikelName){
   const n=String(artikelName||'');
+  const vl = 1 + (parseFloat(KALK.abd_verlust)||0)/100;
   for(const e of ABD_VERBRAUCH){
-    if(e.muster.test(n)) return {kg:Math.round(e.kg*ABD_SCHICHTZUSCHLAG*100)/100, roh:e.kg, quelle:e.quelle};
+    if(e.muster.test(n))
+      return {kg:Math.round(e.kg*ABD_SCHICHTZUSCHLAG*vl*100)/100, roh:e.kg,
+              quelle:e.quelle, verlust:parseFloat(KALK.abd_verlust)||0};
   }
   return null;
 }
@@ -1783,13 +1816,21 @@ function abdichtFabrikat(text){
 const ABD_FLUESSIG_KG = 2.5;      // kg/m² Gesamtverbrauch bei 2 mm (2 Lagen, NICHT pro Lage) – Erik 25.07.
 const ABD_FLUESSIG_H  = 12/60;    // 12 min/m² (Erik 24.07.)
 const ABD_BAHN_H      = 8/60;     // 8 min/m² (Erik 24.07.) - Bahn ist schneller
-function abdichtFluessigKosten(p, system){
+// Vergleichspreis der Fluessigvariante. Nutzt dasselbe Produkt und denselben
+// Verbrauch wie die echte Berechnung - sonst vergleicht der Kasten Aepfel mit
+// Birnen (Hausschlaemme mit 2,5 kg gegen das tatsaechliche Produkt).
+function abdichtFluessigKosten(p, system, ers){
   const c=ABDICHT[system]||ABDICHT.sakret;
   const w=[];
-  const fds=artInfo(c.fds, w, 'FDS-Schlämme');
+  let cfg=c.fds, label='FDS-Schlämme';
+  if(ers && ers.artikel){ cfg={name:ers.artikel.name, nicht:ers.nicht, gebinde:gebindeAusArtikel(ers.artikel, c.fds.gebinde)}; label=ers.artikel.name; }
+  const fds=artInfo(cfg, w, label);
   if(!fds.found) return null;
-  const mat=fds.je*ABD_FLUESSIG_KG;
-  return {mat, ep:Math.round((mat*1.20 + ABD_FLUESSIG_H*LOHN())*100)/100, je:fds.je, txt:fds.txt};
+  const vb=abdVerbrauch(fds.art ? fds.art.name : cfg.name);
+  const kg=vb ? vb.kg : ABD_FLUESSIG_KG;
+  const mat=fds.je*kg;
+  const roh=Math.round((mat*1.20 + ABD_FLUESSIG_H*LOHN())*100)/100;
+  return {mat, ep:abdAufkantungAnwenden({ep:roh, zeilen:[]}).ep, je:fds.je, txt:fds.txt, kg:kg, produkt:label};
 }
 function epAbdichtFlaeche(p, system){
   const warn=[], zeilen=[];
@@ -1833,13 +1874,14 @@ function epAbdichtFlaeche(p, system){
     }
   }
 
-  // Art: manuelle Wahl schlaegt Text, Text schlaegt Standard.
-  // Erkanntes festhalten, damit "wie vor" es weitergeben kann.
-  if(!p._artManuell){
-    const e = erkenneAbdichtArt(txt);
-    if(e && !p.abdichtArt) p.abdichtArt = e;
-  }
+  // Bauweise: Eriks Standard ist und bleibt die DICHTBAHN - sichere
+  // Schichtdicke, keine Trocknungszeit, sofort weiterarbeiten. Was das LV
+  // verlangt, wird erkannt und angezeigt, entscheidet aber NICHT automatisch.
+  // Die Wahl trifft Erik im Rechner; "wie vor" gibt sie an Folgepositionen weiter.
+  p._lvVerlangt = erkenneAbdichtArt(txt) || '';
   const art = p.abdichtArt || 'bahn';
+  if(p._lvVerlangt==='fluessig' && art==='bahn')
+    warn.push('PRUEFEN|Das LV verlangt eine Flüssigabdichtung – gerechnet ist die Dichtbahn (gleichwertig, keine Trocknungszeit). Bei „oder gleichwertig" zulässig, sonst als Nebenangebot kennzeichnen.');
   if(art==='fluessig'){
     // Menge richtet sich nach dem tatsaechlich eingesetzten Produkt.
     // Welches Produkt? Nennt das LV ein Fremdfabrikat, entscheidet die
@@ -1864,8 +1906,8 @@ function epAbdichtFlaeche(p, system){
     zeilen.push(['Flüssigabdichtung 2 Lagen'+(wk?' ('+wk+')':''),
       unklar ? 'kein gleichwertiges Produkt zugeordnet – Preis anfragen'
              : (fds.found?(fds.txt+' × '+String(kg).replace('.',',')+' kg'
-                 +(vb?' ('+String(vb.roh).replace('.',',')+' + 6 % Schichtdicke)':'')):'fehlt'), matK]);
-    const r=finishAbdicht(zeilen, warn, matK, ABD_FLUESSIG_H);
+                 +(vb?' ('+String(vb.roh).replace('.',',')+' + 6 % Schichtdicke + '+fmt(vb.verlust)+' % Verlust)':'')):'fehlt'), matK]);
+    const r=abdAufkantungAnwenden(finishAbdicht(zeilen, warn, matK, ABD_FLUESSIG_H));
     // Vergleich: was würde die Dichtbahn kosten? Zaehlt NICHT zum EP, deshalb
     // sollen die dabei benutzten Artikel auch keinen "Preis prüfen"-Hinweis
     // ausloesen - Sammler kurz stilllegen.
@@ -1908,11 +1950,11 @@ function epAbdichtFlaeche(p, system){
   const fds=artInfo(c.fds, warn, 'FDS-Schlämme');
   const fdsK=fds.found?fds.je*0.4:0;
   zeilen.push(['FDS Stöße 0,4 kg', fds.found?fds.txt+' × 0,4':'fehlt', fdsK]);
-  const r=finishAbdicht(zeilen, warn, bahnK+kleber+fdsK, ABD_BAHN_H);
+  const r=abdAufkantungAnwenden(finishAbdicht(zeilen, warn, bahnK+kleber+fdsK, ABD_BAHN_H));
   const _sAus = PREIS_ALT_SAMMLER; PREIS_ALT_SAMMLER = null;
-  const fl=abdichtFluessigKosten(p, system);
+  const fl=abdichtFluessigKosten(p, system, ers);
   PREIS_ALT_SAMMLER = _sAus;
-  if(fl) r.vergleich={label:'Flüssigabdichtung wäre', ep:fl.ep, diff:fl.ep-r.ep};
+  if(fl) r.vergleich={label:'Flüssigabdichtung ('+fl.produkt+') wäre', ep:fl.ep, diff:fl.ep-r.ep};
   return r;
 }
 function epDichtband(p, system){
@@ -2406,7 +2448,8 @@ function importPos(roh){
   if(p.typ==='abdicht_flaeche'){
     const t=p.desc+' '+p.langtext;
     const wk=erkenneWKlasse(t); if(wk) p.wKlasse=wk;
-    const ar=erkenneAbdichtArt(t); if(ar) p.abdichtArt=ar;
+    // Bauweise wird NICHT vorbelegt: Standard bleibt die Dichtbahn.
+    p._lvVerlangt = erkenneAbdichtArt(t) || '';
   }
 
   // Fliesen-Vorschlag aus der Preisdatenbank – nur als Materialpreis,
@@ -2636,15 +2679,17 @@ function renderCalcHTML(i){
       +'</div></div>';
 
     const erkArt=erkenneAbdichtArt(txtRoh);
-    const art=p.abdichtArt||erkArt||'bahn';
-    const hinweis = erkArt==='fluessig'
-      ? '<span style="color:#0071e3">💡 Der LV-Text verlangt ausdrücklich eine Flüssigabdichtung</span>'
-      : erkArt==='bahn'
-        ? '<span style="color:#0071e3">💡 Der LV-Text nennt eine Dichtbahn</span>'
-        : '<span style="color:var(--muted)">Standard: Dichtbahn</span>';
+    const art=p.abdichtArt||'bahn';   // Eriks Standard, nicht der LV-Text
+    const hinweis = (erkArt==='fluessig' && art==='bahn')
+      ? '<span style="color:#e0a800">🟡 Das LV verlangt eine Flüssigabdichtung – gerechnet ist die Dichtbahn.<br>'
+        +'Gleichwertig, aber ohne Trocknungszeit: sofort weiterarbeiten.'
+        +'<br><button class="bg sm" style="padding:2px 7px;font-size:11px;margin-top:4px" onclick="setAbdichtArt('+i+',&quot;fluessig&quot;)">↧ doch flüssig rechnen</button></span>'
+      : (erkArt==='bahn'
+        ? '<span style="color:var(--green)">✓ Das LV nennt eine Dichtbahn – passt zu deinem Standard</span>'
+        : '<span style="color:var(--muted)">Standard: Dichtbahn (keine Trocknungszeit)</span>');
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Bauweise</div>'
       +'<select onchange="setAbdichtArt('+i+',this.value)" style="width:auto;padding:6px 8px">'
-      +'<option value="bahn"'+(art==='bahn'?' selected':'')+'>Dichtbahn</option>'
+      +'<option value="bahn"'+(art==='bahn'?' selected':'')+'>Dichtbahn (dein Standard)</option>'
       +'<option value="fluessig"'+(art==='fluessig'?' selected':'')+'>Flüssigabdichtung 2 Lagen</option>'
       +'</select><div style="font-size:11px;margin-top:3px;max-width:340px">'+hinweis
       + (p._wieVor?'<br><span style="color:var(--green)">✓ „wie vor" – von Pos. '+esc(String(p._wieVor))+' übernommen</span>':'')
@@ -3687,6 +3732,7 @@ function slFuellen(){
   setz('sl-gewinn',SL.gewinn);     setz('sl-wagnis',SL.wagnis);
   setz('sl-vor',KALK.lohn_vorarbeiter); setz('sl-fach',KALK.lohn_facharbeiter);
   setz('sl-helf',KALK.lohn_helfer);     setz('sl-mat',Math.round((KALK.mat_zuschlag-1)*100));
+  setz('sl-verlust',KALK.abd_verlust); setz('sl-aufk',KALK.abd_aufkantung);
   const h1=document.getElementById('sl-personal-h');
   if(h1) h1.textContent='Löhne, Lohnfortzahlung, Sozialabgaben, BG, SOKA – ohne Büro und Geschäftsführung';
   const h2=document.getElementById('sl-gemein-h');
@@ -3777,6 +3823,8 @@ function slUebernehmen(){
     lohn_facharbeiter: slFeld('sl-fach'),
     lohn_helfer:       slFeld('sl-helf'),
     mat_zuschlag:      1 + slFeld('sl-mat')/100,
+    abd_verlust:       slFeld('sl-verlust'),
+    abd_aufkantung:    slFeld('sl-aufk'),
   };
   if(!(neu.lohn_facharbeiter>0)){ toast('Facharbeiter-Satz fehlt'); return; }
   const alt=LOHN();
@@ -4472,8 +4520,8 @@ const ABDICHT_SYSTEM = {
     dichtbahn:  {name:'Sakret Dichtbahn O-DI',                     gebinde:30},
     schlaemme:  {name:'Sakret Flexible Dichtungsschlämme FDS',     gebinde:15},
     dichtband:  {name:'Sakret Dichtband flexibel O-DB',            gebinde:50},
-    innenecke:  {name:'Sakret Dichtecken O-DE innen',              gebinde:50},
-    aussenecke: {name:'Sakret Dichtecken O-DE außen',              gebinde:50},
+    innenecke:  {name:'Sakret Dichtecken O-DE innen',              gebinde:10},
+    aussenecke: {name:'Sakret Dichtecken O-DE außen',              gebinde:10},
     wandmansch: {name:'Sakret Dehnzonenmanschette DZM',            gebinde:10},
     bodenmansch:null   // Sakret: keine Bodenmanschette im Einsatz
   }
