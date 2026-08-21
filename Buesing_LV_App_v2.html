@@ -1230,21 +1230,66 @@ const TYP_REGELN = [
   ['wand',          ['wandbelag','wandfliesen','steingut-wandfliesen','wandkeramik']],
   ['boden',         ['bodenbelag','bodenfliesen','feinsteinzeug','anarbeiten von bodenfliesen']],
 ];
-function pruefeTyp(text){
-  const t=(text||'').toLowerCase();
-  if(!t) return null;
-  for(const rg of TYP_REGELN){
-    for(const w of rg[1]){ if(t.indexOf(w)>-1) return rg[0]; }
-  }
+// Umlaute einebnen, sonst trifft die Regel "dichtband" nicht auf die
+// Ueberschrift "Dichtbaender": ae ist nicht a. Genau daran ist eine
+// Dichtband-Position als Flaechenabdichtung durchgerutscht.
+function typNorm(t){
+  return (t||'').toLowerCase()
+    .replace(/ä/g,'a').replace(/ö/g,'o').replace(/ü/g,'u')
+    .replace(/ß/g,'ss');
+}
+// Welche Einheit passt zu welchem Typ? Eine Flaechenabdichtung in "m"
+// abzurechnen ist ein Widerspruch - der faellt sonst niemandem auf.
+const TYP_EINHEIT = {
+  flaeche: ['wand','boden','naturstein','abdicht_flaeche','grundierung','spachtel',
+            'duschelement','reinigung','behandlung','schutz','sauberlaufmatte','reservefliesen'],
+  laenge:  ['dichtband','profil','hohlkehlsockel','silikon','randfuge','sauberlaufrahmen'],
+  stueck:  ['manschette','dichtecke','loch','ablauf','ablauf_doppel','fliesentausch'],
+};
+function einheitKlasse(eh){
+  const e=typNorm(eh).replace(/[^a-z0-9²]/g,'');
+  if(!e) return null;
+  if(/^(m2|m²|qm)$/.test(e)) return 'flaeche';
+  if(/^(m|lfm|lfdm)$/.test(e)) return 'laenge';
+  if(/^(stk|stueck|st|psch|pausch)$/.test(e)) return e.startsWith('p')?null:'stueck';
+  if(e.startsWith('std')) return null;
   return null;
 }
-// Zweistufig: zuerst die Ueberschrift (Oberbegriff), dann erst der Langtext
+function typKlasse(typ){
+  for(const k in TYP_EINHEIT){ if(TYP_EINHEIT[k].indexOf(typ)>-1) return k; }
+  return null;
+}
+// Liefert ALLE zutreffenden Typen in Regel-Reihenfolge, nicht nur den ersten.
+function pruefeTypAlle(text){
+  const t=typNorm(text);
+  if(!t) return [];
+  const treffer=[];
+  for(const rg of TYP_REGELN){
+    for(const w of rg[1]){
+      if(t.indexOf(typNorm(w))>-1){ if(treffer.indexOf(rg[0])<0) treffer.push(rg[0]); break; }
+    }
+  }
+  return treffer;
+}
+function pruefeTyp(text){
+  const a=pruefeTypAlle(text);
+  return a.length?a[0]:null;
+}
+// Zweistufig: zuerst die Ueberschrift (Oberbegriff), dann erst der Langtext.
+// Passt die Einheit nicht zum Typ, wird ein Treffer bevorzugt, der passt -
+// so gewinnt bei "Dichtbaender ... m" das Dichtband gegen die Flaeche.
 function erkenneTyp(desc, langtext, einheit){
   if((einheit||'').toLowerCase().startsWith('std')) return 'stundenlohn';
-  const ausUeberschrift = pruefeTyp(desc);
-  if(ausUeberschrift) return ausUeberschrift;
-  const ausLangtext = pruefeTyp(langtext);
-  if(ausLangtext) return ausLangtext;
+  const soll = einheitKlasse(einheit);
+  for(const quelle of [desc, langtext]){
+    const treffer = pruefeTypAlle(quelle);
+    if(!treffer.length) continue;
+    if(soll){
+      const passend = treffer.find(function(t){ const k=typKlasse(t); return k && k===soll; });
+      if(passend) return passend;
+    }
+    return treffer[0];
+  }
   return 'unbekannt';
 }
 function typenNeuErkennen(){
@@ -2396,6 +2441,16 @@ function autoEP(p, system){
     p.notiz = 'Typ nicht erkannt – bitte Typ wählen';
     return p;
   }
+  // Einheit gegen Typ pruefen: eine Flaeche in "m" oder ein Profil in "m²"
+  // ist ein Widerspruch und meist ein Zeichen fuer den falschen Typ.
+  const sollK = einheitKlasse(p.einheit), istK = typKlasse(p.typ);
+  if(sollK && istK && sollK !== istK){
+    const wort = {flaeche:'Fläche (m²)', laenge:'Länge (m)', stueck:'Stück'};
+    p.ep = 0; p.status = 'rot';
+    p.notiz = 'Typ passt nicht zur Einheit: „'+(TYPEN.find(function(t){return t[0]===p.typ;})||['',''])[1]
+            + '" rechnet in '+wort[istK]+', das LV fordert '+wort[sollK]+' – bitte Typ prüfen';
+    return p;
+  }
 
   let r;
   try { r = berechneEP(p, system); }
@@ -2916,8 +2971,18 @@ function setRutsch(i,v){ LV.pos[i].rutsch=v; const el=document.getElementById('c
 function setSilikon(i,v){ LV.pos[i].silikonArt=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 function setSchutz(i,v){ LV.pos[i].schutzArt=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 function setBaustelle(i,v){ LV.pos[i].baustellePreis=(v===''?null:v); const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
-function setAbdichtArt(i,v){ LV.pos[i].abdichtArt=v; LV.pos[i]._artManuell=true; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
-function setWKlasse(i,v){ LV.pos[i].wKlasse=v; const row=document.getElementById('calc-'+i); if(row) row.querySelector('td').innerHTML=renderCalcHTML(i); scheduleSave(); }
+// Bauweise und Wassereinwirkungsklasse aendern das Rezept - also den EP
+// gleich mitziehen, so wie beim Typwechsel. Geprueft-gruene bleiben unberuehrt.
+function setAbdichtArt(i,v){
+  const p=LV.pos[i]; p.abdichtArt=v; p._artManuell=true;
+  if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
+  renderLV(); scheduleSave();
+}
+function setWKlasse(i,v){
+  const p=LV.pos[i]; p.wKlasse=v;
+  if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
+  renderLV(); scheduleSave();
+}
 function setEmco(i,feld,v){ const p=LV.pos[i]; p[feld]=(feld==='emcoMatte'||feld==='emcoRahmen')?v:(parseFloat(v)||0); const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 function setEmcoPct(i,feld,v){ LV.pos[i][feld]=(parseFloat(v)||0)/100; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 // Umschalter: Rahmen in derselben Position enthalten? (rendert die Felder neu, da Rahmen-Auswahl dazukommt)
