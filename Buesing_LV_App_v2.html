@@ -70,6 +70,10 @@ tr:hover td{background:#fafafa}
 .bw{background:var(--ybg);color:#b25000}
 .bo{background:var(--gbg);color:#1a7a35}
 .div{height:1px;background:var(--border);margin:14px 0}
+.hint{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.35}
+.sl-z{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}
+.sl-z.sum{border-top:1px solid var(--border);margin-top:4px;padding-top:8px;font-weight:700}
+.sl-erg{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border-radius:10px;background:var(--accent);color:#fff;font-weight:700;font-size:16px;margin-top:8px}
 .sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 #toast{position:fixed;bottom:24px;right:24px;background:#1d1d1f;color:#fff;padding:12px 20px;border-radius:14px;font-weight:600;font-size:14px;display:none;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.2)}
 @media print{header,nav,.np{display:none!important}body{background:white;color:black}.card{border:none;padding:0;box-shadow:none}#pra{display:block!important}}
@@ -607,25 +611,47 @@ tr:hover td{background:#fafafa}
 <div id="tab-einstellungen" class="tab">
   <div class="g2">
     <div class="card">
-      <div class="ct">Kalkulationsgrundlagen</div>
+      <div class="sh">
+        <div class="ct">Verrechnungslohn — Stundensatz-Rechner</div>
+        <button class="bg sm" onclick="slReset()" title="Alle Felder auf die Werte aus der Datei zurücksetzen">↩ Zurücksetzen</button>
+      </div>
+      <div id="sl-warn" style="display:none;padding:9px 11px;border-radius:8px;background:#fff8e5;border:1px solid #e8c86a;font-size:12px;margin-bottom:10px"></div>
+
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:2px 0 7px">1 · Was dich eine Stunde kostet</div>
       <div class="g2">
-        <div class="f"><label>Facharbeiter (€/h)</label><input type="number" value="60"></div>
-        <div class="f"><label>Helfer (€/h)</label><input type="number" value="42"></div>
+        <div class="f"><label>Produktive Personalkosten (€ / Jahr)</label><input type="number" step="100" id="sl-personal" oninput="slRechne()"><div class="hint" id="sl-personal-h"></div></div>
+        <div class="f"><label>Gewerbliche Mitarbeiter</label><input type="number" step="1" id="sl-koepfe" oninput="slRechne()"></div>
       </div>
-      <div class="div"></div>
       <div class="g2">
-        <div class="f"><label>BGK (%)</label><input type="number" value="8"></div>
-        <div class="f"><label>AGK (%)</label><input type="number" value="6"></div>
-        <div class="f"><label>Gewinn (%)</label><input type="number" value="4"></div>
-        <div class="f"><label>Wagnis (%)</label><input type="number" value="2"></div>
+        <div class="f"><label>Bezahlte Stunden je Kopf / Jahr</label><input type="number" step="10" id="sl-bezahlt" oninput="slRechne()"><div class="hint">40 h × 52 Wochen = 2.080</div></div>
+        <div class="f"><label>davon nicht auf der Baustelle (%)</label><input type="number" step="1" id="sl-abzug" oninput="slRechne()"><div class="hint">Urlaub, Krankheit, Feiertage, Fahrzeit, Lager, Aufmaß</div></div>
       </div>
-      <div style="display:flex;justify-content:space-between;padding:10px;background:var(--surface2);border-radius:6px;margin-top:4px">
-        <span style="font-weight:600">Gesamt Aufschlag</span>
-        <span style="color:var(--accent);font-weight:700;font-size:16px">20%</span>
-      </div>
+
       <div class="div"></div>
-      <div class="f"><label>Materialaufschlag (%)</label><input type="number" value="20"></div>
-      <button class="btn" style="margin-top:8px" onclick="toast('Einstellungen gespeichert ✓')">Speichern</button>
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:2px 0 7px">2 · Was zusätzlich verdient werden muss</div>
+      <div class="g2">
+        <div class="f"><label>Gemeinkosten (€ / Jahr)</label><input type="number" step="100" id="sl-gemein" oninput="slRechne()"><div class="hint" id="sl-gemein-h"></div></div>
+        <div class="f"><label>Deckung aus Material + Fremdl. (€/Jahr)</label><input type="number" step="100" id="sl-deckung" oninput="slRechne()"><div class="hint">20 % Aufschlag auf Einkauf</div></div>
+      </div>
+      <div class="g2">
+        <div class="f"><label>Gewinn (%)</label><input type="number" step="0.5" id="sl-gewinn" oninput="slRechne()"></div>
+        <div class="f"><label>Wagnis (%)</label><input type="number" step="0.5" id="sl-wagnis" oninput="slRechne()"></div>
+      </div>
+
+      <div class="div"></div>
+      <div id="sl-out"></div>
+
+      <div class="div"></div>
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:2px 0 7px">3 · In die Kalkulation übernehmen</div>
+      <div class="g2">
+        <div class="f"><label>Bauvorarbeiter (€/h)</label><input type="number" step="0.5" id="sl-vor" oninput="slRechne()"></div>
+        <div class="f"><label>Facharbeiter (€/h)</label><input type="number" step="0.5" id="sl-fach" oninput="slRechne()"></div>
+        <div class="f"><label>Azubi / Helfer (€/h)</label><input type="number" step="0.5" id="sl-helf" oninput="slRechne()"></div>
+        <div class="f"><label>Materialaufschlag (%)</label><input type="number" step="1" id="sl-mat" oninput="slRechne()"></div>
+      </div>
+      <div id="sl-vergleich" style="font-size:12px;margin:8px 0 10px"></div>
+      <button class="btn" onclick="slUebernehmen()">✓ Sätze übernehmen</button>
+      <button class="bg" onclick="slAusRechner()" title="Den errechneten Verrechnungslohn in die drei Felder oben schreiben">↧ Errechneten Satz eintragen</button>
     </div>
     <div class="card">
       <div class="sh">
@@ -911,7 +937,7 @@ function showTab(n,b){
   if(n==='lieferanten')renderLieferanten();
   if(n==='start')renderStart();
   if(n==='archiv')renderArchiv();
-  if(n==='einstellungen')renderNutzer();
+  if(n==='einstellungen'){ renderNutzer(); slFuellen(); }
   if(n==='abdichtung')renderAbdichtung();
 }
 
@@ -1040,6 +1066,7 @@ async function handleFile(file,typ){
       // EP kommt aus dem Regelwerk (importPos -> autoEP -> berechneEP),
       // nie mehr direkt aus einem Artikel-EK.
       LV.pos=alleRoh.map(importPos);
+      wieVorUebernehmen(LV.pos);
       document.getElementById('lv-proc').style.display='none';
       document.getElementById('lv-main').style.display='block';
       const tit=document.getElementById('lv-tit'); if(tit) tit.textContent=LV.titel;
@@ -1108,6 +1135,7 @@ async function kiLV(text,datei){
     LV.titel=datei.replace(/\.[^.]+$/,'');
     // EP kommt aus dem Regelwerk (importPos -> autoEP -> berechneEP).
     LV.pos=roh.map(importPos);
+    wieVorUebernehmen(LV.pos);
     document.getElementById('lv-proc').style.display='none';
     document.getElementById('lv-main').style.display='block';
     const tit=document.getElementById('lv-tit'); if(tit) tit.textContent=LV.titel;
@@ -1236,6 +1264,27 @@ function typOptions(sel){
 // ============================================
 // EP-RECHNER (Stufe 1: Wand verlegen)
 // ============================================
+// ===== KALKULATIONS-GRUNDWERTE (Erik 21.08.) ==============================
+// Frueher stand der Stundensatz 55 an 16 Stellen fest im Code. Jetzt steht er
+// hier - einmal. KALK_STD ist die Wahrheit in der Datei (Eriks Arbeitsregel:
+// Endwerte gehoeren in die Datei, nicht in den Interface-Zustand). Der Reiter
+// "Stundensatz" darf die Werte fuer diesen Rechner ueberschreiben; beim
+// Zuruecksetzen gilt wieder KALK_STD.
+const KALK_STD = {
+  lohn_vorarbeiter:  58.00,
+  lohn_facharbeiter: 55.00,   // Standardsatz aller Rezepte
+  lohn_helfer:       49.50,
+  mat_zuschlag:      1.20,    // BGK 8 + AGK 6 + Gewinn 4 + Wagnis 2
+};
+let KALK = Object.assign({}, KALK_STD);
+try{ const gesp=JSON.parse(localStorage.getItem('buesing_kalk')||'null');
+     if(gesp && typeof gesp==='object') KALK=Object.assign({}, KALK_STD, gesp); }catch(e){}
+// Standardsatz der Rezepte (Facharbeiter)
+function LOHN(){ const v=parseFloat(KALK.lohn_facharbeiter); return v>0?v:KALK_STD.lohn_facharbeiter; }
+// Fuer die Klartext-Spalte im Rechner: "0,95 h × 55,00"
+function lohnTxt(h){ return String(h).replace('.',',')+' h × '+fmt(LOHN()); }
+function kalkAbweichend(){ return Math.abs(LOHN()-KALK_STD.lohn_facharbeiter)>0.005; }
+
 const FUGE_STD = {name:'Nanofug Premium', gebinde:15}; // kg je Gebinde (anpassbar)
 // Abdichtungs-Systemartikel (Gebinde: Bahn m²/Rolle · FDS kg · Band m · Manschette/Ecke Stück)
 const ABDICHT = {
@@ -1385,7 +1434,9 @@ function fabrikatAusText(t){
   const s=(t||'').replace(/\s+/g,' ');
   // "Fabr." / "Fabrikat:" / "Hersteller:" – Doppelpunkt optional
   let m=s.match(/\bFabr(?:\.|ikat)?\s*:?\s*([^\n,;.]{2,60})/i)
-     || s.match(/\bHersteller\s*:?\s*([^\n,;.]{2,60})/i);
+     || s.match(/\bHersteller\s*:?\s*([^\n,;.]{2,60})/i)
+     || s.match(/\bProdukt\s*:?\s*([^\n,;.]{2,60})/i)
+     || s.match(/\bErzeugnis\s*:?\s*([^\n,;.]{2,60})/i);
   if(!m) return null;
   let name=m[1].trim();
   // Serie/Farb-Zusatz in Anführungszeichen anhängen: Agrob Buchtal "Basis 1" -> Agrob Buchtal Basis 1
@@ -1504,8 +1555,8 @@ function epFliese(p, system){
     if(p.rutsch==='hoch' && zeit<1.15) zeit=1.15;
   }
   const zeittxt=zeit.toFixed(2).replace('.',',');
-  const lohn=mitLohn ? zeit*55 : 0;
-  if(mitLohn) zeilen.push(['Lohn', zeittxt+' h × 55', lohn]);
+  const lohn=mitLohn ? zeit*LOHN() : 0;
+  if(mitLohn) zeilen.push(['Lohn', zeittxt+' h × '+fmt(LOHN()), lohn]);
   else zeilen.push(['Lohn', 'nur Lieferung – kein Lohn', 0]);
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn};
@@ -1568,8 +1619,8 @@ function finishAbdicht(zeilen, warn, roh, stunden){
   zeilen.push(['Material roh','',roh]);
   zeilen.push(['Material × 1,20','',kalk]);
   const zt=stunden.toFixed(2).replace('.',',');
-  const lohn=stunden*55;
-  zeilen.push(['Lohn',zt+' h × 55',lohn]);
+  const lohn=stunden*LOHN();
+  zeilen.push(['Lohn',zt+' h × '+fmt(LOHN()),lohn]);
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn};
 }
@@ -1578,6 +1629,49 @@ function finishAbdicht(zeilen, warn, roh, stunden){
 // Grund: sichere Schichtdicke, keine Trocknungszeit zwischen 2 Lagen, schneller begehbar.
 // Die Fluessigvariante wird trotzdem mitgerechnet und als Vergleich angezeigt,
 // damit die Mehrkosten der hoeherwertigen Ausfuehrung sichtbar bleiben.
+// ===== WASSEREINWIRKUNGSKLASSE IM LV (Erik 21.08.) ========================
+// Frueher kannte epAbdichtFlaeche() die W-Klasse ueberhaupt nicht: sie lebte
+// nur im Reiter "Abdichtung DIN 18534". Zwei Positionen mit W1-I und W2-I
+// bekamen deshalb denselben Preis.
+const W_KLASSEN = [['W0-I','W0-I (gering)'],['W1-I','W1-I (mäßig)'],
+                   ['W2-I','W2-I (hoch)'],['W3-I','W3-I (sehr hoch)']];
+// Flüssigverbrauch je Klasse in kg/m² (Gesamtauftrag, nicht je Lage).
+// W1-I ist Eriks bestaetigter Wert. Die uebrigen sind noch NICHT bestaetigt -
+// dort warnt die Kalkulation, statt still zu raten.
+const ABD_FLUESSIG_KG_KLASSE = {'W1-I':2.5};
+
+function erkenneWKlasse(text){
+  const t=(text||'').toUpperCase().replace(/\s+/g,'');
+  const m=t.match(/W([0-3])\s*-?\s*I\b/) || t.match(/WASSEREINWIRKUNGSKLASSE:?W?([0-3])/);
+  return m ? ('W'+m[1]+'-I') : null;
+}
+
+// Verlangt der LV-Text ausdruecklich eine Fluessigabdichtung oder eine Bahn?
+function erkenneAbdichtArt(text){
+  const t=(text||'').toLowerCase();
+  if(/dichtbahn|dichtungsfolie|abdichtungsbahn|dichtmatte|verbundmatte/.test(t)) return 'bahn';
+  if(/flüssige?\s+(flächen)?abdichtung|streichen oder spachteln|im zweimaligen|deckenden auftrag|dichtungsschlämme|reaktionsharz|flüssigfolie/.test(t)) return 'fluessig';
+  return null;
+}
+
+// Nennt der Text ein konkretes Fabrikat? Eriks Regel: dann muss GENAU das
+// angeboten werden - niemals still durch das Hausprodukt ersetzen.
+const ABD_MARKEN = ['pci','schomburg','ardex','mapei','sopro','botament','kiesel','codex','murexin','weber','sika','remmers'];
+function abdichtFabrikat(text){
+  const s=(text||'').replace(/\s+/g,' ');
+  let m=s.match(/\bProdukt\s*:?\s*([^\n,;]{2,60})/i);
+  if(m){ let n=m[1].trim().replace(/\b(o\.?\s?glw\.?|oder gleichwertig|o\.?\s?ä\.?|oder ähnlich).*$/i,'').replace(/[.\s]+$/,'').trim();
+         if(n.length>=3) return n; }
+  const t=s.toLowerCase();
+  for(const mk of ABD_MARKEN){
+    const i=t.indexOf(mk);
+    if(i>-1){ const aus=s.slice(i, i+40).split(/[,;\n]/)[0]
+                .replace(/\b(o\.?\s?glw\.?|oder gleichwertig).*$/i,'').replace(/[.\s]+$/,'').trim();
+              if(aus.length>=3) return aus; }
+  }
+  return null;
+}
+
 const ABD_FLUESSIG_KG = 2.5;      // kg/m² Gesamtverbrauch bei 2 mm (2 Lagen, NICHT pro Lage) – Erik 25.07.
 const ABD_FLUESSIG_H  = 12/60;    // 12 min/m² (Erik 24.07.)
 const ABD_BAHN_H      = 8/60;     // 8 min/m² (Erik 24.07.) - Bahn ist schneller
@@ -1587,36 +1681,64 @@ function abdichtFluessigKosten(p, system){
   const fds=artInfo(c.fds, w, 'FDS-Schlämme');
   if(!fds.found) return null;
   const mat=fds.je*ABD_FLUESSIG_KG;
-  return {mat, ep:Math.round((mat*1.20 + ABD_FLUESSIG_H*55)*100)/100, je:fds.je, txt:fds.txt};
+  return {mat, ep:Math.round((mat*1.20 + ABD_FLUESSIG_H*LOHN())*100)/100, je:fds.je, txt:fds.txt};
 }
 function epAbdichtFlaeche(p, system){
   const warn=[], zeilen=[];
   const c=ABDICHT[system]||ABDICHT.sakret;
   const sys=SYSTEME[system]||SYSTEME.sakret;
-  const art = p.abdichtArt || 'bahn';   // Standard: Dichtbahn
+  const txt=(p.desc||'')+' '+(p.langtext||'');
+
+  // Wassereinwirkungsklasse: aus dem LV-Text, im Rechner ueberschreibbar
+  if(!p.wKlasse) p.wKlasse = erkenneWKlasse(txt) || '';
+  const wk = p.wKlasse || '';
+  if(!wk) warn.push('PRUEFEN|Keine Wassereinwirkungsklasse im Text erkannt – bitte im Rechner wählen');
+  if(wk==='W0-I') warn.push('PRUEFEN|W0-I: nach DIN 18534 ist in der Regel keine Abdichtung erforderlich – Position prüfen');
+
+  // Eriks Regel: nennt das LV ein Fabrikat, muss GENAU das angeboten werden.
+  const fab = abdichtFabrikat(txt);
+  if(fab){
+    const eigen = findArtikel(fab);
+    if(!eigen) warn.push('ARTIKEL|'+fab+' (im LV gefordert – nicht in der Preisdatenbank)');
+    else zeilen.push(['Fabrikat laut LV', eigen.name, 0]);
+  }
+
+  // Art: Text schlaegt Standard, manuelle Wahl schlaegt Text
+  const art = p.abdichtArt || erkenneAbdichtArt(txt) || 'bahn';
   if(art==='fluessig'){
+    const kg = ABD_FLUESSIG_KG_KLASSE[wk] || ABD_FLUESSIG_KG;
+    if(wk && !ABD_FLUESSIG_KG_KLASSE[wk])
+      warn.push('PRUEFEN|Verbrauch für '+wk+' ist noch nicht hinterlegt – gerechnet wird mit dem W1-I-Wert '+String(ABD_FLUESSIG_KG).replace('.',',')+' kg/m²');
     const fds=artInfo(c.fds, warn, 'FDS-Schlämme');
-    const matK=fds.found?fds.je*ABD_FLUESSIG_KG:0;
-    zeilen.push(['Flüssigabdichtung 2 Lagen', fds.found?(fds.txt+' × '+ABD_FLUESSIG_KG.toString().replace('.',',')):'fehlt', matK]);
+    const matK=fds.found?fds.je*kg:0;
+    zeilen.push(['Flüssigabdichtung 2 Lagen'+(wk?' ('+wk+')':''), fds.found?(fds.txt+' × '+String(kg).replace('.',',')):'fehlt', matK]);
     const r=finishAbdicht(zeilen, warn, matK, ABD_FLUESSIG_H);
     // Vergleich: was würde die Dichtbahn kosten?
     const bahnV=artInfo(c.bahn, [], 'Dichtbahn');
     const kCfgV=sys.kleber_klein, kAV=findArtikel(kCfgV.name, kCfgV.nicht);
     if(bahnV.found && kAV){
       const roh=bahnV.je*1.05 + preisJe(kAV,kCfgV.gebinde)*1.2 + (artInfo(c.fds,[], 'x').je||0)*0.4;
-      const epB=Math.round((roh*1.20 + ABD_BAHN_H*55)*100)/100;
+      const epB=Math.round((roh*1.20 + ABD_BAHN_H*LOHN())*100)/100;
       r.vergleich={label:'Dichtbahn (dein Standard) wäre', ep:epB, diff:epB-r.ep};
     }
     return r;
   }
   // --- Standard: Dichtbahn ---
+  // Verschnitt je Wassereinwirkungsklasse (W2-I braucht mehr Ueberlappung):
+  // W1-I 1,05 · W2-I 1,10 · W3-I 1,05 - dieselben Faktoren wie im DIN-18534-Reiter.
+  const vf = DICHTBAHN_FAKTOR[wk] || 1.05;
+  const vftxt = vf.toFixed(2).replace('.',',');
   const bahn=artInfo(c.bahn, warn, 'Dichtbahn');
-  const bahnK=bahn.found?bahn.je*1.05:0;
-  zeilen.push(['Dichtbahn (× 1,05)', bahn.found?bahn.txt+' × 1,05':'fehlt', bahnK]);
+  const bahnK=bahn.found?bahn.je*vf:0;
+  zeilen.push(['Dichtbahn (× '+vftxt+(wk?', '+wk:'')+')', bahn.found?bahn.txt+' × '+vftxt:'fehlt', bahnK]);
+  // Klebermenge je Klasse aus der Abdichtungs-Tabelle, sonst 1,2 kg wie bisher
+  const aKl=(typeof ABDICHTUNG!=='undefined'&&ABDICHTUNG.length)?ABDICHTUNG.find(function(x){return x.klasse===wk;}):null;
+  const klKg=(aKl&&parseFloat(aKl.f_abdichtung)>0)?parseFloat(aKl.f_abdichtung):1.2;
+  const kltxt=String(klKg).replace('.',',');
   const kCfg=sys.kleber_klein; const kA=findArtikel(kCfg.name, kCfg.nicht);
   let kleber=0;
-  if(kA){ kleber=preisJe(kA,kCfg.gebinde)*1.2; zeilen.push(['Bahn-Kleber 1,2 kg', preisTxt(kA,kCfg.gebinde,'kg')+' × 1,2', kleber]); }
-  else { warn.push('ARTIKEL|'+kCfg.name); zeilen.push(['Bahn-Kleber 1,2 kg','fehlt',0]); }
+  if(kA){ kleber=preisJe(kA,kCfg.gebinde)*klKg; zeilen.push(['Bahn-Kleber '+kltxt+' kg', preisTxt(kA,kCfg.gebinde,'kg')+' × '+kltxt, kleber]); }
+  else { warn.push('ARTIKEL|'+kCfg.name); zeilen.push(['Bahn-Kleber '+kltxt+' kg','fehlt',0]); }
   const fds=artInfo(c.fds, warn, 'FDS-Schlämme');
   const fdsK=fds.found?fds.je*0.4:0;
   zeilen.push(['FDS Stöße 0,4 kg', fds.found?fds.txt+' × 0,4':'fehlt', fdsK]);
@@ -1663,8 +1785,8 @@ function epGrundierung(p, system){
   else { warn.push('ARTIKEL|'+cfg.name); zeilen.push(['Grundierung '+ltxt+' L ('+mtxt+')','fehlt',0]); }
   const kalk=mat*1.20;
   zeilen.push(['Material × 1,20','',kalk]);
-  const lohn=0.05*55;
-  zeilen.push(['Lohn','0,05 h × 55',lohn]);
+  const lohn=0.05*LOHN();
+  zeilen.push(['Lohn',lohnTxt(0.05),lohn]);
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn};
 }
@@ -1686,7 +1808,7 @@ function epSpachtel(p, system){
     else { warn.push('ARTIKEL|Bodenausgleichsmasse'); zeilen.push(['Ausgleichsmasse '+ktxt+' kg','fehlt',0]); }
     if(!ausText && !(parseFloat(p.spachtelMm)>0)) warn.push('EINGABE|Keine Schichtdicke im Text erkannt – '+AUSGLEICH_STD_MM+' mm angenommen, bitte prüfen');
     const kalk=mat*1.20; zeilen.push(['Material × 1,20','',kalk]);
-    const lohn=AUSGLEICH_H*55; zeilen.push(['Lohn (Ausgleichen)','8 min/m² × 55',lohn]);
+    const lohn=AUSGLEICH_H*LOHN(); zeilen.push(['Lohn (Ausgleichen)','8 min/m² × '+fmt(LOHN()),lohn]);
     return {ep:Math.round((kalk+lohn)*100)/100, zeilen, warn};
   }
   // --- Vorspachtel WBS (standfest, 3-50 mm, 1,2 kg/m² je mm) ---
@@ -1704,17 +1826,17 @@ function epSpachtel(p, system){
   if(!ausText && !(parseFloat(p.spachtelMm)>0)) warn.push('EINGABE|Keine Schichtdicke im Text erkannt – '+WBS_STD_MM+' mm angenommen, bitte prüfen');
   const kalk=mat*1.20;
   zeilen.push(['Material × 1,20','',kalk]);
-  const lohn=WBS_H*55;
-  zeilen.push(['Lohn (Handspachtelung)','0,25 h × 55',lohn]);
+  const lohn=WBS_H*LOHN();
+  zeilen.push(['Lohn (Handspachtelung)',lohnTxt(WBS_H),lohn]);
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn};
 }
 function epStundenlohn(p){
   const t=((p.desc||'')+' '+(p.langtext||'')).toLowerCase();
-  let satz=55.00, rolle='Facharbeiter';
-  if(t.indexOf('vorarbeiter')>-1){ satz=58.00; rolle='Bauvorarbeiter'; }
-  else if(t.indexOf('facharbeiter')>-1){ satz=55.00; rolle='Facharbeiter'; }
-  else if(t.indexOf('auszubildende')>-1||t.indexOf('azubi')>-1||t.indexOf('helfer')>-1){ satz=49.50; rolle='Azubi/Helfer'; }
+  let satz=KALK.lohn_facharbeiter, rolle='Facharbeiter';
+  if(t.indexOf('vorarbeiter')>-1){ satz=KALK.lohn_vorarbeiter; rolle='Bauvorarbeiter'; }
+  else if(t.indexOf('facharbeiter')>-1){ satz=KALK.lohn_facharbeiter; rolle='Facharbeiter'; }
+  else if(t.indexOf('auszubildende')>-1||t.indexOf('azubi')>-1||t.indexOf('helfer')>-1){ satz=KALK.lohn_helfer; rolle='Azubi/Helfer'; }
   return {ep:satz, zeilen:[['Stundensatz ('+rolle+')','',satz]], warn:[]};
 }
 function epProfil(p, system){
@@ -1736,8 +1858,8 @@ function epProfil(p, system){
   if(p.oberflaeche==='pulver' && !(p.farbe||'').trim()) warn.push('EINGABE|Farbe eintragen (wird bemustert)');
   const kalk=schiene*1.20;
   zeilen.push(['Material × 1,20','',kalk]);
-  const lohn=0.15*55;
-  zeilen.push(['Einbau','0,15 h × 55',lohn]);
+  const lohn=0.15*LOHN();
+  zeilen.push(['Einbau',lohnTxt(0.15),lohn]);
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn, unsicher:!erk.sicher};
 }
@@ -1816,7 +1938,7 @@ function epSauberlaufmatte(p){
   const m=EMCO_MATTE[mTyp]||EMCO_MATTE.rips_diplomat;
   const vkM2=m.preis*(1-abs), ekM2=m.preis*(1-rab);
   const material=vkM2*flaeche;
-  const lohn=flaeche*EMCO_LOHN*55;
+  const lohn=flaeche*EMCO_LOHN*LOHN();
   const hoehe=p.emcoHoehe||22;
   const mattKenn={12:'512',17:'517',22:'522'}[hoehe]||'522';
   const rahmenKenn={12:'500/15',17:'500/20',22:'500/25'}[hoehe]||'500/25';
@@ -1837,7 +1959,7 @@ function epSauberlaufmatte(p){
     zeilen.push([r.name+' ('+rahmenKenn+(rTyp==='cn'?' CN':' AL')+')', 'Umfang '+umfang.toFixed(2)+' lfm', 0]);
     zeilen.push(['Rahmen: '+fmt(vkM)+' €/m × '+umfang.toFixed(2), 'Liste '+fmt(r.preis)+' €/m −'+Math.round(abs*100)+'%', rahmenKosten]);
   }
-  zeilen.push(['Lohn Einlegen', flaeche.toFixed(3)+' × 0,15 h × 55', lohn]);
+  zeilen.push(['Lohn Einlegen', flaeche.toFixed(3)+' × 0,15 h × '+fmt(LOHN()), lohn]);
   if(!flaeche) warn.push('EINGABE|Maße nicht erkannt – Breite×Tiefe unten eintragen');
   return {ep:Math.round((material+rahmenKosten+lohn)*100)/100, zeilen, warn};
 }
@@ -1935,8 +2057,8 @@ function epHohlkehle(p){
   const kalk=matRoh*1.20;
   zeilen.push(['Material × 1,20','',kalk]);
   const std=0.14*stkProM;
-  const lohn=std*55;
-  zeilen.push(['Lohn (inkl. Ecken)','0,14 h/Stk × '+stxt+' × 55', lohn]);
+  const lohn=std*LOHN();
+  zeilen.push(['Lohn (inkl. Ecken)','0,14 h/Stk × '+stxt+' × '+fmt(LOHN()), lohn]);
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn};
 }
@@ -1959,8 +2081,8 @@ function epNaturstein(p, system){
   const kalk=roh*1.20;
   zeilen.push(['Material roh','',roh]);
   zeilen.push(['Material × 1,20','',kalk]);
-  const lohn=NST_ZEIT*55;
-  zeilen.push(['Lohn (Mittelbett)','1,28 h × 55',lohn]);
+  const lohn=NST_ZEIT*LOHN();
+  zeilen.push(['Lohn (Mittelbett)','1,28 h × '+fmt(LOHN()),lohn]);
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn};
 }
@@ -1986,8 +2108,8 @@ function epDuschelement(p, system){
     const kalk=roh*1.20;
     zeilen.push(['Material roh','',roh]);
     zeilen.push(['Material × 1,20','',kalk]);
-    const lohn=2.2*55;
-    zeilen.push(['Mosaik verlegen (Gefälle)','2,2 h/m² × 55',lohn]);
+    const lohn=2.2*LOHN();
+    zeilen.push(['Mosaik verlegen (Gefälle)','2,2 h/m² × '+fmt(LOHN()),lohn]);
     return {ep:Math.round((kalk+lohn)*100)/100, zeilen, warn};
   }
 
@@ -2005,10 +2127,10 @@ function epDuschelement(p, system){
   const kalk=roh*1.20;
   zeilen.push(['Material roh','',roh]);
   zeilen.push(['Material × 1,20','',kalk]);
-  const lohnEl=1.5*55;
-  zeilen.push(['Einbau Element','1,5 h × 55',lohnEl]);
-  const lohnMo=2.2*moFl*55;
-  zeilen.push(['Mosaik verlegen (Gefälle)','2,2 h/m² × '+flt+' × 55',lohnMo]);
+  const lohnEl=1.5*LOHN();
+  zeilen.push(['Einbau Element','1,5 h × '+fmt(LOHN()),lohnEl]);
+  const lohnMo=2.2*moFl*LOHN();
+  zeilen.push(['Mosaik verlegen (Gefälle)','2,2 h/m² × '+flt+' × '+fmt(LOHN()),lohnMo]);
   return {ep:Math.round((kalk+lohnEl+lohnMo)*100)/100, zeilen, warn};
 }
 function berechneEP(p, system){
@@ -2082,7 +2204,9 @@ function autoEP(p, system){
   if(flieseFehlt)      { p.status='rot'; p.notiz='Fliesenpreis fehlt – Preis anfragen'; }
   else if(fehlend.length){ p.status='rot'; p.notiz='fehlt: ' + fehlend.join(', '); }
   else if(!(p.ep > 0)) { p.status='rot'; p.notiz='kein Preis ermittelbar – bitte prüfen'; }
-  else                 { p.status='gelb'; p.notiz = hinweis.length ? hinweis.join(' · ') : ''; }
+  else                 { p.status='gelb'; p.notiz=''; }
+  // Pruef-Hinweise gehen auch bei roten Positionen nicht verloren
+  if(hinweis.length) p.notiz = (p.notiz ? p.notiz + ' · ' : '') + hinweis.join(' · ');
 
   return p;
 }
@@ -2098,6 +2222,13 @@ function importPos(roh){
     ep: 0, status: 'rot', notiz: ''
   };
   p.typ = erkenneTyp(p.desc, p.langtext, p.einheit);
+
+  // Abdichtung: erkannte Werte festhalten, damit "wie vor" sie weitergeben kann
+  if(p.typ==='abdicht_flaeche'){
+    const t=p.desc+' '+p.langtext;
+    const wk=erkenneWKlasse(t); if(wk) p.wKlasse=wk;
+    const ar=erkenneAbdichtArt(t); if(ar) p.abdichtArt=ar;
+  }
 
   // Fliesen-Vorschlag aus der Preisdatenbank – nur als Materialpreis,
   // NIE direkt als EP. fliesenVorschlag() haelt sich an Eriks Fachregeln
@@ -2120,6 +2251,28 @@ function importPos(roh){
   return p;
 }
 
+// LV-Konvention "wie vor": die Position uebernimmt die Ausfuehrungsart der
+// vorherigen Position und nennt nur die Abweichung. Ohne das rutscht z.B. eine
+// Flueessigabdichtung still auf den Standard "Dichtbahn" zurueck.
+const WIE_VOR = /^\s*(wie\s+(vor|zuvor|vorstehend|oben)|wie\s+pos(ition)?\b)/i;
+function wieVorUebernehmen(liste){
+  const erben=['abdichtArt','spachtelModus','umfang','oberflaeche','stufe','untergrund'];
+  let uebernommen=0;
+  for(let i=1;i<liste.length;i++){
+    const p=liste[i], v=liste[i-1];
+    if(!WIE_VOR.test(p.langtext||'') && !WIE_VOR.test(p.desc||'')) continue;
+    if(p.typ!==v.typ) continue;                       // nur bei gleichem Positionstyp
+    let geerbt=false;
+    erben.forEach(function(f){ if(p[f]===undefined && v[f]!==undefined){ p[f]=v[f]; geerbt=true; } });
+    if(geerbt){
+      autoEP(p, LV.system||'sakret');
+      p.notiz=(p.notiz?p.notiz+' · ':'')+'„wie vor" – Ausführung von Pos. '+(v.nr||(i))+' übernommen';
+      uebernommen++;
+    }
+  }
+  return uebernommen;
+}
+
 // Knopf "Alle EP neu berechnen": rechnet ein geladenes LV komplett durch.
 // Geprüfte (gruene) Positionen bleiben unangetastet.
 function alleEpNeuBerechnen(){
@@ -2132,6 +2285,7 @@ function alleEpNeuBerechnen(){
     if(Math.abs((parseFloat(p.ep)||0) - alt) > 0.005) geaendert++;
     if(p.status === 'rot') rot++;
   });
+  wieVorUebernehmen(LV.pos);
   renderLV();
   doSave(true);
   toast(geaendert + ' Position(en) neu gerechnet'
@@ -2274,17 +2428,45 @@ function renderCalcHTML(i){
       +'<br>Feld leer lassen = Vorschlag verwenden</div></div>';
   }
   if(p.typ==='abdicht_flaeche'){
-    const txt=((p.desc||'')+' '+(p.langtext||'')).toLowerCase();
-    const fluessigGefordert=/flüssig|fluessig|dichtungsfolie|schlämme|schlaemme|seccoral|streichabdichtung/.test(txt);
-    const art=p.abdichtArt||'bahn';
-    const hinweis = fluessigGefordert
-      ? '<span style="color:#0071e3">💡 LV nennt eine Flüssigabdichtung – Dichtbahn ist gleichwertig (sichere Schichtdicke, keine Trocknungszeit)</span>'
-      : '<span style="color:var(--muted)">Standard: Dichtbahn</span>';
+    const txtRoh=(p.desc||'')+' '+(p.langtext||'');
+    const erkWK=erkenneWKlasse(txtRoh);
+    if(!p.wKlasse && erkWK) p.wKlasse=erkWK;
+    const wk=p.wKlasse||'';
+    // Wassereinwirkungsklasse - steuert Verschnitt und Klebermenge
+    felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Wassereinwirkungsklasse</div>'
+      +'<select onchange="setWKlasse('+i+',this.value)" style="width:auto;padding:6px 8px">'
+      +'<option value="">– bitte wählen –</option>'
+      + W_KLASSEN.map(function(k){ return '<option value="'+k[0]+'"'+(k[0]===wk?' selected':'')+'>'+k[1]+'</option>'; }).join('')
+      +'</select><div style="font-size:11px;margin-top:3px">'
+      + (erkWK ? '<span style="color:var(--green)">✓ im LV-Text erkannt: '+erkWK+'</span>'
+               : '<span style="color:var(--red)">keine Klasse im Text gefunden</span>')
+      + (wk?'<br><span style="color:var(--muted)">Bahn-Verschnitt × '+(DICHTBAHN_FAKTOR[wk]||1.05).toFixed(2).replace('.',',')+'</span>':'')
+      +'</div></div>';
+
+    const erkArt=erkenneAbdichtArt(txtRoh);
+    const art=p.abdichtArt||erkArt||'bahn';
+    const hinweis = erkArt==='fluessig'
+      ? '<span style="color:#0071e3">💡 Der LV-Text verlangt ausdrücklich eine Flüssigabdichtung</span>'
+      : erkArt==='bahn'
+        ? '<span style="color:#0071e3">💡 Der LV-Text nennt eine Dichtbahn</span>'
+        : '<span style="color:var(--muted)">Standard: Dichtbahn</span>';
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Bauweise</div>'
       +'<select onchange="setAbdichtArt('+i+',this.value)" style="width:auto;padding:6px 8px">'
-      +'<option value="bahn"'+(art==='bahn'?' selected':'')+'>Dichtbahn (Standard)</option>'
+      +'<option value="bahn"'+(art==='bahn'?' selected':'')+'>Dichtbahn</option>'
       +'<option value="fluessig"'+(art==='fluessig'?' selected':'')+'>Flüssigabdichtung 2 Lagen</option>'
       +'</select><div style="font-size:11px;margin-top:3px;max-width:340px">'+hinweis+'</div></div>';
+
+    // Fabrikat aus dem LV - Eriks Regel: nie automatisch ersetzen
+    const fab=abdichtFabrikat(txtRoh);
+    if(fab){
+      const da=findArtikel(fab);
+      felder += '<div style="min-width:230px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Fabrikat laut LV</div>'
+        +'<div style="font-weight:600;font-size:13px">'+esc(fab)+'</div>'
+        +'<div style="font-size:11px;margin-top:3px">'
+        + (da ? '<span style="color:var(--green)">✓ in der Preisdatenbank: '+esc(da.name)+'</span>'
+              : '<span style="color:var(--red)">✗ nicht in der Preisdatenbank – Preis anfragen, nicht ersetzen</span>')
+        +'</div></div>';
+    }
   }
   if(p.typ==='sauberlaufrahmen'){
     const mass=emcoMasse(p);
@@ -2483,6 +2665,7 @@ function setSilikon(i,v){ LV.pos[i].silikonArt=v; const el=document.getElementBy
 function setSchutz(i,v){ LV.pos[i].schutzArt=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 function setBaustelle(i,v){ LV.pos[i].baustellePreis=(v===''?null:v); const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 function setAbdichtArt(i,v){ LV.pos[i].abdichtArt=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
+function setWKlasse(i,v){ LV.pos[i].wKlasse=v; const row=document.getElementById('calc-'+i); if(row) row.querySelector('td').innerHTML=renderCalcHTML(i); scheduleSave(); }
 function setEmco(i,feld,v){ const p=LV.pos[i]; p[feld]=(feld==='emcoMatte'||feld==='emcoRahmen')?v:(parseFloat(v)||0); const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 function setEmcoPct(i,feld,v){ LV.pos[i][feld]=(parseFloat(v)||0)/100; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 // Umschalter: Rahmen in derselben Position enthalten? (rendert die Felder neu, da Rahmen-Auswahl dazukommt)
@@ -3256,6 +3439,150 @@ function systemAnwenden(){
 }
 
 function fmt(n){return Number(n).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+// ===== STUNDENSATZ-RECHNER (Erik 21.08.) ==================================
+// Rechnet aus den echten Betriebszahlen, was eine verrechenbare Stunde kosten
+// muss. Vorbelegt mit der BWA Jan-Jun 2026 (auf 12 Monate hochgerechnet).
+// Die Vorbelegung ist ein Startpunkt, kein Gesetz - alle Felder sind aenderbar.
+const SL_STD = {
+  personal: 217526,   // produktive Personalkosten/Jahr (BWA-Halbjahr 108.763 x 2)
+  koepfe:   3,        // gewerbliche Mitarbeiter auf der Lohnliste
+  bezahlt:  2080,     // 40 h x 52 Wochen
+  abzug:    28,       // % nicht auf der Baustelle (Urlaub/Krankheit/Fahrt/Lager)
+  gemein:   206481,   // Gemeinkosten/Jahr (BWA-Halbjahr 103.240 x 2)
+  deckung:  43351,    // 20 % auf Material + Fremdleistung (BWA-Halbjahr x 2)
+  gewinn:   4,
+  wagnis:   2,
+};
+let SL = Object.assign({}, SL_STD);
+try{ const g=JSON.parse(localStorage.getItem('buesing_sl')||'null');
+     if(g && typeof g==='object') SL=Object.assign({}, SL_STD, g); }catch(e){}
+
+function slFeld(id){ const el=document.getElementById(id); return el?(parseFloat(el.value)||0):0; }
+
+function slFuellen(){
+  const setz=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
+  setz('sl-personal',SL.personal); setz('sl-koepfe',SL.koepfe);
+  setz('sl-bezahlt',SL.bezahlt);   setz('sl-abzug',SL.abzug);
+  setz('sl-gemein',SL.gemein);     setz('sl-deckung',SL.deckung);
+  setz('sl-gewinn',SL.gewinn);     setz('sl-wagnis',SL.wagnis);
+  setz('sl-vor',KALK.lohn_vorarbeiter); setz('sl-fach',KALK.lohn_facharbeiter);
+  setz('sl-helf',KALK.lohn_helfer);     setz('sl-mat',Math.round((KALK.mat_zuschlag-1)*100));
+  const h1=document.getElementById('sl-personal-h');
+  if(h1) h1.textContent='Löhne, Lohnfortzahlung, Sozialabgaben, BG, SOKA – ohne Büro und Geschäftsführung';
+  const h2=document.getElementById('sl-gemein-h');
+  if(h2) h2.textContent='Gesamtkosten ohne den produktiven Lohn: Miete, Kfz, Abschreibungen, Büro, Geschäftsführung';
+  slRechne();
+}
+
+function slRechne(){
+  const personal=slFeld('sl-personal'), koepfe=slFeld('sl-koepfe');
+  const bezahlt=slFeld('sl-bezahlt'),   abzug=slFeld('sl-abzug');
+  const gemein=slFeld('sl-gemein'),     deckung=slFeld('sl-deckung');
+  const gewinn=slFeld('sl-gewinn'),     wagnis=slFeld('sl-wagnis');
+
+  const stdKopf = bezahlt*(1-abzug/100);
+  const stunden = stdKopf*koepfe;
+  const warn=document.getElementById('sl-warn');
+  const out =document.getElementById('sl-out');
+  if(!out) return;
+
+  if(!(stunden>0)){
+    out.innerHTML='<div style="color:var(--muted);font-size:13px">Bitte Mitarbeiter und Stunden eintragen.</div>';
+    if(warn) warn.style.display='none';
+    return;
+  }
+
+  const kLohn   = personal/stunden;          // Personalkosten je verrechenbarer Stunde
+  const kGemein = Math.max(0,(gemein-deckung))/stunden;
+  const selbst  = kLohn+kGemein;             // Selbstkosten je Stunde
+  const satz    = selbst*(1+(gewinn+wagnis)/100);
+
+  out.innerHTML =
+     '<div class="sl-z"><span>Verrechenbare Stunden je Kopf</span><span>'+fmt(stdKopf)+' h</span></div>'
+    +'<div class="sl-z"><span>Verrechenbare Stunden gesamt</span><span>'+fmt(stunden)+' h</span></div>'
+    +'<div class="div" style="margin:8px 0"></div>'
+    +'<div class="sl-z"><span>Personalkosten je Stunde</span><span>'+fmt(kLohn)+' €</span></div>'
+    +'<div class="sl-z"><span>Gemeinkosten je Stunde <span style="color:var(--muted);font-size:11px">(nach Abzug der Material-Deckung)</span></span><span>'+fmt(kGemein)+' €</span></div>'
+    +'<div class="sl-z sum"><span>Selbstkosten je Stunde</span><span>'+fmt(selbst)+' €</span></div>'
+    +'<div class="sl-z"><span>+ Gewinn '+fmt(gewinn)+' % und Wagnis '+fmt(wagnis)+' %</span><span>'+fmt(satz-selbst)+' €</span></div>'
+    +'<div class="sl-erg"><span>Verrechnungslohn</span><span>'+fmt(satz)+' €/h</span></div>';
+
+  // Ehrlicher Abgleich mit dem, womit die App gerade wirklich rechnet
+  const aktiv=LOHN(), diff=aktiv-satz;
+  const v=document.getElementById('sl-vergleich');
+  if(v){
+    if(Math.abs(diff)<0.5){
+      v.innerHTML='<span style="color:var(--green)">✓ Die Kalkulation rechnet mit '+fmt(aktiv)+' €/h – das passt zum errechneten Satz.</span>';
+    } else if(diff<0){
+      v.innerHTML='<span style="color:var(--red);font-weight:600">⚠ Die Kalkulation rechnet mit '+fmt(aktiv)+' €/h, nötig wären '+fmt(satz)
+        +' €/h – dir fehlen '+fmt(-diff)+' € je Stunde.</span><br><span style="color:var(--muted)">Bei '+fmt(stunden)
+        +' Stunden im Jahr sind das '+fmt(-diff*stunden)+' €.</span>';
+    } else {
+      v.innerHTML='<span style="color:var(--green)">Die Kalkulation rechnet mit '+fmt(aktiv)+' €/h, nötig wären '+fmt(satz)+' €/h – '+fmt(diff)+' € Luft je Stunde.</span>';
+    }
+  }
+  if(warn){
+    if(kalkAbweichend()){
+      warn.style.display='block';
+      warn.innerHTML='<b>Achtung:</b> Die App rechnet gerade mit '+fmt(LOHN())+' €/h. In der Datei stehen '
+        +fmt(KALK_STD.lohn_facharbeiter)+' €/h. Diese Abweichung gilt nur in diesem Browser – '
+        +'sag Bescheid, wenn der neue Wert fest in die Datei soll.';
+    } else warn.style.display='none';
+  }
+  SL={personal,koepfe,bezahlt,abzug,gemein,deckung,gewinn,wagnis};
+  try{ localStorage.setItem('buesing_sl',JSON.stringify(SL)); }catch(e){}
+}
+
+// Errechneten Satz in die drei Uebernahme-Felder schreiben (Verhaeltnis wie bisher)
+function slAusRechner(){
+  const t=document.getElementById('sl-out');
+  if(!t) return;
+  const personal=slFeld('sl-personal'), koepfe=slFeld('sl-koepfe');
+  const stunden=slFeld('sl-bezahlt')*(1-slFeld('sl-abzug')/100)*koepfe;
+  if(!(stunden>0)){ toast('Bitte erst Stunden eintragen'); return; }
+  const selbst=personal/stunden + Math.max(0,slFeld('sl-gemein')-slFeld('sl-deckung'))/stunden;
+  const satz=selbst*(1+(slFeld('sl-gewinn')+slFeld('sl-wagnis'))/100);
+  const fFach=KALK_STD.lohn_facharbeiter;
+  const setz=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=(Math.round(v*2)/2).toFixed(2); };
+  setz('sl-fach', satz);
+  setz('sl-vor',  satz*KALK_STD.lohn_vorarbeiter/fFach);   // Verhaeltnis 58/55 beibehalten
+  setz('sl-helf', satz*KALK_STD.lohn_helfer/fFach);        // Verhaeltnis 49,50/55
+  slRechne();
+  toast('Errechneter Satz eingetragen – noch nicht übernommen');
+}
+
+function slUebernehmen(){
+  const neu={
+    lohn_vorarbeiter:  slFeld('sl-vor'),
+    lohn_facharbeiter: slFeld('sl-fach'),
+    lohn_helfer:       slFeld('sl-helf'),
+    mat_zuschlag:      1 + slFeld('sl-mat')/100,
+  };
+  if(!(neu.lohn_facharbeiter>0)){ toast('Facharbeiter-Satz fehlt'); return; }
+  const alt=LOHN();
+  KALK=Object.assign({}, KALK_STD, neu);
+  try{ localStorage.setItem('buesing_kalk',JSON.stringify(KALK)); }catch(e){}
+  slRechne();
+  // Offene LV-Positionen sofort mitziehen, damit nichts Altes stehenbleibt
+  if(LV && LV.pos && LV.pos.length){
+    let n=0;
+    LV.pos.forEach(function(p){ if(p.status!=='gruen'){ autoEP(p, LV.system||'sakret'); n++; } });
+    renderLV(); doSave(true);
+    toast('Übernommen: '+fmt(alt)+' → '+fmt(LOHN())+' €/h · '+n+' Positionen neu gerechnet');
+  } else {
+    toast('Übernommen: '+fmt(alt)+' → '+fmt(LOHN())+' €/h');
+  }
+}
+
+function slReset(){
+  SL=Object.assign({}, SL_STD);
+  KALK=Object.assign({}, KALK_STD);
+  try{ localStorage.removeItem('buesing_sl'); localStorage.removeItem('buesing_kalk'); }catch(e){}
+  slFuellen();
+  toast('Auf die Werte aus der Datei zurückgesetzt');
+}
+
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',3000);}
 
 try{
