@@ -2547,12 +2547,17 @@ function epNaturstein(p, system){
 // Ein Kasten 20 x 20 cm in der Ecke hat zwei Sichtseiten = 0,40 m, frei
 // stehend drei = 0,60 m. Die Masse werden aus dem Positionstext gelesen
 // ("ca. 20 x 20 cm") und sind im Rechner ueberschreibbar.
-// Gaengige Rohrkastengroessen (Erik 22.08.). a = Tiefe, b = Breite in Metern.
+// Rohrkasten (Erik 22.08.): fertige Winkelgestaltungselemente, IMMER 2,60 m
+// lang, mit zwei Schenkeln. Die Abwicklung ist die Summe der beiden Schenkel -
+// beide Seiten sind sichtbar und werden gefliest.
+// a und b sind die Schenkellaengen in Metern, dazu das Suchmuster fuer den
+// Artikel in der Preisdatenbank.
+const RK_LAENGE = 2.60;   // m je Element
 const RK_GROESSEN = [
-  ['15x15','15 × 15 cm', 0.15, 0.15],
-  ['20x20','20 × 20 cm', 0.20, 0.20],
-  ['30x30','30 × 30 cm', 0.30, 0.30],
-  ['20x40','20 × 40 cm', 0.20, 0.40],
+  ['15x15','15 × 15 cm', 0.15, 0.15, 'Winkelgestaltungselement 150x150'],
+  ['20x20','20 × 20 cm', 0.20, 0.20, 'Winkelgestaltungselement 200x200'],
+  ['30x30','30 × 30 cm', 0.30, 0.30, 'Winkelgestaltungselement 300x300'],
+  ['20x40','20 × 40 cm', 0.20, 0.40, 'Winkelgestaltungselement 200x400'],
 ];
 function rohrkastenMasse(txt){
   const t=(txt||'').replace(/\s+/g,' ');
@@ -2564,44 +2569,68 @@ function rohrkastenMasse(txt){
 function rohrkastenGroesse(p){
   if(p.rkGroesse){
     const g=RK_GROESSEN.find(function(x){ return x[0]===p.rkGroesse; });
-    if(g) return {a:g[2], b:g[3], name:g[1], gewaehlt:true};
+    if(g) return {a:g[2], b:g[3], name:g[1], artikel:g[4], gewaehlt:true};
   }
   const ma=rohrkastenMasse((p.desc||'')+' '+(p.langtext||''));
-  if(ma) return {a:ma.a, b:ma.b, name:Math.round(ma.a*100)+' × '+Math.round(ma.b*100)+' cm', gewaehlt:false};
-  return null;
+  if(!ma) return null;
+  // Masse aus dem Text auf eine Standardgroesse abbilden, damit auch der
+  // Artikel gefunden wird
+  const g=RK_GROESSEN.find(function(x){ return Math.abs(x[2]-ma.a)<0.005 && Math.abs(x[3]-ma.b)<0.005; });
+  return {a:ma.a, b:ma.b, name:Math.round(ma.a*100)+' × '+Math.round(ma.b*100)+' cm',
+          artikel:g?g[4]:null, gewaehlt:false};
 }
-// Abwicklung = Summe der sichtbaren Seiten je laufendem Meter.
-// Frei stehend sind es beide Tiefen plus die Breite, in der Ecke nur eine
-// Tiefe plus die Breite.
+// Abwicklung = Summe der beiden Schenkel je laufendem Meter.
 function rohrkastenAbwicklung(p){
   if(parseFloat(p.rkAbwicklung)>0) return parseFloat(p.rkAbwicklung);
   const g=rohrkastenGroesse(p);
   if(!g) return null;
-  const seiten = (p.rkSeiten==='2') ? 2 : 3;
-  return Math.round((seiten===2 ? (g.a+g.b) : (g.a+g.b+g.a))*1000)/1000;
+  return Math.round((g.a+g.b)*1000)/1000;
 }
 function epRohrkasten(p, system){
   const warn=[], zeilen=[];
-  const abw=rohrkastenAbwicklung(p);
+  const gr = rohrkastenGroesse(p);
+  const abw = rohrkastenAbwicklung(p);
   if(!abw){
-    warn.push('EINGABE|Abwicklung nicht erkannt – Maße im Rechner eintragen (Summe der sichtbaren Seiten je Meter)');
-    return {ep:0, zeilen:[['Rohrkasten','Abwicklung fehlt',0]], warn};
+    warn.push('EINGABE|Größe nicht erkannt – im Rechner wählen (15×15, 20×20, 30×30 oder 20×40)');
+    return {ep:0, zeilen:[['Rohrkasten','Größe fehlt',0]], warn};
   }
-  // Der Meter Rohrkasten ist Wandflaeche in Hoehe der Abwicklung. Zuschnitte
-  // und Aussenecken kosten mehr Zeit als glatte Wand - Zuschlag 30 %.
+  const atxt = fmt(abw)+' m';
+  zeilen.push(['Rohrkasten '+(gr?gr.name:''), 'Abwicklung '+atxt+' je lfm (2 Schenkel)', 0]);
+
+  // 1) Das Element selbst. Es ist IMMER 2,60 m lang - fuer 2,00 m Rohrkasten
+  // wird trotzdem ein ganzes Element verbraucht. Deshalb wird auf volle
+  // Elemente aufgerundet und der Anbruch auf die laufenden Meter umgelegt.
+  let elemJeM = 0;
+  const meter = parseFloat(p.menge)||0;
+  if(gr && gr.artikel){
+    const a = findArtikel(gr.artikel);
+    if(a){
+      const stk = meter>0 ? Math.ceil(meter/RK_LAENGE) : 1;
+      const kosten = stk*(parseFloat(a.ek)||0);
+      preisAltMelden(a);
+      elemJeM = meter>0 ? kosten/meter : (parseFloat(a.ek)||0)/RK_LAENGE;
+      zeilen.push([stk+'× Element à '+fmt(RK_LAENGE)+' m',
+        a.name.slice(0,42)+' · '+fmt(a.ek)+' €/Stk'+(meter>0?' auf '+fmt(meter)+' m umgelegt':''), elemJeM]);
+    } else {
+      warn.push('ARTIKEL|'+gr.artikel+' (Rohrkastenelement)');
+      zeilen.push(['Element à '+fmt(RK_LAENGE)+' m','fehlt in der Preisdatenbank',0]);
+    }
+  } else {
+    warn.push('PRUEFEN|Für diese Größe ist kein Element hinterlegt – nur das Verfliesen ist gerechnet');
+  }
+
+  // 2) Verfliesen der Abwicklung. Schmale Streifen mit vielen Kanten kosten
+  // mehr Zeit als glatte Wand - Zuschlag 30 %.
   const flaeche = Object.assign({}, p, {typ:'wand', menge:1, einheit:'m²'});
   const r = epFliese(flaeche, system);
-  const atxt = fmt(abw)+' m';
-  const gr=rohrkastenGroesse(p);
-  zeilen.push(['Abwicklung je lfm',
-    (gr?gr.name+' · ':'')+atxt+((p.rkSeiten==='2')?' · 2 Sichtseiten':' · 3 Sichtseiten'), 0]);
   r.zeilen.forEach(function(z){ zeilen.push([z[0]+' je m²', z[1], z[2]]); });
-  const roh = r.ep*abw;
-  const zuschlag = roh*0.30;
-  zeilen.push(['Wandpreis × Abwicklung', fmt(r.ep)+' × '+atxt, roh]);
-  zeilen.push(['+ 30 % Zuschnitt und Außenecken','schmale Streifen, viele Kanten', zuschlag]);
+  const fliesen = r.ep*abw;
+  const zuschlag = fliesen*0.30;
+  zeilen.push(['Verfliesen: Wandpreis × Abwicklung', fmt(r.ep)+' × '+atxt, fliesen]);
+  zeilen.push(['+ 30 % Zuschnitt und Kanten','schmale Streifen, viele Ecken', zuschlag]);
   (r.warn||[]).forEach(function(w){ warn.push(w); });
-  return {ep:Math.round((roh+zuschlag)*100)/100, zeilen, warn};
+
+  return {ep:Math.round((elemJeM+fliesen+zuschlag)*100)/100, zeilen, warn};
 }
 
 function epDuschelement(p, system){
@@ -2988,16 +3017,10 @@ function renderCalcHTML(i){
   if(p.typ==='rohrkasten'){
     const ma=rohrkastenMasse((p.desc||'')+' '+(p.langtext||''));
     const abw=rohrkastenAbwicklung(p);
-    const seiten=(p.rkSeiten==='2')?'2':'3';
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Größe</div>'
       +'<select onchange="setRk('+i+',&quot;rkGroesse&quot;,this.value)" style="width:auto;padding:6px 8px">'
       +'<option value=""'+(!p.rkGroesse?' selected':'')+'>'+(ma?'aus dem Text ('+Math.round(ma.a*100)+'×'+Math.round(ma.b*100)+' cm)':'– bitte wählen –')+'</option>'
       + RK_GROESSEN.map(function(g){ return '<option value="'+g[0]+'"'+(p.rkGroesse===g[0]?' selected':'')+'>'+g[1]+'</option>'; }).join('')
-      +'</select></div>'
-      +'<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Sichtseiten</div>'
-      +'<select onchange="setRk('+i+',&quot;rkSeiten&quot;,this.value)" style="width:auto;padding:6px 8px">'
-      +'<option value="3"'+(seiten==='3'?' selected':'')+'>3 – frei stehend</option>'
-      +'<option value="2"'+(seiten==='2'?' selected':'')+'>2 – in der Ecke</option>'
       +'</select></div>'
       +'<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Abwicklung (m je lfm)</div>'
       +'<input type="number" step="0.05" min="0" value="'+(abw?abw.toFixed(2):'')+'" placeholder="z.B. 0,60" '
@@ -3329,9 +3352,9 @@ function setZubehoer(i,v){
   renderLV(); scheduleSave();
 }
 function setRk(i,feld,v){
-  const p=LV.pos[i]; p[feld]=(feld==='rkSeiten'||feld==='rkGroesse')?v:(parseFloat(v)||0);
+  const p=LV.pos[i]; p[feld]=(feld==='rkGroesse')?v:(parseFloat(v)||0);
   // Groesse oder Sichtseiten geaendert -> Abwicklung neu ableiten
-  if(feld==='rkSeiten'||feld==='rkGroesse') delete p.rkAbwicklung;
+  if(feld==='rkGroesse') delete p.rkAbwicklung;
   if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
   renderLV(); scheduleSave();
 }
