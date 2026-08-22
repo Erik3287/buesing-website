@@ -1758,12 +1758,25 @@ function artInfo(cfg, warn, label){
   if(!a){ warn.push('ARTIKEL|'+cfg.name); return {ek:0, gebinde:cfg.gebinde, je:0, txt:'fehlt', found:false}; }
   return {ek:parseFloat(a.ek)||0, gebinde:cfg.gebinde, je:preisJe(a,cfg.gebinde), art:a, txt:preisTxt(a,cfg.gebinde,''), found:true};
 }
+// Wand- oder Bodenflaeche? Die Aufkantung gilt nur fuer BODENabdichtungen,
+// die nach DIN 18534 an den Waenden 5 cm hochzufuehren sind. Eine reine
+// Wandflaeche hat keine - dort war der Zuschlag bisher zu viel.
+function erkenneAbdichtLage(text){
+  const t=typNorm(text);
+  const wand =/wandflach|wandbereich|\bwande\b|an den wanden|wandabdicht|deckenhoch|ueber der wanne|dusche und badewanne/.test(t);
+  const boden=/bodenflach|bodenbereich|\bboden\b|estrichflach|bodenabdicht|bodenablauf|duschrinne/.test(t);
+  if(wand && !boden) return 'wand';
+  if(boden && !wand) return 'boden';
+  return null;
+}
 // Aufkantung wirkt auf den GANZEN Einheitspreis: die 5 cm an der Wand kosten
-// Material und Zeit. Nur bei FLAECHENabdichtung - nicht bei Dichtband (lfm)
-// und nicht bei Manschetten/Ecken (Stueck), die haben ihre eigene Menge.
-function abdAufkantungAnwenden(r){
+// Material und Zeit. Nur bei BODEN-Flaechenabdichtung - nicht an der Wand,
+// nicht bei Dichtband (lfm) und nicht bei Manschetten/Ecken (Stueck).
+function abdAufkantungAnwenden(r, lage, warn){
   const z=parseFloat(KALK.abd_aufkantung)||0;
   if(!r || !(z>0) || !(r.ep>0)) return r;
+  if(lage==='wand') return r;                    // Wandflaeche: keine Aufkantung
+  if(!lage && warn) warn.push('PRUEFEN|Wand oder Boden nicht erkannt – die Aufkantung ist eingerechnet. Bei einer reinen Wandfläche im Rechner auf „Wand" stellen.');
   const alt=r.ep;
   r.ep=Math.round(alt*(1+z/100)*100)/100;
   r.zeilen.push(['+ Aufkantung 5 cm an den Wänden',
@@ -1931,7 +1944,7 @@ function abdichtFluessigKosten(p, system, ers){
   const kg=vb ? vb.kg : ABD_FLUESSIG_KG;
   const mat=fds.je*kg;
   const roh=Math.round((mat*1.20 + ABD_FLUESSIG_H*LOHN())*100)/100;
-  return {mat, ep:abdAufkantungAnwenden({ep:roh, zeilen:[]}).ep, je:fds.je, txt:fds.txt, kg:kg, produkt:label};
+  return {mat, ep:abdAufkantungAnwenden({ep:roh, zeilen:[]}, p&&p.abdichtLage?p.abdichtLage:erkenneAbdichtLage((p&&p.desc||'')+' '+(p&&p.langtext||''))).ep, je:fds.je, txt:fds.txt, kg:kg, produkt:label};
 }
 // Hat das LV eigene Positionen fuer Band, Ecken oder Manschetten? Dann darf
 // das Zubehoer nicht zusaetzlich im m²-Preis stecken - sonst doppelt.
@@ -2023,6 +2036,9 @@ function epAbdichtFlaeche(p, system){
     }
   }
 
+  // Wand oder Boden? Manuelle Wahl schlaegt die Texterkennung.
+  const lage = p.abdichtLage || erkenneAbdichtLage(txt);
+
   // Steckt das Systemzubehoer in diesem m²-Preis? Standard: ja - ausser das LV
   // fuehrt eigene Positionen dafuer, dann waere es doppelt berechnet.
   const mitZubehoer = (p.zubehoerEnthalten===undefined || p.zubehoerEnthalten===null)
@@ -2062,7 +2078,7 @@ function epAbdichtFlaeche(p, system){
              : (fds.found?(fds.txt+' × '+String(kg).replace('.',',')+' kg'
                  +(vb?' ('+String(vb.roh).replace('.',',')+' + 6 % Schichtdicke + '+fmt(vb.verlust)+' % Verlust)':'')):'fehlt'), matK]);
     const zub = mitZubehoer ? abdZubehoer(wk, system, warn, zeilen) : {kosten:0, std:0};
-    const r=abdAufkantungAnwenden(finishAbdicht(zeilen, warn, matK+zub.kosten, ABD_FLUESSIG_H+zub.std));
+    const r=abdAufkantungAnwenden(finishAbdicht(zeilen, warn, matK+zub.kosten, ABD_FLUESSIG_H+zub.std), lage, warn);
     // Vergleich: was würde die Dichtbahn kosten? Zaehlt NICHT zum EP, deshalb
     // sollen die dabei benutzten Artikel auch keinen "Preis prüfen"-Hinweis
     // ausloesen - Sammler kurz stilllegen.
@@ -2113,7 +2129,7 @@ function epAbdichtFlaeche(p, system){
   const fdsK=(!nurStoss && fds.found) ? fds.je*0.4 : 0;
   if(!nurStoss) zeilen.push(['FDS Überlappung 0,4 kg', fds.found?fds.txt+' × 0,4':'fehlt', fdsK]);
   const zub = mitZubehoer ? abdZubehoer(wk, system, warn, zeilen) : {kosten:0, std:0};
-  const r=abdAufkantungAnwenden(finishAbdicht(zeilen, warn, bahnK+kleber+fdsK+zub.kosten, ABD_BAHN_H+zub.std));
+  const r=abdAufkantungAnwenden(finishAbdicht(zeilen, warn, bahnK+kleber+fdsK+zub.kosten, ABD_BAHN_H+zub.std), lage, warn);
   const _sAus = PREIS_ALT_SAMMLER, _nAus = PREIS_NULL_SAMMLER;
   PREIS_ALT_SAMMLER = null; PREIS_NULL_SAMMLER = null;
   const fl=abdichtFluessigKosten(p, system, ers);
@@ -2951,6 +2967,20 @@ function renderCalcHTML(i){
       + (istWieVor(p)&&!p._wieVor?'<br><span style="color:var(--red)">⚠ Text sagt „wie vor", aber es gab keine passende Vorgänger-Position</span>':'')
       +'</div></div>';
 
+    // Wand oder Boden - entscheidet ueber die Aufkantung
+    const erkLage=erkenneAbdichtLage(txtRoh);
+    const lageJetzt=p.abdichtLage||erkLage||'';
+    felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Fläche</div>'
+      +'<select onchange="setAbdichtLage('+i+',this.value)" style="width:auto;padding:6px 8px">'
+      +'<option value=""'+(!lageJetzt?' selected':'')+'>– nicht erkannt –</option>'
+      +'<option value="boden"'+(lageJetzt==='boden'?' selected':'')+'>Boden (mit Aufkantung)</option>'
+      +'<option value="wand"'+(lageJetzt==='wand'?' selected':'')+'>Wand (ohne Aufkantung)</option>'
+      +'</select><div style="font-size:11px;margin-top:3px;max-width:300px">'
+      + (erkLage
+          ? '<span style="color:var(--green)">✓ im LV-Text erkannt: '+(erkLage==='wand'?'Wandfläche':'Bodenfläche')+'</span>'
+          : '<span style="color:#e0a800">🟡 nicht erkannt – Aufkantung ist eingerechnet</span>')
+      +'</div></div>';
+
     // Systemzubehoer: Dichtband, Ecken, Manschetten im m²-Preis?
     const eigenePos = lvHatZubehoerPositionen();
     const zubAn = (p.zubehoerEnthalten===undefined||p.zubehoerEnthalten===null) ? !eigenePos : !!p.zubehoerEnthalten;
@@ -3188,6 +3218,11 @@ function setBaustelle(i,v){ LV.pos[i].baustellePreis=(v===''?null:v); const el=d
 // gleich mitziehen, so wie beim Typwechsel. Geprueft-gruene bleiben unberuehrt.
 function setAbdichtArt(i,v){
   const p=LV.pos[i]; p.abdichtArt=v; p._artManuell=true;
+  if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
+  renderLV(); scheduleSave();
+}
+function setAbdichtLage(i,v){
+  const p=LV.pos[i]; p.abdichtLage=v;
   if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
   renderLV(); scheduleSave();
 }
