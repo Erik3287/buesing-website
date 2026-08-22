@@ -1228,10 +1228,10 @@ const TYP_REGELN = [
   ['dichtecke',     ['dichtecke','dichtecken']],
   ['abdicht_flaeche',['alternative abdichtung','dichtungsfolie','dichtbahn','verbundabdichtung','seccoral','abdichten','abdichtung']],
   ['spachtel',      ['vorspachtel','vorspachteln']],
-  ['grundierung',   ['haftgrund','haftbrücke','haftschlämme','gisogrund','verbundestrich','grundierung','voranstrich','primer','untergrund für die verlegung','untergrund vorbereiten']],
-  ['profil',        ['kantenschutzprofil','kantenschutz','kantenprofil','fliesenprofil','winkelprofil','winkelschiene','abschlussprofil','eckschutz','übergangsprofil','edelstahlschiene','türabschluss','winkelrahmen','schiene']],
+  ['grundierung',   ['haftgrund','haftbrücke','haftschlämme','gisogrund','verbundestrich','grundierung','grundieren','voranstrich','primer']],
+  ['profil',        ['kantenschutzprofil','kantenschutz','kantenprofil','fliesenprofil','winkelprofil','winkelschiene','abschlussprofil','eckschutz','übergangsprofil','edelstahlschiene','türabschluss','winkelrahmen','belagsabschluss','profil','schiene']],
   ['naturstein',    ['naturstein','natursteinplatten','sandstein','obernkirchener','mittelbett']],
-  ['silikon',       ['elastische verfugung','fugendichtstoff','silikonbasis','anschluss- und bewegungsfugen','fugen in boden- und wandbelägen','silikon']],
+  ['silikon',       ['elastische verfugung','dauerelastisch','fugendichtstoff','silikonbasis','anschluss- und bewegungsfugen','fugen in boden- und wandbelägen','silikon']],
   ['randfuge',      ['randfuge','weichfedernder randstreifen','randstreifen']],
   ['schutz',        ['schutz von fußböden','hartfaserplatten','bodenbelag schützen','schutzvlies','abdecken mit']],
   ['reinigung',     ['staubfreien untergrund','trocken reinigen','groben verschmutzungen']],
@@ -1292,11 +1292,29 @@ function pruefeTyp(text){
 // Zweistufig: zuerst die Ueberschrift (Oberbegriff), dann erst der Langtext.
 // Passt die Einheit nicht zum Typ, wird ein Treffer bevorzugt, der passt -
 // so gewinnt bei "Dichtbaender ... m" das Dichtband gegen die Flaeche.
+// Typen, die NUR aus der Ueberschrift kommen duerfen. Grund: Fast jeder
+// Langtext beschreibt als Vorarbeit "Untergrund saeubern und geeigneten
+// Grundierungsanstrich / Haftgrund auftragen" - auch bei Treppenstufen,
+// Kerdimatte und Pauschalen. Aus dem Langtext gelesen hat das im Test-LV
+// sieben Positionen als Grundierung berechnet, von denen keine eine war.
+// Eine echte Grundierungsposition heisst in der Ueberschrift auch so.
+// Findet sich nichts, bleibt die Position 'unbekannt' und damit rot -
+// lieber eine Nachfrage als ein falscher Preis.
+// Dasselbe gilt fuer Profile: "Treppenkantenprofil: Schlueter-TREP-FL E"
+// steht im Langtext der Treppen- und der Kerdimatten-Position als
+// mitzulieferndes Material - die Position selbst ist kein Profil.
+// Und fuer Silikon: "Anschluss- und Bewegungsfugen dauerelastisch
+// verfugen" steht als Schlussarbeit im Langtext der Treppen- und der
+// Kerdimatten-Position. Eine eigene Silikonposition heisst auch so.
+const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon'];
 function erkenneTyp(desc, langtext, einheit){
   const soll = einheitKlasse(einheit);
   if(soll==='zeit') return 'stundenlohn';
-  for(const quelle of [desc, langtext]){
+  const quellen = [desc, langtext];
+  for(let i=0; i<quellen.length; i++){
+    const quelle = quellen[i], istUeberschrift = (i===0);
     let treffer = pruefeTypAlle(quelle);
+    if(!istUeberschrift) treffer = treffer.filter(function(t){ return NUR_UEBERSCHRIFT.indexOf(t)<0; });
     // Stundenlohn nur, wenn die Einheit wirklich Stunden sind. Sonst faengt
     // ein "Stundenlohn" im Langtext Positionen ab, die nach Metern oder
     // Quadratmetern abgerechnet werden - Eriks Regel: die Einheit entscheidet.
