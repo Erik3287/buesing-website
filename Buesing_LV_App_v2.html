@@ -2547,18 +2547,38 @@ function epNaturstein(p, system){
 // Ein Kasten 20 x 20 cm in der Ecke hat zwei Sichtseiten = 0,40 m, frei
 // stehend drei = 0,60 m. Die Masse werden aus dem Positionstext gelesen
 // ("ca. 20 x 20 cm") und sind im Rechner ueberschreibbar.
+// Gaengige Rohrkastengroessen (Erik 22.08.). a = Tiefe, b = Breite in Metern.
+const RK_GROESSEN = [
+  ['15x15','15 × 15 cm', 0.15, 0.15],
+  ['20x20','20 × 20 cm', 0.20, 0.20],
+  ['30x30','30 × 30 cm', 0.30, 0.30],
+  ['20x40','20 × 40 cm', 0.20, 0.40],
+];
 function rohrkastenMasse(txt){
   const t=(txt||'').replace(/\s+/g,' ');
   const m=t.match(/(\d{1,3})\s*[x×\/]\s*(\d{1,3})\s*cm/i);
   if(m) return {a:parseInt(m[1],10)/100, b:parseInt(m[2],10)/100};
   return null;
 }
+// Groesse: gewaehlte Standardgroesse > Masse aus dem Text
+function rohrkastenGroesse(p){
+  if(p.rkGroesse){
+    const g=RK_GROESSEN.find(function(x){ return x[0]===p.rkGroesse; });
+    if(g) return {a:g[2], b:g[3], name:g[1], gewaehlt:true};
+  }
+  const ma=rohrkastenMasse((p.desc||'')+' '+(p.langtext||''));
+  if(ma) return {a:ma.a, b:ma.b, name:Math.round(ma.a*100)+' × '+Math.round(ma.b*100)+' cm', gewaehlt:false};
+  return null;
+}
+// Abwicklung = Summe der sichtbaren Seiten je laufendem Meter.
+// Frei stehend sind es beide Tiefen plus die Breite, in der Ecke nur eine
+// Tiefe plus die Breite.
 function rohrkastenAbwicklung(p){
   if(parseFloat(p.rkAbwicklung)>0) return parseFloat(p.rkAbwicklung);
-  const ma=rohrkastenMasse((p.desc||'')+' '+(p.langtext||''));
-  if(!ma) return null;
-  const seiten = (p.rkSeiten==='2') ? 2 : 3;   // Standard: frei stehend, 3 Sichtseiten
-  return seiten===2 ? (ma.a+ma.b) : (ma.a+ma.b+ma.a);
+  const g=rohrkastenGroesse(p);
+  if(!g) return null;
+  const seiten = (p.rkSeiten==='2') ? 2 : 3;
+  return Math.round((seiten===2 ? (g.a+g.b) : (g.a+g.b+g.a))*1000)/1000;
 }
 function epRohrkasten(p, system){
   const warn=[], zeilen=[];
@@ -2572,7 +2592,9 @@ function epRohrkasten(p, system){
   const flaeche = Object.assign({}, p, {typ:'wand', menge:1, einheit:'m²'});
   const r = epFliese(flaeche, system);
   const atxt = fmt(abw)+' m';
-  zeilen.push(['Abwicklung je lfm', atxt+((p.rkSeiten==='2')?' (2 Sichtseiten)':' (3 Sichtseiten)'), 0]);
+  const gr=rohrkastenGroesse(p);
+  zeilen.push(['Abwicklung je lfm',
+    (gr?gr.name+' · ':'')+atxt+((p.rkSeiten==='2')?' · 2 Sichtseiten':' · 3 Sichtseiten'), 0]);
   r.zeilen.forEach(function(z){ zeilen.push([z[0]+' je m²', z[1], z[2]]); });
   const roh = r.ep*abw;
   const zuschlag = roh*0.30;
@@ -2967,7 +2989,12 @@ function renderCalcHTML(i){
     const ma=rohrkastenMasse((p.desc||'')+' '+(p.langtext||''));
     const abw=rohrkastenAbwicklung(p);
     const seiten=(p.rkSeiten==='2')?'2':'3';
-    felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Sichtseiten</div>'
+    felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Größe</div>'
+      +'<select onchange="setRk('+i+',&quot;rkGroesse&quot;,this.value)" style="width:auto;padding:6px 8px">'
+      +'<option value=""'+(!p.rkGroesse?' selected':'')+'>'+(ma?'aus dem Text ('+Math.round(ma.a*100)+'×'+Math.round(ma.b*100)+' cm)':'– bitte wählen –')+'</option>'
+      + RK_GROESSEN.map(function(g){ return '<option value="'+g[0]+'"'+(p.rkGroesse===g[0]?' selected':'')+'>'+g[1]+'</option>'; }).join('')
+      +'</select></div>'
+      +'<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Sichtseiten</div>'
       +'<select onchange="setRk('+i+',&quot;rkSeiten&quot;,this.value)" style="width:auto;padding:6px 8px">'
       +'<option value="3"'+(seiten==='3'?' selected':'')+'>3 – frei stehend</option>'
       +'<option value="2"'+(seiten==='2'?' selected':'')+'>2 – in der Ecke</option>'
@@ -3302,8 +3329,9 @@ function setZubehoer(i,v){
   renderLV(); scheduleSave();
 }
 function setRk(i,feld,v){
-  const p=LV.pos[i]; p[feld]=(feld==='rkSeiten')?v:(parseFloat(v)||0);
-  if(feld==='rkSeiten') delete p.rkAbwicklung;   // Abwicklung neu aus den Massen ableiten
+  const p=LV.pos[i]; p[feld]=(feld==='rkSeiten'||feld==='rkGroesse')?v:(parseFloat(v)||0);
+  // Groesse oder Sichtseiten geaendert -> Abwicklung neu ableiten
+  if(feld==='rkSeiten'||feld==='rkGroesse') delete p.rkAbwicklung;
   if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
   renderLV(); scheduleSave();
 }
