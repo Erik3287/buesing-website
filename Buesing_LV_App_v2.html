@@ -1204,7 +1204,7 @@ const TYPEN = [
   ['grundierung','Grundierung'],['spachtel','Vorspachtel'],['stundenlohn','Stundenlohn'],
   ['profil','Profil/Schiene'],['reservefliesen','Reservefliesen'],['loch','Loch/Anschnitt'],
   ['ablauf','Ablauf anarbeiten'],['ablauf_doppel','Ablauf doppelstöckig'],['hohlkehlsockel','Hohlkehlsockel'],
-  ['duschelement','Duschelement'],['fliesentausch','Fliesentausch'],['silikon','Silikon/Elast. Fuge'],
+  ['rohrkasten','Rohrkasten (lfm)'],['duschelement','Duschelement'],['fliesentausch','Fliesentausch'],['silikon','Silikon/Elast. Fuge'],
   ['randfuge','Randfuge'],['schutz','Schutz/Abdeckung'],['reinigung','Reinigung'],
   ['behandlung','Imprägnierung'],['sauberlaufmatte','Sauberlaufmatte'],['sauberlaufrahmen','Sauberlauf-Rahmen'],['baustelle','Baustelleneinrichtung'],
   ['unbekannt','— bitte wählen —'],
@@ -1215,6 +1215,7 @@ const TYP_REGELN = [
   ['reservefliesen',['reservefliesen','lieferung von reserve']],
   ['ablauf_doppel', ['doppelstöckig','doppelstoeckig']],
   ['ablauf',        ['ablaufgarnitur','anarbeiten eines bodenablaufs','bodenablaufs','bodenablauf']],
+  ['rohrkasten',    ['rohrkasten','rohrverkleidung','vorwandinstallation verkleiden','schacht verkleiden','installationsschacht']],
   ['duschelement',  ['duschelement','gefälle im fliesenbereich','verfliesbares','jackoboard']],
   ['hohlkehlsockel',['hohlkehlsockel','hohlkehle']],
   ['fliesentausch', ['austausch einzelner','bestandswandfliesen gegen','austausch einzelne']],
@@ -1255,7 +1256,8 @@ function typNorm(t){
 const TYP_EINHEIT = {
   flaeche: ['wand','boden','naturstein','abdicht_flaeche','grundierung','spachtel',
             'duschelement','reinigung','behandlung','schutz','sauberlaufmatte','reservefliesen'],
-  laenge:  ['dichtband','profil','hohlkehlsockel','silikon','randfuge','sauberlaufrahmen'],
+  laenge:  ['dichtband','profil','hohlkehlsockel','silikon','randfuge','sauberlaufrahmen','rohrkasten'],
+  zeit:    ['stundenlohn'],
   stueck:  ['manschette','dichtecke','loch','ablauf','ablauf_doppel','fliesentausch'],
 };
 function einheitKlasse(eh){
@@ -1264,7 +1266,7 @@ function einheitKlasse(eh){
   if(/^(m2|m²|qm)$/.test(e)) return 'flaeche';
   if(/^(m|lfm|lfdm)$/.test(e)) return 'laenge';
   if(/^(stk|stueck|st|psch|pausch)$/.test(e)) return e.startsWith('p')?null:'stueck';
-  if(e.startsWith('std')) return null;
+  if(e.startsWith('std')||e==='h') return 'zeit';
   return null;
 }
 function typKlasse(typ){
@@ -1291,10 +1293,14 @@ function pruefeTyp(text){
 // Passt die Einheit nicht zum Typ, wird ein Treffer bevorzugt, der passt -
 // so gewinnt bei "Dichtbaender ... m" das Dichtband gegen die Flaeche.
 function erkenneTyp(desc, langtext, einheit){
-  if((einheit||'').toLowerCase().startsWith('std')) return 'stundenlohn';
   const soll = einheitKlasse(einheit);
+  if(soll==='zeit') return 'stundenlohn';
   for(const quelle of [desc, langtext]){
-    const treffer = pruefeTypAlle(quelle);
+    let treffer = pruefeTypAlle(quelle);
+    // Stundenlohn nur, wenn die Einheit wirklich Stunden sind. Sonst faengt
+    // ein "Stundenlohn" im Langtext Positionen ab, die nach Metern oder
+    // Quadratmetern abgerechnet werden - Eriks Regel: die Einheit entscheidet.
+    if(soll && soll!=='zeit') treffer = treffer.filter(function(t){ return t!=='stundenlohn'; });
     if(!treffer.length) continue;
     if(soll){
       const passend = treffer.find(function(t){ const k=typKlasse(t); return k && k===soll; });
@@ -2535,6 +2541,47 @@ function epNaturstein(p, system){
   return {ep, zeilen, warn};
 }
 // Duschelement: Stk-Position = volle Rechnung je Element | m²-Position = Mosaikleistung je m² + Element-Anteil von Hand
+// ===== ROHRKASTEN (lfm) ===================================================
+// Wird nach laufenden Metern abgerechnet, gefliest wird aber eine Flaeche.
+// Massgeblich ist die ABWICKLUNG: die Summe der sichtbaren Seiten je Meter.
+// Ein Kasten 20 x 20 cm in der Ecke hat zwei Sichtseiten = 0,40 m, frei
+// stehend drei = 0,60 m. Die Masse werden aus dem Positionstext gelesen
+// ("ca. 20 x 20 cm") und sind im Rechner ueberschreibbar.
+function rohrkastenMasse(txt){
+  const t=(txt||'').replace(/\s+/g,' ');
+  const m=t.match(/(\d{1,3})\s*[x×\/]\s*(\d{1,3})\s*cm/i);
+  if(m) return {a:parseInt(m[1],10)/100, b:parseInt(m[2],10)/100};
+  return null;
+}
+function rohrkastenAbwicklung(p){
+  if(parseFloat(p.rkAbwicklung)>0) return parseFloat(p.rkAbwicklung);
+  const ma=rohrkastenMasse((p.desc||'')+' '+(p.langtext||''));
+  if(!ma) return null;
+  const seiten = (p.rkSeiten==='2') ? 2 : 3;   // Standard: frei stehend, 3 Sichtseiten
+  return seiten===2 ? (ma.a+ma.b) : (ma.a+ma.b+ma.a);
+}
+function epRohrkasten(p, system){
+  const warn=[], zeilen=[];
+  const abw=rohrkastenAbwicklung(p);
+  if(!abw){
+    warn.push('EINGABE|Abwicklung nicht erkannt – Maße im Rechner eintragen (Summe der sichtbaren Seiten je Meter)');
+    return {ep:0, zeilen:[['Rohrkasten','Abwicklung fehlt',0]], warn};
+  }
+  // Der Meter Rohrkasten ist Wandflaeche in Hoehe der Abwicklung. Zuschnitte
+  // und Aussenecken kosten mehr Zeit als glatte Wand - Zuschlag 30 %.
+  const flaeche = Object.assign({}, p, {typ:'wand', menge:1, einheit:'m²'});
+  const r = epFliese(flaeche, system);
+  const atxt = fmt(abw)+' m';
+  zeilen.push(['Abwicklung je lfm', atxt+((p.rkSeiten==='2')?' (2 Sichtseiten)':' (3 Sichtseiten)'), 0]);
+  r.zeilen.forEach(function(z){ zeilen.push([z[0]+' je m²', z[1], z[2]]); });
+  const roh = r.ep*abw;
+  const zuschlag = roh*0.30;
+  zeilen.push(['Wandpreis × Abwicklung', fmt(r.ep)+' × '+atxt, roh]);
+  zeilen.push(['+ 30 % Zuschnitt und Außenecken','schmale Streifen, viele Kanten', zuschlag]);
+  (r.warn||[]).forEach(function(w){ warn.push(w); });
+  return {ep:Math.round((roh+zuschlag)*100)/100, zeilen, warn};
+}
+
 function epDuschelement(p, system){
   const warn=[], zeilen=[];
   const proQm = /m2|m²|qm/i.test(p.einheit||'');
@@ -2607,6 +2654,7 @@ function berechneEPKern(p, system){
   if(t==='stundenlohn') return epStundenlohn(p);
   if(t==='profil') return epProfil(p, system);
   if(t==='naturstein') return epNaturstein(p, system);
+  if(t==='rohrkasten') return epRohrkasten(p, system);
   if(t==='duschelement') return epDuschelement(p, system);
   if(t==='silikon') return epSilikon(p);
   if(t==='schutz') return epSchutz(p);
@@ -2914,6 +2962,23 @@ function renderCalcHTML(i){
       +'<div style="font-size:11px;color:var(--muted);margin-top:3px">Staffel-Vorschlag: <b>'+fmt(vor)+' €</b>'
       +(basis>0?(' (bei '+fmt(basis)+' € Bausumme)'):'')
       +'<br>Feld leer lassen = Vorschlag verwenden</div></div>';
+  }
+  if(p.typ==='rohrkasten'){
+    const ma=rohrkastenMasse((p.desc||'')+' '+(p.langtext||''));
+    const abw=rohrkastenAbwicklung(p);
+    const seiten=(p.rkSeiten==='2')?'2':'3';
+    felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Sichtseiten</div>'
+      +'<select onchange="setRk('+i+',&quot;rkSeiten&quot;,this.value)" style="width:auto;padding:6px 8px">'
+      +'<option value="3"'+(seiten==='3'?' selected':'')+'>3 – frei stehend</option>'
+      +'<option value="2"'+(seiten==='2'?' selected':'')+'>2 – in der Ecke</option>'
+      +'</select></div>'
+      +'<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Abwicklung (m je lfm)</div>'
+      +'<input type="number" step="0.05" min="0" value="'+(abw?abw.toFixed(2):'')+'" placeholder="z.B. 0,60" '
+      +'oninput="setRk('+i+',&quot;rkAbwicklung&quot;,this.value)" style="width:90px;padding:6px 8px">'
+      +'<div style="font-size:11px;margin-top:3px;max-width:300px">'
+      + (ma ? '<span style="color:var(--green)">✓ aus dem Text: '+Math.round(ma.a*100)+' × '+Math.round(ma.b*100)+' cm</span>'
+            : '<span style="color:var(--red)">Maße nicht erkannt – Abwicklung von Hand eintragen</span>')
+      +'</div></div>';
   }
   if(p.typ==='dichtband'){
     const txtD=(p.desc||'')+' '+(p.langtext||'');
@@ -3233,6 +3298,12 @@ function setAbdichtLage(i,v){
 }
 function setZubehoer(i,v){
   const p=LV.pos[i]; p.zubehoerEnthalten=(v==='ja');
+  if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
+  renderLV(); scheduleSave();
+}
+function setRk(i,feld,v){
+  const p=LV.pos[i]; p[feld]=(feld==='rkSeiten')?v:(parseFloat(v)||0);
+  if(feld==='rkSeiten') delete p.rkAbwicklung;   // Abwicklung neu aus den Massen ableiten
   if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
   renderLV(); scheduleSave();
 }
