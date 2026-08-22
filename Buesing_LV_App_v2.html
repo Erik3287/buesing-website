@@ -1334,9 +1334,14 @@ function typOptions(sel){
 // "Stundensatz" darf die Werte fuer diesen Rechner ueberschreiben; beim
 // Zuruecksetzen gilt wieder KALK_STD.
 const KALK_STD = {
-  lohn_vorarbeiter:  58.00,
-  lohn_facharbeiter: 55.00,   // Standardsatz aller Rezepte
-  lohn_helfer:       49.50,
+  // Verrechnungslohn, festgelegt am 22.08.2026. Der Facharbeitersatz ist der
+  // Standardsatz aller Rezepte. Die frueheren 55,00 stammten aus der alten
+  // Kalkulation; aus der BWA hergeleitet lag der Break-even deutlich hoeher,
+  // Erik hat 58,00 als tragfaehig und marktgerecht festgelegt. Vorarbeiter
+  // und Helfer im bisherigen Verhaeltnis mitgezogen (58/55 bzw. 49,50/55).
+  lohn_vorarbeiter:  61.00,
+  lohn_facharbeiter: 58.00,   // Standardsatz aller Rezepte
+  lohn_helfer:       52.00,
   mat_zuschlag:      1.20,    // BGK 8 + AGK 6 + Gewinn 4 + Wagnis 2
   // --- Abdichtung, zwei getrennte Zuschlaege (Erik 21.08.) ---
   // Verlust: zu viel angeruehrtes Material, Reste, streckenweise dickerer
