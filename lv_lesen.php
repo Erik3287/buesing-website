@@ -14,14 +14,30 @@
 @ini_set('post_max_size', '32M');
 @ini_set('upload_max_filesize', '32M');
 
-// ===== HIER DEINEN API-SCHLUESSEL EINSETZEN =====
-// Ersetze die Zeile unten: zwischen die Anfuehrungszeichen
-// kommt dein Schluessel aus Bitdefender SecurePass.
-// Er beginnt mit sk-ant-
-$API_KEY = 'HIER_DEINEN_SCHLUESSEL_EINSETZEN';
-// ================================================
-
 header('Content-Type: application/json; charset=utf-8');
+
+// ===== FEHLER IMMER ALS JSON ZURUECKGEBEN =====
+// Ohne das bricht PHP bei einem Fehler stumm ab und schickt eine LEERE
+// Antwort. In der App stand dann "Server-Antwort unlesbar:" und dahinter
+// nichts - der eigentliche Grund war nirgends zu sehen. Am 26.08.2026 hat
+// uns das einen halben Tag gekostet.
+set_exception_handler(function ($e) {
+    echo json_encode(['ok' => false, 'error' => 'PHP: ' . $e->getMessage()
+        . ' (' . basename($e->getFile()) . ' Zeile ' . $e->getLine() . ')']);
+    exit;
+});
+register_shutdown_function(function () {
+    $e = error_get_last();
+    if ($e && in_array($e['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        $hinweis = '';
+        if (stripos($e['message'], 'memory') !== false) {
+            $hinweis = ' – Der Arbeitsspeicher hat nicht gereicht. Weniger Seiten je Haeppchen helfen.';
+        } elseif (stripos($e['message'], 'execution time') !== false || stripos($e['message'], 'timeout') !== false) {
+            $hinweis = ' – Die Zeit hat nicht gereicht. Der Server bricht frueher ab, als die KI antwortet.';
+        }
+        echo json_encode(['ok' => false, 'error' => 'PHP bricht ab: ' . $e['message'] . $hinweis]);
+    }
+});
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { exit; }
 
@@ -38,9 +54,58 @@ if (!aktuellerNutzer() && empty($_SESSION['lv_user'])) {
     exit;
 }
 
+// ===== API-SCHLUESSEL =====
+// Der Schluessel steht in config.php, NICHT hier:
+//     define('ANTHROPIC_KEY', 'sk-ant-…');
+// Denn diese Datei wird bei Aenderungen ersetzt - am 24.08.2026 hat genau das
+// den Schluessel ueberschrieben. config.php dagegen bleibt liegen.
+//
+// WICHTIG: Es gibt auf dem Server ZWEI config.php - eine im Hauptordner und
+// eine in buero/. Beide bringen getDB() mit. Die Anmeldung laedt die aus
+// buero/; wird die zweite dazugeladen, bricht PHP ab
+// ("Cannot redeclare function getDB()") - stumm, bei JEDER Anfrage.
+// Deshalb wird config.php hier NICHT ausgefuehrt, sondern nur gelesen: der
+// Schluessel wird als Text herausgesucht. Damit ist es egal, wie viele
+// config.php es gibt und was darin sonst noch steht.
+if (!defined('ANTHROPIC_KEY')) {
+    foreach ([__DIR__ . '/config.php', __DIR__ . '/buero/config.php'] as $datei) {
+        if (!is_readable($datei)) continue;
+        $roh = @file_get_contents($datei);
+        if ($roh && preg_match('/ANTHROPIC_KEY[\'"]\s*,\s*[\'"]([^\'"]+)[\'"]/', $roh, $t)) {
+            define('ANTHROPIC_KEY', $t[1]);
+            break;
+        }
+    }
+}
+$API_KEY = defined('ANTHROPIC_KEY') ? ANTHROPIC_KEY : 'HIER_DEINEN_SCHLUESSEL_EINSETZEN';
+// ================================================
+
+// ===== SELBSTTEST =====
+// Wird die Datei ohne Daten aufgerufen (also einfach im Browser geoeffnet),
+// meldet sie, was der Server hergibt. Damit laesst sich pruefen, woran ein
+// Abbruch liegt, ohne erst ein 100-Seiten-PDF hochzuladen.
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    echo json_encode([
+        'ok'              => true,
+        'datei'           => 'lv_lesen.php – Fassung vom 26.08.2026',
+        'php'             => PHP_VERSION,
+        'schluessel'      => ($API_KEY === 'HIER_DEINEN_SCHLUESSEL_EINSETZEN' || $API_KEY === '')
+                             ? 'FEHLT' : ('gefunden, beginnt mit ' . substr($API_KEY, 0, 7)),
+        'quelle'          => defined('ANTHROPIC_KEY') ? 'config.php' : 'direkt in dieser Datei',
+        'speicher'        => ini_get('memory_limit'),
+        'max_laufzeit'    => ini_get('max_execution_time') . ' s',
+        'max_upload'      => ini_get('post_max_size'),
+        'curl'            => function_exists('curl_init') ? 'vorhanden' : 'FEHLT',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // Pruefen ob Schluessel gesetzt wurde
 if ($API_KEY === 'HIER_DEINEN_SCHLUESSEL_EINSETZEN' || $API_KEY === '') {
-    echo json_encode(['ok' => false, 'error' => 'API-Schluessel wurde noch nicht eingesetzt.']);
+    echo json_encode(['ok' => false, 'error' =>
+        'API-Schluessel fehlt. In config.php eintragen: '
+        . "define('ANTHROPIC_KEY', 'sk-ant-…'); - dann bleibt er auch erhalten, "
+        . 'wenn lv_lesen.php spaeter ersetzt wird.']);
     exit;
 }
 
@@ -79,11 +144,23 @@ if ($modus === 'angebot') {
     $ergebnisFeld = 'artikel';
 } else {
     // LV-Positionen herausziehen (unveraendert gegenueber der bisherigen Version)
+    // Wo eine Position AUFHOERT, stand hier frueher nicht drin - nur "lass nichts
+    // weg". Ergebnis: in 15 von 40 Positionen des Test-LV hing der Text der
+    // naechsten Position mit im Langtext, dazu Tabellenkoepfe und Preiszeilen.
+    // Deshalb steht die Abgrenzung jetzt vor der Vollstaendigkeit.
     $anweisung = 'Du bist ein Assistent fuer einen Fliesenleger-Betrieb. '
         . 'Analysiere das beigefuegte Leistungsverzeichnis (LV) und extrahiere ALLE Positionen. '
-        . 'WICHTIG: Gib zu jeder Position den KOMPLETTEN Text wieder, Wort fuer Wort, genau wie im LV. '
+        . 'WICHTIGSTE REGEL: Eine Position beginnt mit ihrer Positionsnummer und endet genau dort, '
+        . 'wo die naechste Positionsnummer beginnt. Der Text einer Position darf NIEMALS Text einer '
+        . 'anderen Position enthalten. Lieber einen Satz zu wenig als einen Satz aus der Nachbarposition. '
+        . 'Innerhalb dieser Grenze gilt: gib den Text vollstaendig wieder, Wort fuer Wort, genau wie im LV - '
+        . 'kuerze nichts und fasse nichts zusammen. '
         . 'Eine LV-Position hat meist einen kurzen Titel (Ueberschrift) UND einen ausfuehrlichen Beschreibungstext (Langtext) darunter. '
-        . 'Lass NICHTS weg, kuerze NICHTS, fasse NICHTS zusammen. Uebernimm den vollstaendigen Wortlaut. '
+        . 'NICHT in den Langtext gehoeren: Tabellenkoepfe wie "POS. BESCHREIBUNG MENGE EINH. EP GP", '
+        . 'Kopf- und Fusszeilen der Seite, Seitenzahlen, Trennlinien aus Strichen, '
+        . 'die Mengen- und Preiszeile der Position selbst (z.B. "1 m2 - -" oder "23,5 m2 3,90 91,65") '
+        . 'sowie Zwischensummen und Endsummen. Menge, Einheit und Preis gehoeren in ihre eigenen Felder. '
+        . 'Wenn eine Position am Ende des Ausschnitts abbricht, gib nur den vorhandenen Teil wieder und erfinde nichts dazu. '
         . 'Gib das Ergebnis AUSSCHLIESSLICH als JSON-Array zurueck, ohne weiteren Text, ohne Markdown, ohne Backticks. '
         . 'Jede Position ist ein Objekt mit genau diesen Feldern: '
         . '"pos" (Positionsnummer als Text, z.B. "01.001"), '

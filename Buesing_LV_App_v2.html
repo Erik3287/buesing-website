@@ -268,6 +268,7 @@ tr:hover td{background:#fafafa}
           <span id="save-status" style="font-size:12px;color:var(--muted);margin-right:4px"></span>
           <button class="bg sm" onclick="neuesLV()">+ Neues LV</button>
           <button class="bg sm" onclick="doExportPDF()">📄 PDF-Angebot</button>
+          <button class="bg sm" onclick="doExportDaten()" title="Alle Positionen als Datei sichern – zum Weitergeben oder Nachschauen">💾 Positionen als Datei</button>
           <button class="bg sm" onclick="typenNeuErkennen()" title="Alle Positions-Typen neu bestimmen">🔄 Typen neu erkennen</button>
           <button class="bg sm" onclick="alleEpNeuBerechnen()" title="Alle EP über das Regelwerk neu rechnen – geprüfte (grüne) Positionen bleiben unangetastet">🧮 Alle EP neu berechnen</button>
           <button class="btn sm" onclick="doSave()">💾 Speichern</button>
@@ -309,10 +310,10 @@ tr:hover td{background:#fafafa}
       <div id="lv-kalk" style="margin-top:20px;border-top:2px solid var(--line);padding-top:16px;display:none">
         <div style="max-width:380px;margin-left:auto;font-size:14px">
           <div style="display:flex;justify-content:space-between;padding:6px 0;color:var(--muted)">
-            <span>Summe Positionen (Material + Lohn)</span><span id="kk-basis">–</span>
+            <span>Summe Positionen (BGK/AGK/Gewinn/Wagnis sind je Position enthalten)</span><span id="kk-basis">–</span>
           </div>
           <div style="display:flex;justify-content:space-between;padding:6px 0;color:var(--muted)">
-            <span>+ Zuschlag <span id="kk-zpct">20</span>% (BGK/AGK/Gewinn/Wagnis)</span><span id="kk-zuschlag">–</span>
+            <span>+ zusätzlicher Zuschlag <span id="kk-zpct">0</span>%</span><span id="kk-zuschlag">–</span>
           </div>
           <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);font-weight:700">
             <span>Angebotssumme netto</span><span id="kk-netto" style="color:var(--accent)">–</span>
@@ -325,7 +326,7 @@ tr:hover td{background:#fafafa}
           </div>
           <div style="text-align:right;font-size:11px;color:var(--muted);margin-top:8px">
             <label style="cursor:pointer">Zuschlag&nbsp;%&nbsp;
-              <input type="number" id="kk-zinput" value="20" style="width:54px;padding:3px 5px;text-align:right" oninput="renderLV()">
+              <input type="number" id="kk-zinput" value="0" style="width:54px;padding:3px 5px;text-align:right" oninput="renderLV()">
             </label>
           </div>
         </div>
@@ -394,8 +395,18 @@ tr:hover td{background:#fafafa}
     <div id="bauplatten-import" style="margin:6px 0;padding:8px 12px;background:#eef4fb;border:1px solid #d3e2f2;border-radius:8px;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span>📥 Bauplatten aus dem Krüger-Angebot (KAN 150000645, 10.03.2026) übernehmen.</span>
       <button class="bg sm" style="padding:4px 10px" onclick="importBauplatten()">In Preisdatenbank übernehmen</button>
+      <button class="bg sm" style="padding:4px 9px;margin-left:auto;color:var(--muted)" title="Hinweis ausblenden" onclick="hinweisWeg('bauplatten-import')">✕</button>
     </div>
-    <div class="sw"><span class="si">🔍</span><input type="text" id="ps3" placeholder="Artikel suchen…" oninput="renderP()"></div>
+    <div id="abdicht-import" style="margin:6px 0;padding:8px 12px;background:#eef4fb;border:1px solid #d3e2f2;border-radius:8px;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span>📥 Abdichtungspreise aus der Krüger-Auftragsbestätigung (KAB 151002046, 22.05.2026) übernehmen – setzt Preis, Artikelnummer und Datum.</span>
+      <button class="bg sm" style="padding:4px 10px" onclick="importAbdichtPreise()">In Preisdatenbank übernehmen</button>
+      <button class="bg sm" style="padding:4px 9px;margin-left:auto;color:var(--muted)" title="Hinweis ausblenden" onclick="hinweisWeg('abdicht-import')">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div class="sw" style="flex:1 1 240px"><span class="si">🔍</span><input type="text" id="ps3" placeholder="Artikel suchen…" oninput="renderP()"></div>
+      <button class="bg sm" onclick="doExportPreise()" title="Alle Artikel als Datei sichern – zum Weitergeben oder Prüfen">💾 Preisdatenbank exportieren</button>
+      <button class="bg sm" onclick="importAbdichtPreise()" title="Setzt bei den Sakret-Systemartikeln Preis, Einheit, Artikelnummer und Datum auf die Krüger-Auftragsbestätigung vom 22.05.2026">🔧 Sakret-Preise prüfen &amp; reparieren</button>
+    </div>
     <div style="overflow-x:auto">
       <table>
         <thead><tr>
@@ -829,7 +840,8 @@ async function initDB(){
       format: p.format,
       lief: p.lief,
       dat: p.dat,
-      artnr: p.artnr || ''
+      artnr: p.artnr || '',
+      geprueft: p.geprueft || ''
     }));
     renderP();
   }
@@ -866,18 +878,18 @@ let PREISE = [
   {id:25,name:'PCI Flexfug 22 sandgrau',format:'',ek:3.44,eu:'/kg',lief:'–',dat:'–',kat:'fuge'},
   {id:26,name:'PCI Silcofug E',format:'310ml',ek:6.95,eu:'/Kartusche',lief:'–',dat:'–',kat:'fuge'},
   {id:27,name:'Sakret Schnellhaftgrund',format:'5L',ek:64.97,eu:'/5L',lief:'Krüger Hannover',dat:'–',kat:'grundierung'},
-  {id:28,name:'Sakret Universalgrundierung',format:'20L',ek:129.25,eu:'/20L',lief:'Krüger Hannover',dat:'–',kat:'grundierung'},
-  {id:30,name:'Sakret Dichtbahn O-DI',format:'30m Rolle',ek:114.80,eu:'/Rolle',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
-  {id:31,name:'Sakret Flexible Dichtungsschlämme FDS',format:'15kg',ek:62.96,eu:'/15kg',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
+  {id:28,name:'Sakret Universalgrundierung',format:'20L',ek:129.25,eu:'/20L',lief:'Krüger Hannover',dat:'22.05.2026',kat:'grundierung',artnr:'2603010091'},
+  {id:30,name:'Sakret Dichtbahn O-DI',format:'30m Rolle',ek:114.80,eu:'/Rolle',lief:'Krüger Hannover',dat:'22.05.2026',kat:'abdichtung',artnr:'2603010099'},
+  {id:31,name:'Sakret Flexible Dichtungsschlämme FDS',format:'15kg',ek:62.96,eu:'/15kg',lief:'Krüger Hannover',dat:'22.05.2026',kat:'abdichtung',artnr:'2603010093'},
   {id:311,name:'Sakret OAD Objektabdichtung',format:'20kg',ek:84.60,eu:'/20kg',lief:'Krüger Hannover',dat:'01.01.2024',kat:'abdichtung'},
-  {id:32,name:'Sakret Dichtband Wannenanschluss DBW',format:'10m',ek:28.06,eu:'/10m',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
-  {id:33,name:'Sakret Dichtband flexibel O-DB',format:'50m',ek:30.40,eu:'/50m',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
-  {id:34,name:'Sakret Dichkleber easy DKe',format:'310ml',ek:10.51,eu:'/310ml',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
-  {id:35,name:'Sakret Multifunktionsecke Wanne',format:'',ek:8.81,eu:'/Stück',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
-  {id:36,name:'Sakret Dichtecken O-DE innen (50 Stk)',format:'',ek:104.17,eu:'/Karton',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
-  {id:37,name:'Sakret Dichtecken O-DE außen (50 Stk)',format:'',ek:104.17,eu:'/Karton',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
-  {id:38,name:'Sakret Dehnzonenmanschette DZM 50 (10 Stk)',format:'',ek:39.25,eu:'/Karton',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
-  {id:39,name:'Sakret Dehnzonenmanschette O-DZW (50 Stk)',format:'',ek:92.82,eu:'/Karton',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
+  {id:32,name:'Sakret Dichtband Wannenanschluss DBW',format:'10m',ek:28.06,eu:'/10m',lief:'Krüger Hannover',dat:'22.05.2026',kat:'abdichtung',artnr:'2603010124'},
+  {id:33,name:'Sakret Dichtband flexibel O-DB',format:'50m',ek:30.40,eu:'/50m',lief:'Krüger Hannover',dat:'22.05.2026',kat:'abdichtung',artnr:'2603010104'},
+  {id:34,name:'Sakret Dichkleber easy DKe',format:'310ml',ek:10.51,eu:'/310ml',lief:'Krüger Hannover',dat:'22.05.2026',kat:'abdichtung',artnr:'2603010112'},
+  {id:35,name:'Sakret Multifunktionsecke Wanne',format:'',ek:8.81,eu:'/Stück',lief:'Krüger Hannover',dat:'22.05.2026',kat:'abdichtung',artnr:'2708010003'},
+  {id:36,name:'Sakret Dichtecken O-DE innen (50 Stk)',format:'',ek:104.17,eu:'/Karton',lief:'Krüger Hannover',dat:'22.05.2026',kat:'abdichtung',artnr:'2603010090'},
+  {id:37,name:'Sakret Dichtecken O-DE außen (50 Stk)',format:'',ek:104.17,eu:'/Karton',lief:'Krüger Hannover',dat:'22.05.2026',kat:'abdichtung',artnr:'2603010107'},
+  {id:38,name:'Sakret Dehnzonenmanschette DZM 50 (10 Stk)',format:'',ek:39.25,eu:'/Karton',lief:'Krüger Hannover',dat:'22.05.2026',kat:'abdichtung',artnr:'2603049999'},
+  {id:39,name:'Sakret Dehnzonenmanschette O-DZW (50 Stk)',format:'',ek:92.82,eu:'/Karton',lief:'Krüger Hannover',dat:'22.05.2026',kat:'abdichtung',artnr:'2604010191'},
   {id:40,name:'Sakret Fußbodenausgleichsmasse',format:'25kg',ek:26.19,eu:'/Sack',lief:'Krüger Hannover',dat:'–',kat:'abdichtung'},
   {id:41,name:'Rinklake FE 100 ⭐',format:'',ek:2.79,eu:'/m',lief:'Rinklake',dat:'–',kat:'profile'},
   {id:42,name:'Rinklake FEG 100 gebürstet',format:'',ek:3.76,eu:'/m',lief:'Rinklake',dat:'–',kat:'profile'},
@@ -913,6 +925,10 @@ let PREISE = [
   {id:73,name:'RAW Dichtkleber MS-Polymer 310ml',kat:'abdichtung',ek:6.31,eu:'Kartusche',format:'',lief:'Keramundo',dat:'26.06.2026'},
   {id:74,name:'RAW Dichtmatte Polypropylen grau 1x30m',kat:'abdichtung',ek:3.45,eu:'m²',format:'',lief:'Keramundo',dat:'26.06.2026'},
   {id:75,name:'RAW Entkopplungsmatte Kunststoff grau 1x30m',kat:'abdichtung',ek:8.0,eu:'m²',format:'',lief:'Keramundo',dat:'26.06.2026'},
+  // Keramundo fuehrt die Ditra bereits je m² - Rolle 1 m breit x 30 m = 30 m².
+  // Der Listenpreis von 19,57 €/m² ist bewusst nicht hinterlegt: gerechnet wird
+  // mit dem eigenen EK plus 20 %, nicht mit einem Listenpreis (Erik 26.08.2026).
+  {id:312,name:'Schlüter DITRA Verbundentkopplungsmatte 3mm',kat:'abdichtung',ek:10.18,eu:'m²',format:'1x30m Rolle · 3mm',lief:'Keramundo',dat:'26.08.2026',artnr:'1272280'},
   {id:76,name:'RAW Bodenmanschette PP/TPE 425x425mm',kat:'abdichtung',ek:5.11,eu:'Stück',format:'',lief:'Keramundo',dat:'26.06.2026'},
   {id:77,name:'RAW Dichtband PP/PE grau 0,12x50m',kat:'abdichtung',ek:29.98,eu:'Rolle',format:'',lief:'Keramundo',dat:'26.06.2026'},
   {id:78,name:'RAW Dichtecke außen PP/TPE grau 120x120mm',kat:'abdichtung',ek:1.93,eu:'Stück',format:'',lief:'Keramundo',dat:'26.06.2026'},
@@ -988,6 +1004,7 @@ async function handleFile(file,typ){
       const haeppchenGesamt=Math.ceil(seitenGesamt/proHaeppchen);
       let alleRoh=[];
       let haeppchenNr=0;
+      let luecken=[];          // Seitenbereiche, die nicht gelesen werden konnten
 
       for(let start=0; start<seitenGesamt; start+=proHaeppchen){
         if(lvAbbruch){
@@ -1016,12 +1033,15 @@ async function handleFile(file,typ){
         }
         const teilBase64=btoa(binary);
 
-        // Häppchen verarbeiten - mit bis zu 3 Versuchen
+        // Häppchen verarbeiten - mit bis zu 4 Versuchen.
+        // Die Wartezeit waechst (2s, 5s, 12s): ist die KI gerade ueberlastet,
+        // hilft sofortiges Nachfassen nichts, kurzes Warten dagegen schon.
         let erfolg=false;
         let letzterFehler='';
-        for(let versuch=1; versuch<=3 && !erfolg; versuch++){
+        const WARTEN=[2000,5000,12000];
+        for(let versuch=1; versuch<=4 && !erfolg; versuch++){
           if(lvAbbruch) break;
-          const zusatz = versuch>1 ? ' · Wiederholung '+(versuch-1) : '';
+          const zusatz = versuch>1 ? ' · Wiederholung '+(versuch-1)+' von 3' : '';
           document.getElementById('ps').textContent='LV wird von der KI gelesen…';
           document.getElementById('ps2').textContent='Seite '+(start+1)+'–'+ende+' von '+seitenGesamt+' (Häppchen '+haeppchenNr+'/'+haeppchenGesamt+')'+zusatz;
           try{
@@ -1032,12 +1052,12 @@ async function handleFile(file,typ){
               data=JSON.parse(rohText);
             }catch(parseErr){
               letzterFehler='Server-Antwort unlesbar: '+rohText.substring(0,80);
-              await new Promise(r=>setTimeout(r,1500)); // kurz warten vor Wiederholung
+              if(versuch<4) await new Promise(r=>setTimeout(r,WARTEN[versuch-1]));
               continue;
             }
             if(!data.ok){
               letzterFehler=(data.error||'unbekannt')+(data.roh?(' | KI sagte: '+data.roh):'');
-              await new Promise(r=>setTimeout(r,1500));
+              if(versuch<4) await new Promise(r=>setTimeout(r,WARTEN[versuch-1]));
               continue;
             }
             // Erfolg: Positionen sammeln
@@ -1045,36 +1065,48 @@ async function handleFile(file,typ){
             erfolg=true;
           }catch(netzFehler){
             letzterFehler=netzFehler.message;
-            await new Promise(r=>setTimeout(r,1500));
+            if(versuch<4) await new Promise(r=>setTimeout(r,WARTEN[versuch-1]));
           }
         }
 
         if(lvAbbruch){
+          // Abbruch durch den Nutzer: das bisher Gelesene NICHT wegwerfen.
+          if(alleRoh.length){
+            luecken.push({von:start+1, bis:seitenGesamt, grund:'abgebrochen'});
+            break;
+          }
           document.getElementById('lv-proc').style.display='none';
           document.getElementById('lv-up').style.display='block';
           toast('Abgebrochen');
           return;
         }
 
+        // Ein gescheitertes Haeppchen hat frueher den GANZEN Import verworfen -
+        // bei 101 Seiten sind das 26 Haeppchen, da geht fast immer eins schief,
+        // und die Arbeit der anderen 25 war weg. Jetzt wird die Luecke nur
+        // notiert und mit dem naechsten Haeppchen weitergemacht.
         if(!erfolg){
-          // Häppchen auch nach 3 Versuchen fehlgeschlagen
-          document.getElementById('lv-proc').style.display='none';
-          document.getElementById('lv-up').style.display='block';
-          alert('Seite '+(start+1)+'–'+ende+' konnte auch nach 3 Versuchen nicht gelesen werden.\n\nGrund: '+letzterFehler+'\n\nBereits '+alleRoh.length+' Positionen aus den vorherigen Seiten wurden gelesen. Versuche es nochmal, oder lade ein kleineres LV.');
-          return;
+          luecken.push({von:start+1, bis:ende, grund:letzterFehler});
         }
       }
 
       if(alleRoh.length===0){
         document.getElementById('lv-proc').style.display='none';
         document.getElementById('lv-up').style.display='block';
-        alert('Keine Positionen erkannt. Ist das PDF ein Leistungsverzeichnis?');
+        alert(luecken.length
+          ? 'Es konnte keine einzige Seite gelesen werden.\n\nGrund beim letzten Versuch:\n'
+            + luecken[luecken.length-1].grund
+          : 'Keine Positionen erkannt. Ist das PDF ein Leistungsverzeichnis?');
         return;
       }
 
       // Alle gesammelten Positionen ins LV-Format umwandeln
       document.getElementById('ps').textContent='Positionen werden zusammengeführt…';
       document.getElementById('ps2').textContent=alleRoh.length+' Positionen gefunden';
+      // Ein frisch eingelesenes LV ist ein NEUES LV - niemals ein Update des
+      // zuletzt geoeffneten. Ohne diese Zeile schrieb der Import seinen Inhalt
+      // ueber das LV, das gerade noch offen war.
+      LV.id = 0;
       LV.titel=file.name.replace(/\.[^.]+$/,'');
       // EP kommt aus dem Regelwerk (importPos -> autoEP -> berechneEP),
       // nie mehr direkt aus einem Artikel-EK.
@@ -1084,7 +1116,21 @@ async function handleFile(file,typ){
       document.getElementById('lv-main').style.display='block';
       const tit=document.getElementById('lv-tit'); if(tit) tit.textContent=LV.titel;
       renderLV();
-      toast('✓ '+LV.pos.length+' Positionen aus '+seitenGesamt+' Seiten geladen');
+
+      // Luecken offen benennen. Ein LV, dem stillschweigend Seiten fehlen,
+      // ist gefaehrlicher als eines, das gar nicht laedt.
+      if(luecken.length){
+        const seiten = luecken.map(function(l){ return l.von===l.bis ? ('Seite '+l.von) : ('Seite '+l.von+'–'+l.bis); });
+        LV.luecken = luecken.slice();
+        alert(LV.pos.length+' Positionen wurden gelesen und sind geladen.\n\n'
+          + 'ACHTUNG - diese Seiten fehlen:\n' + seiten.join('\n') + '\n\n'
+          + 'Grund beim ersten Ausfall:\n' + luecken[0].grund + '\n\n'
+          + 'Bitte diese Seiten einzeln nachladen oder die Positionen von Hand ergänzen.');
+        toast('⚠ '+LV.pos.length+' Positionen geladen · '+seiten.length+' Lücke(n)');
+      } else {
+        delete LV.luecken;
+        toast('✓ '+LV.pos.length+' Positionen aus '+seitenGesamt+' Seiten geladen');
+      }
     }catch(e){
       document.getElementById('lv-proc').style.display='none';
       document.getElementById('lv-up').style.display='block';
@@ -1145,6 +1191,7 @@ async function kiLV(text,datei){
       alert('Keine Positionen erkannt. Ist die Datei ein Leistungsverzeichnis?');
       return;
     }
+    LV.id = 0;   // neues LV, kein Update des zuletzt geoeffneten
     LV.titel=datei.replace(/\.[^.]+$/,'');
     // EP kommt aus dem Regelwerk (importPos -> autoEP -> berechneEP).
     LV.pos=roh.map(importPos);
@@ -1201,7 +1248,7 @@ async function kiPreise(input){
 const TYPEN = [
   ['wand','Wand verlegen'],['boden','Boden verlegen'],['naturstein','Naturstein'],
   ['abdicht_flaeche','Abdichtung Fläche'],['dichtband','Dichtband'],['manschette','Manschette'],['dichtecke','Dichtecke'],
-  ['grundierung','Grundierung'],['spachtel','Vorspachtel'],['stundenlohn','Stundenlohn'],
+  ['grundierung','Grundierung'],['spachtel','Vorspachtel'],['entkopplung','Entkopplung Boden'],['stundenlohn','Stundenlohn'],
   ['profil','Profil/Schiene'],['reservefliesen','Reservefliesen'],['loch','Loch/Anschnitt'],
   ['ablauf','Ablauf anarbeiten'],['ablauf_doppel','Ablauf doppelstöckig'],['hohlkehlsockel','Hohlkehlsockel'],
   ['rohrkasten','Rohrkasten (lfm)'],['duschelement','Duschelement'],['fliesentausch','Fliesentausch'],['silikon','Silikon/Elast. Fuge'],
@@ -1226,6 +1273,7 @@ const TYP_REGELN = [
   ['dichtband',     ['dichtband','dichtstreifen','anschlussband']],
   ['manschette',    ['dichtmanschette','manschette','rohrdurchgäng','rohrdurchgang']],
   ['dichtecke',     ['dichtecke','dichtecken']],
+  ['entkopplung',   ['entkopplungsmatte','entkoppelungsmatte','entkopplung','entkoppeln','enkoppeln','ditra','kerdimatte','verbundentkopplung']],
   ['abdicht_flaeche',['alternative abdichtung','dichtungsfolie','dichtbahn','verbundabdichtung','seccoral','abdichten','abdichtung']],
   ['spachtel',      ['vorspachtel','vorspachteln']],
   ['grundierung',   ['haftgrund','haftbrücke','haftschlämme','gisogrund','verbundestrich','grundierung','grundieren','voranstrich','primer']],
@@ -1234,7 +1282,13 @@ const TYP_REGELN = [
   ['silikon',       ['elastische verfugung','dauerelastisch','fugendichtstoff','silikonbasis','anschluss- und bewegungsfugen','fugen in boden- und wandbelägen','silikon']],
   ['randfuge',      ['randfuge','weichfedernder randstreifen','randstreifen']],
   ['schutz',        ['schutz von fußböden','hartfaserplatten','bodenbelag schützen','schutzvlies','abdecken mit']],
-  ['reinigung',     ['staubfreien untergrund','trocken reinigen','groben verschmutzungen']],
+  // Ueberschriften wie "Untergrund saeubern" waren nicht erfasst - 15 von 16
+  // Reinigungspositionen im LV-15 blieben deshalb ohne Typ (Erik 27.08.2026).
+  // Steht nur in NUR_UEBERSCHRIFT, weil "Untergrund saeubern und grundieren"
+  // als Vorarbeit in 12 weiteren Langtexten steht - dort ist es kein Positionstyp.
+  ['reinigung',     ['untergrund säubern','untergrund saeubern','untergrund reinigen',
+                     'säubern','saeubern','feinreinigung','endreinigung','bauendreinigung',
+                     'staubfreien untergrund','trocken reinigen','groben verschmutzungen']],
   ['wand',          ['wandbelag','wandfliesen','steingut-wandfliesen','wandkeramik']],
   ['boden',         ['bodenbelag','bodenfliesen','feinsteinzeug','anarbeiten von bodenfliesen']],
 ];
@@ -1254,7 +1308,7 @@ function typNorm(t){
 // Welche Einheit passt zu welchem Typ? Eine Flaechenabdichtung in "m"
 // abzurechnen ist ein Widerspruch - der faellt sonst niemandem auf.
 const TYP_EINHEIT = {
-  flaeche: ['wand','boden','naturstein','abdicht_flaeche','grundierung','spachtel',
+  flaeche: ['wand','boden','naturstein','abdicht_flaeche','entkopplung','grundierung','spachtel',
             'duschelement','reinigung','behandlung','schutz','sauberlaufmatte','reservefliesen'],
   laenge:  ['dichtband','profil','hohlkehlsockel','silikon','randfuge','sauberlaufrahmen','rohrkasten'],
   zeit:    ['stundenlohn'],
@@ -1306,7 +1360,7 @@ function pruefeTyp(text){
 // Und fuer Silikon: "Anschluss- und Bewegungsfugen dauerelastisch
 // verfugen" steht als Schlussarbeit im Langtext der Treppen- und der
 // Kerdimatten-Position. Eine eigene Silikonposition heisst auch so.
-const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon'];
+const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung'];
 function erkenneTyp(desc, langtext, einheit){
   const soll = einheitKlasse(einheit);
   if(soll==='zeit') return 'stundenlohn';
@@ -1528,6 +1582,14 @@ function rezept(typ, stufe){
   }
   return null;
 }
+// ===== REKTIFIZIERTE FLIESEN (Erik 26.08.2026) ============================
+// Rektifizierte Fliesen sind auf Mass geschnitten und werden mit engen Fugen
+// verlegt. Das verlangt genaueres Ausrichten, mehr Sorgfalt beim Fluchten und
+// duldet keine Toleranz - Erik rechnet dafuer 1,65 EUR/m² Aufschlag.
+// Der Aufschlag ist ein Endpreis-Zuschlag: kein Material, kein 20-%-Aufschlag.
+const REKT_ZUSCHLAG = 1.65;
+const REKT_WORTE = /\brekt(?:ifiziert|\.)|\brect(?:ifiziert|ifiziert|\.)|\brektifizierte?\b|\brectiviziert\b/i;
+function istRektifiziert(text){ return REKT_WORTE.test(String(text||'')); }
 // Rutschklasse: ab R12 erschwertes Verfugen -> 1,15 h/m² statt 0,95
 const RUTSCH = [['normal','bis R11 (normal)'],['hoch','ab R12 (erschwert)']];
 function erkenneRutsch(text){
@@ -1542,13 +1604,60 @@ function normFormat(f){ return (f||'').replace(/\s/g,'').replace(/,/g,'.').repla
 function rKlasseAus(t){ const m=(t||'').match(/\br\s*(9|1[0-3])\b/i); return m?parseInt(m[1]):null; }
 function istGlaenzend(n){ return /glänzend|glaenzend|poliert|hochglanz|blank/i.test(n||''); }
 function istGleichwertig(t){ return /oder\s+(gleichwertig|ähnlich|vergleichbar)/i.test(t||''); }
-function fabrikatAusText(t){
+// Alle im LV genannten Fabrikate. LV-Texte listen oft mehrere Alternativen,
+// getrennt durch "o.glw. Art":
+//   "Fabrk.: Villeroy & Boch - Serie Unit Four ... o.glw. Art
+//    LASSELSBERGER Ceramics - Serie Extra ... o.glw. Art
+//    AGROB-BUCHTAL - Serie Valley o.glw. Art"
+// Frueher meldete die App hier "LV nennt kein Fabrikat" - das Muster verlangte
+// "Fabr." oder "Fabrikat", im Text stand aber die Abkuerzung "Fabrk.".
+const FAB_ENDE = /\b(gr[oö]ße|groesse|format|oberfl[aä]che|farbe|verlege|untergrund|fugen|angebot|einbauort|menge)\b/i;
+const FAB_TRENN = /\bo\.?\s*glw\.?\s*Art\b|\boder\s+gleichwertig(?:er?\s+Art)?\b|\bo\.?\s*[äa]\.?\s/i;
+function fabrikateAusText(t){
   const s=(t||'').replace(/\s+/g,' ');
-  // "Fabr." / "Fabrikat:" / "Hersteller:" – Doppelpunkt optional
-  let m=s.match(/\bFabr(?:\.|ikat)?\s*:?\s*([^\n,;.]{2,60})/i)
-     || s.match(/\bHersteller\s*:?\s*([^\n,;.]{2,60})/i)
-     || s.match(/\bProdukt\s*:?\s*([^\n,;.]{2,60})/i)
-     || s.match(/\bErzeugnis\s*:?\s*([^\n,;.]{2,60})/i);
+  // Der Doppelpunkt ist Pflicht - ohne ihn greift das Muster mitten in Woerter
+  // wie "Herstellervorschriften" und liest Satzreste als Fabrikat.
+  const m = s.match(/\bFabr[a-zA-Z]{0,7}\.?\s*:\s*(.{2,220})/i)
+         || s.match(/\bHersteller\s*:\s*(.{2,220})/i)
+         || s.match(/\bProdukt\s*:\s*(.{2,220})/i)
+         || s.match(/\bErzeugnis\s*:\s*(.{2,220})/i);
+  if(!m) return [];
+  // Bereich bis zum naechsten Sachthema abschneiden
+  let feld = m[1];
+  const e = feld.search(FAB_ENDE);
+  if(e > 0) feld = feld.slice(0, e);
+  // An den "o.glw. Art"-Trennern in einzelne Fabrikate zerlegen
+  const teile = feld.split(new RegExp(FAB_TRENN.source, 'gi'));
+  const raus = [];
+  teile.forEach(function(x){
+    let n = String(x||'')
+      .replace(/[„“”"‚‘’']/g,'')
+      .replace(/^[\s,;:\-–]+/,'').replace(/[\s,;:\-–.]+$/,'')
+      // Ein Doppelpunkt mittendrin heisst: hier faengt schon das naechste
+      // Feld an ("Konstruktionshoehe: ca. 30 mm"). Davor abschneiden.
+      .replace(/\s+[A-Za-zÄÖÜäöü]+\s*:.*$/,'')
+      .replace(/\s+/g,' ').trim();
+    // Ein einzeln stehendes "o" ist der Rest von "o.glw."
+    n = n.replace(/\s+o$/i,'').trim();
+    // Leerfelder zum Ausfuellen sind kein Fabrikat:
+    // "Angebotenes Fabrk.: ............ (vom Bieter einzutragen)"
+    // Faengt der Rest mit einem eigenen Feldnamen an ("Konstruktionshoehe:"),
+    // ist es kein Fabrikat mehr, sondern die naechste Angabe.
+    const leer = /^[A-Za-zÄÖÜäöü]+\s*:/.test(n)
+              || /vom bieter|einzutragen|^[._\-\s]*$/i.test(n)
+              || (n.replace(/[^A-Za-zÄÖÜäöüß]/g,'').length < 3);
+    if(n.length>=3 && !leer && !/^(art|glw)$/i.test(n) && raus.indexOf(n)<0) raus.push(n);
+  });
+  return raus;
+}
+function fabrikatAusText(t){
+  const alle = fabrikateAusText(t);
+  if(alle.length) return alle[0];
+  const s=(t||'').replace(/\s+/g,' ');
+  let m=s.match(/\bFabr[a-zA-Z]{0,7}\.?\s*:\s*([^\n,;.]{2,60})/i)
+     || s.match(/\bHersteller\s*:\s*([^\n,;.]{2,60})/i)
+     || s.match(/\bProdukt\s*:\s*([^\n,;.]{2,60})/i)
+     || s.match(/\bErzeugnis\s*:\s*([^\n,;.]{2,60})/i);
   if(!m) return null;
   let name=m[1].trim();
   // Serie/Farb-Zusatz in Anführungszeichen anhängen: Agrob Buchtal "Basis 1" -> Agrob Buchtal Basis 1
@@ -1557,6 +1666,103 @@ function fabrikatAusText(t){
   name=name.replace(/\b(oder gleichwertig|o\.?\s?ä\.?|oder ähnlich|weiß matt|matt|glänzend).*$/i,'').trim();
   name=name.replace(/[\s(«»\-–,;:]+$/,'').trim();  // Klammer-/Trennzeichen-Reste am Ende
   return name.length>=2 ? name : null;
+}
+// ===== FABRIKAT AUS DEM LV IN DER PREISDATENBANK WIEDERFINDEN ============
+// Erik am 27.08.2026: "selbst wenn die Bezeichnung nicht 100% uebereinstimmt -
+// koennte wenigstens ein Hinweis kommen: handelt es sich um dieses Produkt?"
+// Das LV schreibt "Villeroy & Boch - Serie Unit Four - CT62 / X-Plane",
+// die Preisdatenbank "V&B Unit Four 2680-CT62 I.Sorte R10/B". Ohne Abgleich
+// blieb die ausgeschriebene Fliese unentdeckt und die App schlug eine fremde
+// vor - im LV-15 die Kermos zu 14,75 statt der V&B zu 17,20 EUR/m².
+const FAB_SYNONYM = [
+  [/\bv\s*&\s*b\b|\bvb\b/g, 'villeroy boch'],
+  [/villeroy\s*(&|und)?\s*boch/g, 'villeroy boch'],
+  [/agrob[\s-]*buchtal/g, 'agrob buchtal'],
+  [/lasselsberger(\s+ceramics)?/g, 'lasselsberger'],
+  [/schlüter|schlueter/g, 'schlueter'],
+];
+function fabNorm(t){
+  let n=String(t||'').toLowerCase()
+    .replace(/ä/g,'a').replace(/ö/g,'o').replace(/ü/g,'u').replace(/ß/g,'ss');
+  FAB_SYNONYM.forEach(function(r){ n=n.replace(r[0], r[1]); });
+  return n.replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+}
+// Woerter, die in fast jedem Fliesennamen stehen und deshalb nichts aussagen
+const FAB_LEER = new Set(['serie','sorte','isorte','i','art','glw','oder','gleichwertig','cm','mm',
+  'fliese','fliesen','ugl','fs','rekt','rektifiziert','matt','o','und','der','die','das','x','ca']);
+function fabToken(t){
+  return fabNorm(t).split(' ').filter(function(w){
+    return w.length>=3 && !FAB_LEER.has(w);
+  });
+}
+// Wie gut passt ein Datenbank-Artikel zum ausgeschriebenen Fabrikat?
+// Woerter MIT Ziffern (ct62, 2680) wiegen schwer - das sind Artikelschluessel.
+function fabPunkte(ausgeschrieben, artikel, gesuchtFormat){
+  const a=fabToken(ausgeschrieben), b=fabToken(artikel.name);
+  if(!a.length || !b.length) return 0;
+  let punkte=0;
+  a.forEach(function(w){
+    if(b.indexOf(w)>-1) punkte += /\d/.test(w) ? 3 : 1;
+    else if(/\d/.test(w) && b.some(function(x){ return x.indexOf(w)>-1 || w.indexOf(x)>-1; })) punkte += 2;
+  });
+  if(gesuchtFormat && normFormat(artikel.format)===gesuchtFormat) punkte += 2;
+  return punkte;
+}
+// Nennt das LV KEIN Fabrikat, beschreibt es das Produkt aber trotzdem
+// ("Terrazzo Bodenfliesen, Format 60x30, rektifiziert, matt"), laesst sich auch
+// darueber suchen. Erik am 27.08.2026 bei 15.03.5. Damit daraus kein Raten
+// wird, muss mindestens EIN kennzeichnendes Wort treffen - eine Material- oder
+// Serienbezeichnung, nicht "Bodenfliesen" oder "Format".
+const BESCHR_LEER = new Set(['bodenfliesen','wandfliesen','bodenfliese','wandfliese','fliesen','fliese',
+  'format','farbe','wahl','oberflaeche','oberflache','verlegen','liefern','stark','staerke','dicke',
+  'bereich','einbauort','untergrund','estrich','duennbett','dunnbett','verfugung','fugen','angebotenes',
+  // Farben beschreiben das Aussehen, nicht das Produkt. "weiss" allein darf
+  // keinen Artikel vorschlagen - sonst kam bei den Fensterbaenken die
+  // "Kermos Concept weiss" heraus, die damit nichts zu tun hat.
+  'weiss','weiße','weißer','weisse','schwarz','anthrazit','beige','braun','grau','graue','dunkelgrau',
+  'hellgrau','silber','creme','sandbeige','farbton','farbe','farbig','naturfarben','dunkel','hell',
+  'nach','wird','werden','einschl','inkl','sowie','ist','sind','bzw','ca','cm','mm','mit','und','der','die','das']);
+function beschreibungToken(desc, langtext){
+  return fabToken((desc||'') + ' ' + String(langtext||'').slice(0,320))
+    .filter(function(w){ return w.length>=5 && !BESCHR_LEER.has(w); });
+}
+function beschreibungTreffer(typ, desc, langtext){
+  const worte = beschreibungToken(desc, langtext);
+  if(!worte.length) return null;
+  const txt=(desc||'')+' '+(langtext||'');
+  const fm=txt.match(/(\d{1,3}(?:[,.]\d)?)\s*[×xX]\s*(\d{1,3}(?:[,.]\d)?)/);
+  const gesucht = fm ? normFormat(fm[1]+'x'+fm[2]) : null;
+  let best=null, bestP=0, bestWort='';
+  (PREISE||[]).forEach(function(x){
+    if(x.kat!=='fliesen') return;
+    const nt=fabToken(x.name);
+    let punkte=0, wort='';
+    worte.forEach(function(w){
+      if(nt.indexOf(w)>-1){ punkte+=3; if(!wort) wort=w; }
+    });
+    if(!punkte) return;
+    // Format und Rutschklasse bestaetigen nur, sie ersetzen kein Stichwort
+    if(gesucht && (normFormat(x.format)===gesucht
+       || normFormat(x.format).indexOf(gesucht)===0
+       || gesucht.split('x').every(function(t){ return normFormat(x.format).indexOf(t)>-1; }))) punkte += 2;
+    if(punkte>bestP){ bestP=punkte; best=x; bestWort=wort; }
+  });
+  return (best && bestP>=3) ? {artikel:best, punkte:bestP, wort:bestWort} : null;
+}
+// Bester Treffer zum ausgeschriebenen Fabrikat - oder null.
+function fabTreffer(ausgeschrieben, typ, desc, langtext){
+  if(!ausgeschrieben) return null;
+  const txt=(desc||'')+' '+(langtext||'');
+  const fm=txt.match(/(\d{1,3}(?:[,.]\d)?)\s*[×xX]\s*(\d{1,3}(?:[,.]\d)?)/);
+  const gesucht = fm ? normFormat(fm[1]+'x'+fm[2]) : null;
+  let best=null, bestP=0;
+  (PREISE||[]).forEach(function(x){
+    if(x.kat!=='fliesen' && typ!=='naturstein') return;
+    const p=fabPunkte(ausgeschrieben, x, gesucht);
+    if(p>bestP){ bestP=p; best=x; }
+  });
+  // Mindestens ein Artikelschluessel oder zwei klare Woerter muessen passen
+  return (best && bestP>=3) ? {artikel:best, punkte:bestP} : null;
 }
 // Liefert ALLE passenden DB-Fliesen (fuer Erik's Auswahl-Dropdown bei "oder gleichwertig").
 // Gleiche Fachregeln wie frueher der Vorschlag, aber nur als Auswahlhilfe - kein Automatismus.
@@ -1670,7 +1876,15 @@ function epFliese(p, system){
   const lohn=mitLohn ? zeit*LOHN() : 0;
   if(mitLohn) zeilen.push(['Lohn', zeittxt+' h × '+fmt(LOHN()), lohn]);
   else zeilen.push(['Lohn', 'nur Lieferung – kein Lohn', 0]);
-  const ep=Math.round((kalk+lohn)*100)/100;
+  // Rektifiziert: enge Fugen, genaues Ausrichten. Nur wenn auch verlegt wird.
+  const autoRekt = istRektifiziert((p.desc||'')+' '+(p.langtext||''));
+  const rekt = (p.rektifiziert===undefined || p.rektifiziert===null) ? autoRekt : !!p.rektifiziert;
+  let zuschlag=0;
+  if(rekt && mitLohn){
+    zuschlag=REKT_ZUSCHLAG;
+    zeilen.push(['Rektifiziert', 'enge Fugen, genaues Ausrichten', zuschlag]);
+  }
+  const ep=Math.round((kalk+lohn+zuschlag)*100)/100;
   return {ep, zeilen, warn};
 }
 
@@ -1682,7 +1896,31 @@ function epFliese(p, system){
 const EINZEL_EU = ['kg','g','l','ml','m','m2','m²','stk','stück','stueck','st','lfm','liter'];
 function istEinzelpreis(a){
   const e=(a.eu||'').toLowerCase().replace(/^\//,'').replace(/\s+/g,'');
-  return EINZEL_EU.indexOf(e)>=0;
+  if(EINZEL_EU.indexOf(e)<0) return false;
+  // Ausnahme: Lieferantenbelege schreiben in die Mengenspalte "Stück" und
+  // meinen die Rolle oder den Sack. Krueger fuehrt die Dichtbahn als
+  // "1 Stück ... 30 m" - wer das woertlich nimmt, rechnet 114,80 EUR je m²
+  // statt 3,83. Steht im Format oder Namen eine Gebindegroesse in m, kg oder
+  // Liter, ist es KEIN Einzelpreis. (Erik 27.08.2026)
+  if(e==='stk'||e==='stück'||e==='stueck'||e==='st'){
+    if(gebindeAusArtikelText(a)) return false;
+  }
+  return true;
+}
+// Gebindegroesse aus Format ODER Name - Millimeter-Masse ("117,5x60x60 mm",
+// "150x150 mm") sind Abmessungen und zaehlen NICHT als Gebinde.
+function gebindeAusArtikelText(a){
+  for(const feld of [a && a.format, a && a.name]){
+    const t=String(feld||'').toLowerCase();
+    if(!t) continue;
+    const ohneMm = t.replace(/\d+(?:[.,]\d+)?\s*(?:[x×]\s*\d+(?:[.,]\d+)?\s*)*mm\b/g,' ');
+    let m=ohneMm.match(/(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*m\b/);
+    if(m) return {menge:Math.max(parseFloat(m[1].replace(',','.')),parseFloat(m[2].replace(',','.'))), einheit:'m'};
+    m=ohneMm.match(/(\d+(?:[.,]\d+)?)\s*kg\b/);  if(m) return {menge:parseFloat(m[1].replace(',','.')), einheit:'kg'};
+    m=ohneMm.match(/(\d+(?:[.,]\d+)?)\s*(?:l|ltr|liter)\b/); if(m) return {menge:parseFloat(m[1].replace(',','.')), einheit:'l'};
+    m=ohneMm.match(/(\d+(?:[.,]\d+)?)\s*m\b/);   if(m) return {menge:parseFloat(m[1].replace(',','.')), einheit:'m'};
+  }
+  return null;
 }
 // Liest ein Gebinde-Maß aus dem Artikelnamen: "0,12x50m"->50m, "25kg"->25kg, "20l"->20l.
 // Fängt falsch erfasste Meterware ab (z.B. Dichtband-Rolle als "Stk").
@@ -1736,21 +1974,39 @@ function echtesGebinde(a, cfgGebinde){
 const PREIS_MAX_MONATE = 12;
 let PREIS_ALT_SAMMLER = null;
 
-function preisDatum(a){
-  const d=String((a&&a.dat)||'').trim();
-  const m=d.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+function datumLesen(d){
+  const t=String(d||'').trim();
+  const m=t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
   if(m) return new Date(+m[3], +m[2]-1, +m[1]);
-  const j=d.match(/^(20\d{2})$/);            // nur Jahreszahl
+  const j=t.match(/^(20\d{2})$/);            // nur Jahreszahl
   if(j) return new Date(+j[1], 0, 1);
   return null;
 }
+function preisDatum(a){ return datumLesen(a&&a.dat); }
+// ===== PREIS BESTAETIGEN (Erik 26.08.2026) ================================
+// "Ich muss auch die Moeglichkeit haben, den Hinweis abzuarbeiten."
+// Bisher war der gelbe Hinweis eine Sackgasse: Er verschwand nur, wenn man den
+// Preis aenderte. Ein Preis kann aber unveraendert richtig sein - dann fehlte
+// die Moeglichkeit, genau das festzuhalten.
+// Deshalb zwei getrennte Daten je Artikel:
+//   dat       - wann der Preis vom Lieferanten kam (bleibt stehen, ist der Beleg)
+//   geprueft  - wann Erik zuletzt bestaetigt hat, dass er noch gilt
+// Fuer das Alter zaehlt das spaetere der beiden.
+function heuteDE(){
+  const h=new Date();
+  return String(h.getDate()).padStart(2,'0')+'.'+String(h.getMonth()+1).padStart(2,'0')+'.'+h.getFullYear();
+}
 // {alt:true/false, monate, grund}
 function preisAlter(a){
-  const d=preisDatum(a);
+  const dP=preisDatum(a);
+  const dG=datumLesen(a&&a.geprueft);
+  const d = (dP&&dG) ? (dG>dP?dG:dP) : (dG||dP);
   if(!d) return {alt:true, monate:null, grund:'ohne Datum'};
   const heute=new Date();
   const monate=(heute.getFullYear()-d.getFullYear())*12 + (heute.getMonth()-d.getMonth());
-  return {alt: monate>PREIS_MAX_MONATE, monate:monate, grund:'von '+d.toLocaleDateString('de-DE')};
+  const bestaetigt = !!(dG && (!dP || dG>=dP));
+  return {alt: monate>PREIS_MAX_MONATE, monate:monate, bestaetigt:bestaetigt,
+          grund: (bestaetigt?'bestätigt am ':'von ')+d.toLocaleDateString('de-DE')};
 }
 // Artikel mit EK 0,00 sind genauso gefaehrlich wie fehlende: sie werden
 // gefunden, tragen aber nichts zum Preis bei - die Position sieht rechenbar
@@ -1769,9 +2025,9 @@ function preisJe(a, gebinde){
   const ek=parseFloat(a.ek)||0;
   const eu=(a.eu||'').toLowerCase().replace(/^\//,'');
   // "Stk" bei erkennbarer Meterware ist KEIN echter Einzelpreis -> durch Rollenlänge teilen
-  if(eu==='stk'||eu==='stück'||eu==='st'){
-    const abg=gebindeAusName(a.name);
-    if(abg && abg.einheit==='m' && abg.menge>1) return ek/abg.menge;
+  if(eu==='stk'||eu==='stück'||eu==='stueck'||eu==='st'){
+    const abg=gebindeAusArtikelText(a);
+    if(abg && abg.menge>1) return ek/abg.menge;
   }
   if(istEinzelpreis(a)) return ek;
   return gebinde ? ek/gebinde : ek;
@@ -2249,11 +2505,15 @@ function epGrundierung(p, system){
   const g=(GRUND[system]||GRUND.sakret);
   const modus = p.untergrund||'saugend';
   const cfg = modus==='nichtsaugend' ? g.nichtsaugend : g.saugend;
-  const a=findArtikel(cfg.name, cfg.nicht);
+  // Vom Benutzer gewaehlter Artikel schlaegt den Systemstandard
+  let a=null;
+  if(p.grundArt) a=(PREISE||[]).find(function(x){ return x.name===p.grundArt; });
+  if(!a) a=findArtikel(cfg.name, cfg.nicht);
   const ltxt=cfg.liter.toString().replace('.',',');
   const mtxt=modus==='nichtsaugend'?'nicht saugend':'saugend';
   let mat=0;
-  if(a){ mat=preisJe(a,cfg.gebinde)*cfg.liter; zeilen.push(['Grundierung '+ltxt+' L ('+mtxt+')', preisTxt(a,cfg.gebinde,'L')+' × '+ltxt, mat]); }
+  const geb = gebindeAusArtikel(a, cfg.gebinde) || cfg.gebinde;
+  if(a){ mat=preisJe(a,geb)*cfg.liter; zeilen.push(['Grundierung '+ltxt+' L ('+mtxt+')', preisTxt(a,geb,'L')+' × '+ltxt, mat]); }
   else { warn.push('ARTIKEL|'+cfg.name); zeilen.push(['Grundierung '+ltxt+' L ('+mtxt+')','fehlt',0]); }
   const kalk=mat*1.20;
   zeilen.push(['Material × 1,20','',kalk]);
@@ -2303,6 +2563,92 @@ function epSpachtel(p, system){
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn};
 }
+// ===== ENTKOPPLUNG BODEN (Erik 26.08.2026) ================================
+// "Letztendlich ist es die gleiche Arbeit wie die Dichtbahn verlegen,
+// allerdings mit der Schlueter Ditra-Matte." Deshalb sind Kleber und
+// Arbeitszeit aus dem Dichtbahn-Rezept uebernommen:
+//   Kleber 1,2 kg/m² (derselbe Wert wie beim Bahnkleben)
+//   Zeit   8 min/m²  (ABD_BAHN_H)
+// NICHT uebernommen wird alles, was zur Abdichtung gehoert: keine
+// Dichtschlaemme in der Ueberlappung, kein Dichtband, keine Ecken, keine
+// Manschetten, keine Aufkantung. Eine Entkopplungsmatte dichtet nicht ab.
+// Frueher landeten solche Positionen beim Typ "Boden" und wurden mit
+// 0,95 h/m² Verlegezeit plus Fugenmaterial gerechnet - 57,78 EUR/m² statt
+// rund 20 EUR/m², und die Fliese fehlte trotzdem.
+const ENTKOPPLUNG_KLEBER_KG = 1.2;   // wie Bahn-Kleber
+// Die Ditra-Matte kennt KEINE ueberlappende Verlegung (Erik 26.08.2026):
+// sie wird immer stumpf gestossen und der Stoss mit Dichtband ueberklebt.
+// Wie viele Meter Stoss je m² anfallen, haengt an der Raumbreite - die steht
+// nie im LV. Geometrisch: bei 1,00 m Bahnbreite und Raumbreite B sind es
+// (B-1)/B Meter je m². Also 2,6 m Raum -> 0,62 · 4 m -> 0,75 · 8 m -> 0,88.
+// 0,75 ist der Mittelwert ueblicher Raumbreiten - im Rechner aenderbar.
+const ENTKOPPLUNG_BAND_M = 0.75;
+const ENTKOPPLUNG = {
+  sakret: {name:'Schlüter DITRA Verbundentkopplungsmatte', gebinde:1},
+  raw:    {name:'RAW Entkopplungsmatte',                   gebinde:1},
+};
+// Alle Entkopplungsmatten aus der Preisdatenbank - fuer das Dropdown im Rechner
+// Alle Grundierungen aus der Preisdatenbank - fuer das Dropdown im Rechner.
+// Erik am 27.08.2026: Steht im Text "Einschraenkung der Saugfaehigkeit", ist der
+// Untergrund saugend, und das passende Hausprodukt soll gleich vorgeschlagen
+// werden - mit der Moeglichkeit, ein anderes zu waehlen.
+function grundierungKandidaten(){
+  return (PREISE||[]).filter(function(a){
+    if(a.kat==='grundierung') return true;
+    return /grundierung|haftgrund|voranstrich|primer|tiefengrund/i.test(a.name||'');
+  });
+}
+function entkopplungKandidaten(){
+  return (PREISE||[]).filter(function(a){
+    return /entkopplung|entkoppelung|ditra|kerdi/i.test(a.name||'');
+  });
+}
+function epEntkopplung(p, system){
+  const warn=[], zeilen=[];
+  // Vom Benutzer gewaehlter Artikel schlaegt den Systemstandard
+  let a=null;
+  if(p.entkopplungArt){ a=(PREISE||[]).find(function(x){ return x.name===p.entkopplungArt; }); }
+  const cfg = ENTKOPPLUNG[system]||ENTKOPPLUNG.sakret;
+  if(!a) a=findArtikel(cfg.name, cfg.nicht);
+
+  let matte=0;
+  if(a){
+    // Die Matte wird stumpf gestossen, nicht ueberlappt - deshalb 1,00.
+    matte=preisJe(a, gebindeAusArtikel(a, cfg.gebinde) || 1);
+    preisAltMelden(a);
+    zeilen.push(['Entkopplungsmatte', a.name.slice(0,44)+' · '+fmt(a.ek)+' €'+(a.eu||''), matte]);
+  } else {
+    warn.push('ARTIKEL|'+cfg.name+' (Entkopplungsmatte)');
+    zeilen.push(['Entkopplungsmatte','fehlt in der Preisdatenbank',0]);
+  }
+
+  const sys=SYSTEME[system]||SYSTEME.sakret;
+  const kCfg=sys.kleber_klein, kA=findArtikel(kCfg.name, kCfg.nicht);
+  const ktxt=String(ENTKOPPLUNG_KLEBER_KG).replace('.',',');
+  let kleber=0;
+  if(kA){ kleber=preisJe(kA,kCfg.gebinde)*ENTKOPPLUNG_KLEBER_KG;
+          zeilen.push(['Kleber '+ktxt+' kg', preisTxt(kA,kCfg.gebinde,'kg')+' × '+ktxt+' (wie Bahn-Kleber)', kleber]); }
+  else { warn.push('ARTIKEL|'+kCfg.name); zeilen.push(['Kleber '+ktxt+' kg','fehlt',0]); }
+
+  // Stossband. Dieselbe Rechnung wie beim Dichtbahn-Stoss: Band plus die
+  // Schlaemme, in die es eingebettet wird, plus die Zeit dafuer.
+  const c=ABDICHT[system]||ABDICHT.sakret;
+  const mBand=(parseFloat(p.entkopplungBandM)>0)?parseFloat(p.entkopplungBandM):ENTKOPPLUNG_BAND_M;
+  const b=artInfo(c.band, warn, 'Dichtband');
+  const fds=artInfo(c.fds, warn, 'Dichtschlämme');
+  const bandK=mBand*((b.found?b.je:0)+(fds.found?fds.je:0)*0.4);
+  const btxt=fmt(mBand)+' m';
+  zeilen.push(['Stossband '+btxt+'/m² (auf Stoß)',
+    (b.found?b.txt:'fehlt')+' + Schlämme 0,4 kg/m', bandK]);
+
+  const mat=matte+kleber+bandK;
+  const kalk=mat*1.20;
+  zeilen.push(['Material × 1,20','',kalk]);
+  const std=ABD_BAHN_H + mBand*0.0717;
+  const lohn=std*LOHN();
+  zeilen.push(['Lohn (wie Dichtbahn verlegen)','8 min/m² + Band '+btxt+' × 0,0717 h',lohn]);
+  return {ep:Math.round((kalk+lohn)*100)/100, zeilen, warn};
+}
 function epStundenlohn(p){
   const t=((p.desc||'')+' '+(p.langtext||'')).toLowerCase();
   let satz=KALK.lohn_facharbeiter, rolle='Facharbeiter';
@@ -2342,9 +2688,24 @@ const FESTPREISE = {
   ablauf_doppel: {ep:58.00, label:'Bodenablauf doppelstöckig'},
   fliesentausch: {ep:44.50, label:'Fliesentausch (Aus- + Einbau + Fuge)'},
   randfuge:      {ep:4.90,  label:'Randfuge / Randdämmstreifen (vor Estrich)'},
-  reinigung:     {ep:1.60,  label:'Estrich trocken reinigen'},
+  reinigung:     {ep:1.60,  label:'Untergrund säubern (vor dem Verlegen)'},
   behandlung:    {ep:14.55, label:'Imprägnierung / Fleckschutz'},
 };
+// ===== REINIGUNG: zwei verschiedene Arbeiten (Erik 27.08.2026) ============
+// "Untergrund saeubern" ist der Besen VOR dem Verlegen - 1,60 EUR/m².
+// "Feinreinigung von komplett beraeumten Flaechen" ist die Endreinigung
+// NACH getaner Arbeit und aufwendiger - 2,15 EUR/m².
+// Beide laufen unter dem Typ 'reinigung'; welche gemeint ist, steht in der
+// Ueberschrift und laesst sich im Rechner umschalten.
+const REINIGUNG = {untergrund:1.60, fein:2.15};
+function istFeinreinigung(txt){ return /feinreinigung|endreinigung|bauendreinigung|beräumt|beraeumt/i.test(txt||''); }
+function epReinigung(p){
+  const auto = istFeinreinigung((p.desc||'')+' '+(p.langtext||'')) ? 'fein' : 'untergrund';
+  const art  = p.reinigungArt || auto;
+  const ep   = REINIGUNG[art] || REINIGUNG.untergrund;
+  const label= art==='fein' ? 'Feinreinigung (Endreinigung)' : 'Untergrund säubern (vor dem Verlegen)';
+  return {ep, zeilen:[[label,'Festpreis – kein Aufschlag',ep]], warn:[]};
+}
 // Silikon/elastische Fuge: Festpreis je nach Material.
 const SILIKON = {sanitaer:7.90, naturstein:8.90};
 function silikonNaturstein(txt){
@@ -2380,7 +2741,10 @@ const EMCO_EK_RABATT=0.30, EMCO_VK_ABSCHLAG=0.05, EMCO_LOHN=0.15;
 
 function emcoMasse(p){
   const txt=(p.desc||'')+' '+(p.langtext||'');
-  const m=txt.match(/(\d+(?:[.,]\d+)?)\s*(cm|m|mm)?\s*[×xX]\s*(\d+(?:[.,]\d+)?)\s*(cm|m|mm)?/);
+  // ACHTUNG bei der Reihenfolge: (cm|m|mm) trifft bei "900 mm" schon auf das
+  // erste m und macht daraus 900 METER - die Matte wurde dann 1,35 Mio. m²
+  // gross und der Preis 614 Mio. EUR. Das laengere Kuerzel muss zuerst stehen.
+  const m=txt.match(/(\d+(?:[.,]\d+)?)\s*(cm|mm|m)?\s*[×xX]\s*(\d+(?:[.,]\d+)?)\s*(cm|mm|m)?/);
   if(!m) return null;
   const einh=(m[4]||m[2]||'cm').toLowerCase();
   const f=einh==='m'?1000:(einh==='mm'?1:10);
@@ -2720,11 +3084,13 @@ function berechneEPKern(p, system){
   if(t==='manschette'||t==='dichtecke') return epStueckAbdicht(p, system, t);
   if(t==='grundierung') return epGrundierung(p, system);
   if(t==='spachtel') return epSpachtel(p, system);
+  if(t==='entkopplung') return epEntkopplung(p, system);
   if(t==='stundenlohn') return epStundenlohn(p);
   if(t==='profil') return epProfil(p, system);
   if(t==='naturstein') return epNaturstein(p, system);
   if(t==='rohrkasten') return epRohrkasten(p, system);
   if(t==='duschelement') return epDuschelement(p, system);
+  if(t==='reinigung') return epReinigung(p);
   if(t==='silikon') return epSilikon(p);
   if(t==='schutz') return epSchutz(p);
   if(t==='sauberlaufmatte') return epSauberlaufmatte(p);
@@ -2803,11 +3169,57 @@ function autoEP(p, system){
 }
 
 // Eine Rohposition aus der KI-Auslese in eine fertige LV-Position verwandeln.
+// ============================================
+// LANGTEXT SAEUBERN
+// Beim Einlesen hing im Test-LV bei 20 von 40 Positionen der Text der
+// naechsten Position mit im Langtext - samt Tabellenkopf der PDF. Position
+// 8.1 "Kerdimatte" trug den kompletten Text von 8.2 und 8.3 in sich, und die
+// Typ-Erkennung hat daraus den falschen Positionstyp abgeleitet.
+// Die Anweisung an die KI ist geschaerft; das hier ist das Sicherheitsnetz
+// dahinter. Es schneidet nur ab, wo es sich sicher ist:
+//   - am Tabellenkopf der LV-PDF
+//   - an einer FREMDEN Positionsnummer, die NACH der eigenen kommt und von
+//     einer Ueberschrift gefolgt wird ("8.2 Dauerelastische Versiegelung")
+// Ein Rueckverweis ("siehe Pos. 4.1") oder eine Norm ("DIN 18534-3")
+// schneidet nicht - dafuer die Ausschluesse und die Reihenfolgepruefung.
+function posNrWert(nr){
+  const t = String(nr||'').match(/(\d+)\.(\d+)/);
+  return t ? parseInt(t[1],10)*1000 + parseInt(t[2],10) : null;
+}
+const LT_KOPF = /POS\.\s*BESCHREIBUNG/i;
+const LT_FREMD = /(^|[\s–—\-])(\d{1,2}\.\d{1,3})\s+([A-ZÄÖÜ][a-zäöüß]{2,})/g;
+const LT_KEIN_SCHNITT = /(pos|position|nr|din|en|iso|abs|punkt|kapitel|titel|siehe|gem|nach)\.?\s*$/i;
+function langtextSaeubern(nr, text){
+  let s = String(text||'');
+  if(!s) return s;
+  let schnitt = s.length;
+
+  const kopf = s.search(LT_KOPF);
+  if(kopf > -1) schnitt = kopf;
+
+  const eigen = posNrWert(nr);
+  LT_FREMD.lastIndex = 0;
+  let m;
+  while((m = LT_FREMD.exec(s)) !== null){
+    const start = m.index + m[1].length;
+    if(start >= schnitt) break;
+    const gefunden = posNrWert(m[2]);
+    if(gefunden === null || eigen === null) continue;
+    if(gefunden <= eigen) continue;                       // eigene Nr oder Rueckverweis
+    if(LT_KEIN_SCHNITT.test(s.slice(Math.max(0,start-14), start))) continue;
+    schnitt = start;
+    break;
+  }
+
+  if(schnitt >= s.length) return s.trim();
+  return s.slice(0, schnitt).replace(/[\s–—\-]+$/,'').trim();
+}
+
 function importPos(roh){
   const p = {
     nr:       roh.pos || '',
     desc:     roh.beschreibung || '',
-    langtext: roh.langtext || '',
+    langtext: langtextSaeubern(roh.pos, roh.langtext),
     menge:    parseFloat(roh.menge) || 0,
     einheit:  roh.einheit || 'm²',
     ep: 0, status: 'rot', notiz: ''
@@ -2854,7 +3266,7 @@ function istWieVor(p){
   return WIE_VOR.test(kopf);
 }
 function wieVorUebernehmen(liste){
-  const erben=['abdichtArt','wKlasse','spachtelModus','spachtelArt','umfang','oberflaeche','stufe','untergrund','silikonArt','schutzArt'];
+  const erben=['abdichtArt','wKlasse','spachtelModus','spachtelArt','entkopplungArt','entkopplungBandM','rektifiziert','reinigungArt','grundArt','umfang','oberflaeche','stufe','untergrund','silikonArt','schutzArt'];
   let uebernommen=0;
   for(let i=1;i<liste.length;i++){
     const p=liste[i];
@@ -2936,7 +3348,7 @@ function renderCalcOut(i){
 }
 function renderCalcHTML(i){
   const p=LV.pos[i];
-  const SUP=['wand','boden','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','stundenlohn','profil','naturstein','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
+  const SUP=['wand','boden','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
   if(SUP.indexOf(p.typ)<0){
     const lbl=(TYPEN.find(t=>t[0]===p.typ)||['','dieser Typ'])[1];
     return '<div style="font-size:12px;color:var(--muted);padding:12px 0">EP-Rechner für „'+lbl+'" ist noch nicht gebaut. Kommt Schritt für Schritt dazu.</div>';
@@ -2952,7 +3364,8 @@ function renderCalcHTML(i){
       +'</select><div style="font-size:11px;margin-top:3px">'+ampelU+'</div></div>';
     if(p.umfang!=='nur_verlegen'){
       const txtAll=(p.desc||'')+' '+(p.langtext||'');
-      const ausgeschrieben = fabrikatAusText(txtAll);
+      const alleFab = fabrikateAusText(txtAll);
+      const ausgeschrieben = alleFab.length ? alleFab[0] : null;
       const gw = istGleichwertig(txtAll);
       // REGEL (Erik): Bei Fliesen NIE einen Favoriten vorschlagen - Gleichwertigkeit haengt an
       // Struktur/Farbton/Serie, das kann die App nicht beurteilen. Nur das LV-Fabrikat vorbelegen.
@@ -2975,6 +3388,35 @@ function renderCalcHTML(i){
         preisStatus='<span style="color:var(--red)">🔴 '+esc(p.fabrikat)+' nicht in Datenbank – Preis anfragen &amp; hochladen</span>';
       } else {
         preisStatus='<span style="color:var(--red)">🔴 Kein Fabrikat/Preis – bitte eintragen</span>';
+      }
+      // Ist das ausgeschriebene Fabrikat womoeglich schon in der Preisdatenbank,
+      // nur anders geschrieben? Dann nachfragen statt schweigen.
+      let treffer='';
+      if(!dbTreffer){
+        let kandidaten = alleFab.map(function(f){ return {fab:f, t:fabTreffer(f, p.typ, p.desc, p.langtext)}; })
+                                  .filter(function(x){ return x.t; });
+        // Kein Fabrikat im LV? Dann ueber die Produktbeschreibung suchen.
+        if(!kandidaten.length){
+          const bt = beschreibungTreffer(p.typ, p.desc, p.langtext);
+          if(bt) kandidaten = [{fab:'BESCHR:'+bt.wort, t:bt}];
+        }
+        if(kandidaten.length){
+          const beste = kandidaten.sort(function(a,b){ return b.t.punkte-a.t.punkte; })[0];
+          const a=beste.t.artikel;
+          const gleich = fabrikatGleich(p.fabrikat, a.name);
+          if(!gleich){
+            treffer = '<div style="margin-top:5px;padding:7px 9px;background:#eef7ee;border:1px solid #1a9e4b;border-radius:6px;font-size:11.5px">'
+              + '<b>Handelt es sich um dieses Produkt?</b><br>'
+              + esc(a.name) + ' · <b>' + fmt(a.ek) + ' €' + (a.eu?('/'+String(a.eu).replace(/^\//,'')):'') + '</b>'
+              + (a.format?(' · '+esc(a.format)):'')
+              + ' <button class="bg sm" style="padding:2px 8px;font-size:11px;margin-left:4px" '
+              + 'onclick="waehleFliese(' + i + ',this.dataset.v)" data-v="' + esc(a.name) + '|' + a.ek + '">ja, übernehmen</button>'
+              + '<div style="color:var(--muted);margin-top:3px">gefunden ' + esc(beste.fab.indexOf('BESCHR:')===0
+                    ? ('über die Beschreibung „'+beste.fab.slice(7)+'“ im LV-Text')
+                    : ('zu „'+beste.fab+'“ aus dem LV')) + '</div>'
+              + '</div>';
+          }
+        }
       }
       const gwHinweis = gw
         ? '<div style="font-size:11px;color:#0071e3;margin-top:2px">💡 „oder gleichwertig" – Nebenangebot erlaubt (Alternativ-Fliese selbst wählen)</div>'
@@ -3001,9 +3443,23 @@ function renderCalcHTML(i){
           +(gw?' – zulässig (oder gleichwertig)':' – ACHTUNG: LV fordert dieses Fabrikat verbindlich!')+'</div>';
       }
       felder+='<div style="min-width:250px">'
-        +(ausgeschrieben ? '<div style="font-size:11px;color:var(--muted);margin-bottom:2px">LV fordert: <b>'+esc(ausgeschrieben)+'</b>'+(gw?' (oder gleichwertig)':' – verbindlich')+'</div>' : '<div style="font-size:11px;color:var(--muted);margin-bottom:2px">LV nennt kein Fabrikat</div>')
+        +(ausgeschrieben
+            ? ('<div style="font-size:11px;color:var(--muted);margin-bottom:2px">LV fordert: <b>'+esc(ausgeschrieben)+'</b>'
+               +(gw?' (oder gleichwertig)':' – verbindlich')
+               // Nennt das LV mehrere Alternativen, gehoeren sie alle sichtbar hin -
+               // sonst sieht es aus, als gaebe es nur eine (Erik 26.08.2026).
+               +(alleFab.length>1
+                  ? ('<div style="margin-top:2px">Weitere zugelassene Fabrikate:'
+                     + alleFab.slice(1).map(function(f,k){
+                         return ' <button class="bg sm" style="padding:1px 6px;font-size:11px;margin:1px 0 0 3px"'
+                              + ' onclick="setFabrikat('+i+',this.dataset.f)" data-f="'+esc(f)+'">'+esc(f)+'</button>'; }).join('')
+                     + '</div>')
+                  : '')
+               +'</div>')
+            : '<div style="font-size:11px;color:var(--muted);margin-bottom:2px">LV nennt kein Fabrikat</div>')
         +'<div style="font-size:12px;color:var(--muted);margin-bottom:3px">Angebotenes Fabrikat'+resetBtn+'</div>'
         +'<input type="text" value="'+esc(p.fabrikat||'')+'" placeholder="Fabrikat eintragen" oninput="setFabrikat('+i+',this.value)" style="width:100%;padding:6px 8px">'
+        +treffer
         +dropdown
         +'<div style="font-size:11px;margin-top:3px">'+preisStatus+btn+'</div>'+geaendert+gwHinweis+'</div>';
       felder+='<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Fliese €/m² (dein EK)</div>'
@@ -3243,7 +3699,36 @@ function renderCalcHTML(i){
       +'<option value="naturstein"'+(p.silikonArt==='naturstein'?' selected':'')+'>Natursteinsilikon – 8,90 €/m</option>'
       +'</select><div style="font-size:11px;margin-top:3px">'+ampelS+'</div></div>';
   }
+  if(p.typ==='reinigung'){
+    const autoR = istFeinreinigung((p.desc||'')+' '+(p.langtext||'')) ? 'fein' : 'untergrund';
+    const art = p.reinigungArt || autoR;
+    felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Art der Reinigung</div>'
+      +'<select onchange="setReinigung('+i+',this.value)" style="width:auto;padding:6px 8px">'
+      +'<option value="untergrund"'+(art==='untergrund'?' selected':'')+'>Untergrund säubern – '+fmt(REINIGUNG.untergrund)+' €/m²</option>'
+      +'<option value="fein"'+(art==='fein'?' selected':'')+'>Feinreinigung / Endreinigung – '+fmt(REINIGUNG.fein)+' €/m²</option>'
+      +'</select><div style="font-size:11px;margin-top:3px">'
+      + (p.reinigungArt ? '<span style="color:var(--muted)">von Hand gewählt</span>'
+                        : '<span style="color:#1a9e4b">🟢 aus der Überschrift erkannt</span>')
+      +'</div></div>';
+  }
+  if(p.typ==='wand'||p.typ==='boden'){
+    const autoRk = istRektifiziert((p.desc||'')+' '+(p.langtext||''));
+    const rk = (p.rektifiziert===undefined || p.rektifiziert===null) ? autoRk : !!p.rektifiziert;
+    felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Rektifiziert</div>'
+      +'<select onchange="setRektifiziert('+i+',this.value)" style="width:auto;padding:6px 8px">'
+      +'<option value="0"'+(rk?'':' selected')+'>nein – Standardfuge</option>'
+      +'<option value="1"'+(rk?' selected':'')+'>ja – enge Fugen, +'+fmt(REKT_ZUSCHLAG)+' €/m²</option>'
+      +'</select><div style="font-size:11px;margin-top:3px">'
+      + (autoRk ? '<span style="color:#1a9e4b">🟢 im LV-Text erkannt</span>'
+                : '<span style="color:var(--muted)">im Text nicht genannt</span>')
+      +'</div></div>';
+  }
   if(p.typ==='boden'){
+    // erkR wurde hier benutzt, aber nie gebildet - dadurch ist der Rechner bei
+    // JEDER Bodenfliesen-Position abgestuerzt und liess sich nicht oeffnen
+    // (Erik 26.08.2026: "obwohl auch Boden verlegen erkannt wurde, oeffnet
+    // der Rechner nicht").
+    const erkR = erkenneRutsch((p.desc||'')+' '+(p.langtext||''));
     if(!p.rutsch) p.rutsch = erkR.hoch ? 'hoch' : 'normal';
     const ampelR = erkR.sicher ? '<span style="color:#1a9e4b">🟢 '+erkR.grund+'</span>' : '<span style="color:#e0a800">🟡 '+erkR.grund+'</span>';
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Rutschklasse</div>'
@@ -3317,13 +3802,46 @@ function renderCalcHTML(i){
         +'</div>';
     }
   }
+  if(p.typ==='entkopplung'){
+    const kand = entkopplungKandidaten();
+    const cur  = p.entkopplungArt || '';
+    const stdName = (ENTKOPPLUNG[LV.system||'sakret']||ENTKOPPLUNG.sakret).name;
+    let opts='<option value="">– Standard ('+esc(stdName)+') –</option>';
+    kand.forEach(function(a){ opts+='<option value="'+esc(a.name)+'"'+(a.name===cur?' selected':'')
+      +'>'+esc(a.name)+' · '+fmt(a.ek)+' €'+(a.eu?('/'+String(a.eu).replace(/^\//,'')):'')+'</option>'; });
+    felder += '<div style="min-width:260px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Matte (aus Preisdatenbank)</div>'
+      +'<select onchange="setEntkopplungArt('+i+',this.value)" style="width:100%;padding:6px 8px;font-size:12px">'+opts+'</select>'
+      + (kand.length?'':'<div style="font-size:11px;color:var(--red);margin-top:3px">Keine Entkopplungsmatte in der Preisdatenbank – über „Preisdatenbank" anlegen</div>')
+      +'<div style="font-size:11px;color:var(--muted);margin-top:3px">Kleber und Zeit wie beim Dichtbahn-Verlegen</div>'
+      +'</div>';
+    const mB = (parseFloat(p.entkopplungBandM)>0)?parseFloat(p.entkopplungBandM):ENTKOPPLUNG_BAND_M;
+    felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Stossband je m²</div>'
+      +'<input type="number" step="0.05" min="0" value="'+mB+'" oninput="setEntkopplungBand('+i+',this.value)" style="width:90px;padding:6px 8px">'
+      +'<div style="font-size:11px;color:var(--muted);margin-top:3px">Matte wird gestoßen, Stoß mit Band überklebt.<br>2,6 m Raum ≈ 0,62 · 4 m ≈ 0,75 · 8 m ≈ 0,88</div></div>';
+  }
   if(p.typ==='grundierung'){
     if(!p.untergrund) p.untergrund='saugend';
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Untergrund</div>'
       +'<select onchange="setUntergrund('+i+',this.value)" style="width:auto;padding:6px 8px">'
       +'<option value="saugend"'+(p.untergrund==='saugend'?' selected':'')+'>saugend</option>'
       +'<option value="nichtsaugend"'+(p.untergrund==='nichtsaugend'?' selected':'')+'>nicht saugend</option>'
-      +'</select></div>';
+      +'</select>'
+      + (/saugfähigkeit|saugfaehigkeit|saugende|tiefengrund/i.test((p.desc||'')+' '+(p.langtext||''))
+          ? '<div style="font-size:11px;margin-top:3px;color:#1a9e4b">🟢 im LV-Text als saugend beschrieben</div>' : '')
+      +'</div>';
+    // Gibt es im Text ein gelbes Bieterfeld, steht die Auswahl schon dort -
+    // dann hier kein zweites Feld (Erik 27.08.2026).
+    const gk = istBieterPos(p) ? [] : grundierungKandidaten();
+    const gcur = p.grundArt || '';
+    const gStd = ((GRUND[LV.system||'sakret']||GRUND.sakret)[p.untergrund==='nichtsaugend'?'nichtsaugend':'saugend']).name;
+    let gopts='<option value="">– Standard ('+esc(gStd)+') –</option>';
+    gk.forEach(function(x){ gopts+='<option value="'+esc(x.name)+'"'+(x.name===gcur?' selected':'')
+      +'>'+esc(x.name)+' · '+fmt(x.ek)+' €'+(x.eu?('/'+String(x.eu).replace(/^\//,'')):'')+'</option>'; });
+    if(gk.length){
+      felder += '<div style="min-width:260px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Material (aus Preisdatenbank)</div>'
+        +'<select onchange="setGrundArt('+i+',this.value)" style="width:100%;padding:6px 8px;font-size:12px">'+gopts+'</select>'
+        +'</div>';
+    }
   }
   if(p.typ==='profil'){
     const txt=(p.desc||'')+' '+(p.langtext||'');
@@ -3343,15 +3861,15 @@ function renderCalcHTML(i){
     + felder
     +'<div id="calc-out-'+i+'" style="flex:1;min-width:300px">'+renderCalcOut(i)+'</div></div>';
 }
-function setStufe(i,v){ LV.pos[i].stufe=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
-function setUntergrund(i,v){ LV.pos[i].untergrund=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); }
+function setStufe(i,v){ LV.pos[i].stufe=v; calcGeaendert(i); }
+function setUntergrund(i,v){ LV.pos[i].untergrund=v; calcGeaendert(i); }
 function setDusch(i,f,v){ LV.pos[i][f]=parseFloat(v)||0; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 function setSockelLaenge(i,v){ LV.pos[i].sockelLaenge=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 function setSockel(i,v){ LV.pos[i].sockelEk=parseFloat(v)||0; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
-function setRutsch(i,v){ LV.pos[i].rutsch=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
-function setSilikon(i,v){ LV.pos[i].silikonArt=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
-function setSchutz(i,v){ LV.pos[i].schutzArt=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
-function setBaustelle(i,v){ LV.pos[i].baustellePreis=(v===''?null:v); const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
+function setRutsch(i,v){ LV.pos[i].rutsch=v; calcGeaendert(i); }
+function setSilikon(i,v){ LV.pos[i].silikonArt=v; calcGeaendert(i); }
+function setSchutz(i,v){ LV.pos[i].schutzArt=v; calcGeaendert(i); }
+function setBaustelle(i,v){ LV.pos[i].baustellePreis=(v===''?null:v); calcGeaendertLeise(i); }
 // Bauweise und Wassereinwirkungsklasse aendern das Rezept - also den EP
 // gleich mitziehen, so wie beim Typwechsel. Geprueft-gruene bleiben unberuehrt.
 function setAbdichtArt(i,v){
@@ -3396,13 +3914,59 @@ function setEmcoRahmenDabei(i,v){
   if(row) row.querySelector('td').innerHTML=renderCalcHTML(i);
   scheduleSave();
 }
-function setUmfang(i,v){ LV.pos[i].umfang=v; renderLV(); scheduleSave(); }
-function setOberflaeche(i,v){ LV.pos[i].oberflaeche=v; renderLV(); scheduleSave(); }
+// ===== JEDE AENDERUNG IM RECHNER WIRKT SOFORT (Erik 26.08.2026) ===========
+// Frueher schrieben die Umschalter nur den Parameter und zeichneten die
+// Tabelle neu - der Einheitspreis in der Zeile blieb aber der alte, weil ihn
+// nur der Knopf "In EP uebernehmen" gesetzt hat. Fuer Erik sah es so aus, als
+// wuerde die Auswahl nichts bewirken: "Egal, was ich auswaehle - der Preis
+// aendert sich nicht."
+// Jetzt rechnet jede Aenderung die Position durch. Gruene Positionen bleiben
+// unangetastet - gruen setzt ausschliesslich Erik von Hand.
+// Gruene Positionen sind von Erik geprueft - die rechnet die Automatik nicht
+// um. Frueher passierte das STILL: man stellte im Rechner etwas um und der
+// Preis blieb einfach stehen, ohne Erklaerung. Jetzt sagt die App es.
+function gruenGesperrt(p){
+  if(p.status!=='gruen') return false;
+  toast('Position ist grün (geprüft) – der Preis bleibt stehen. Status auf Gelb setzen, um neu zu rechnen.');
+  return true;
+}
+function calcGeaendert(i){
+  const p=LV.pos[i];
+  if(!gruenGesperrt(p)) autoEP(p, LV.system||'sakret');
+  renderLV();
+  scheduleSave();
+}
+// Wie calcGeaendert, aber OHNE die Tabelle neu zu zeichnen. Fuer Felder, in
+// die getippt wird - ein Neuaufbau wuerde den Schreibfokus wegnehmen.
+// Aktualisiert nur den Einheitspreis, die Gesamtpreis-Zelle und die Vorschau.
+function calcGeaendertLeise(i){
+  const p=LV.pos[i];
+  if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
+  else if(!p._gruenGesagt){ p._gruenGesagt=true;
+    toast('Position ist grün (geprüft) – der Preis bleibt stehen. Status auf Gelb setzen, um neu zu rechnen.'); }
+  const ep=document.getElementById('ep-'+i);
+  if(ep && document.activeElement!==ep) ep.value = p.ep || '';
+  const gp=document.getElementById('gp-'+i);
+  if(gp){
+    const w=(parseFloat(p.menge)||0)*(parseFloat(p.ep)||0);
+    gp.textContent = w>0 ? (fmt(w)+' €') : '–';
+  }
+  const out=document.getElementById('calc-out-'+i);
+  if(out) out.innerHTML=renderCalcOut(i);
+  scheduleSave();
+}
+function setReinigung(i,v){ LV.pos[i].reinigungArt=v; calcGeaendert(i); }
+function setRektifiziert(i,v){ LV.pos[i].rektifiziert=(v==='1'||v===1||v===true); calcGeaendert(i); }
+function setUmfang(i,v){ LV.pos[i].umfang=v; calcGeaendert(i); }
+function setOberflaeche(i,v){ LV.pos[i].oberflaeche=v; calcGeaendert(i); }
 function setFarbe(i,v){ LV.pos[i].farbe=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 // Vorspachtel/Bodenausgleich: Modus schaltet Felder um -> ganzes Rechner-Panel neu bauen
-function setSpachtelModus(i,v){ LV.pos[i].spachtelModus=v; delete LV.pos[i].spachtelMm; const row=document.getElementById('calc-'+i); if(row) row.querySelector('td').innerHTML=renderCalcHTML(i); scheduleSave(); }
-function setSpachtelMm(i,v){ LV.pos[i].spachtelMm=parseFloat(v)||0; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
-function setSpachtelArt(i,v){ LV.pos[i].spachtelArt=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
+function setSpachtelModus(i,v){ LV.pos[i].spachtelModus=v; delete LV.pos[i].spachtelMm; calcGeaendert(i); }
+function setSpachtelMm(i,v){ LV.pos[i].spachtelMm=parseFloat(v)||0; calcGeaendertLeise(i); }
+function setEntkopplungBand(i,v){ LV.pos[i].entkopplungBandM=v; calcGeaendertLeise(i); }
+function setGrundArt(i,v){ LV.pos[i].grundArt=v; calcGeaendert(i); }
+function setEntkopplungArt(i,v){ LV.pos[i].entkopplungArt=v; calcGeaendert(i); }
+function setSpachtelArt(i,v){ LV.pos[i].spachtelArt=v; calcGeaendert(i); }
 function toggleCalc(i){
   const p=LV.pos[i];
   p._calcOpen=!p._calcOpen;
@@ -3419,16 +3983,34 @@ function toggleCalc(i){
     renderLV(); // Fallback, falls die Zeile (noch) nicht existiert
   }
 }
-function setFabrikat(i,v){ LV.pos[i].fabrikat=v; LV.pos[i]._fabTouched=true; scheduleSave(); }
+function setFabrikat(i,v){ fabrikatSetzen(LV.pos[i], v); calcGeaendertLeise(i); }
 // Fliese aus dem Dropdown uebernehmen: setzt Fabrikat UND Preis
+// Das angebotene Fabrikat steht an ZWEI Stellen: im Rechner und im gelben Feld
+// im Ausschreibungstext ("Angebotenes Erzeugnis: ______"). Die liefen frueher
+// getrennt - man waehlte oben etwas aus und unten stand weiter nichts.
+// Erik am 27.08.2026: das gehoert zusammen. Deshalb schreibt jede Aenderung
+// beide Stellen, und das gelbe Feld ist das, was spaeter im Angebot steht.
+function fabrikatSetzen(p, name){
+  p.fabrikat = name;
+  p._fabTouched = true;
+  if(istBieterPos(p)){
+    if(!p.bieterFelder) p.bieterFelder=[];
+    p.bieterFelder[0] = name;
+  }
+}
 function waehleFliese(i, val){
   if(!val) return;
   const sep=val.lastIndexOf('|');
   const name=val.slice(0,sep), ek=parseFloat(val.slice(sep+1))||0;
   const p=LV.pos[i];
-  p.fabrikat=name; p._fabTouched=true; p.flieseEk=ek;
+  fabrikatSetzen(p, name); p.flieseEk=ek;
+  // Frueher wurde nur neu gezeichnet - der Einheitspreis blieb auf dem alten
+  // Wert stehen. Erik am 27.08.2026: "der Preis aendert sich nicht, er bleibt
+  // immer auf 14,75". Jetzt rechnet die Position mit.
+  const gesperrt = gruenGesperrt(p);
+  if(!gesperrt) autoEP(p, LV.system||'sakret');
   renderLV(); doSave(true);
-  toast('Übernommen: '+name+' · '+fmt(ek)+' €/m²');
+  if(!gesperrt) toast('Übernommen: '+name+' · '+fmt(ek)+' €/m² → EP '+fmt(p.ep)+' €');
 }
 // Robuster Namensvergleich: ignoriert Gross/klein, Sterne, Lage-Marker und Mehrfach-Leerzeichen
 function fabrikatGleich(a, b){
@@ -3439,16 +4021,20 @@ function fabrikatGleich(a, b){
 }
 // Preis eines konkreten DB-Treffers (zum angebotenen Fabrikat) uebernehmen
 function uebernehmePreis(i, ek){
-  LV.pos[i].flieseEk=parseFloat(ek)||0;
+  const p=LV.pos[i];
+  p.flieseEk=parseFloat(ek)||0;
+  const gesperrt = gruenGesperrt(p);
+  if(!gesperrt) autoEP(p, LV.system||'sakret');
   renderLV(); doSave(true);
-  toast('Preis übernommen: '+fmt(ek)+' €/m²');
+  if(!gesperrt) toast('Preis übernommen: '+fmt(ek)+' €/m² → EP '+fmt(p.ep)+' €');
 }
 // Fabrikat neu aus dem LV-Text lesen (verwirft manuelle Eingabe)
 function fabrikatAusLV(i){
   const p=LV.pos[i];
   const aus=fabrikatAusText((p.desc||'')+' '+(p.langtext||''));
   if(!aus){ toast('Kein Fabrikat im LV-Text gefunden'); return; }
-  p.fabrikat=aus; p._fabTouched=false; p.flieseEk=0;
+  fabrikatSetzen(p, aus); p._fabTouched=false; p.flieseEk=0;
+  if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
   renderLV(); doSave(true);
   toast('Aus LV übernommen: '+aus);
 }
@@ -3469,7 +4055,7 @@ function nebenangebot(i){
   renderLV(); doSave(true);
   toast(p.nebenangebot?'Als Nebenangebot markiert':'Nebenangebot-Markierung entfernt');
 }
-function setFliese(i,v){ LV.pos[i].flieseEk=parseFloat(v)||0; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); }
+function setFliese(i,v){ LV.pos[i].flieseEk=parseFloat(v)||0; calcGeaendertLeise(i); }
 function uebernehmeEP(i){ const r=berechneEP(LV.pos[i], LV.system||'sakret'); LV.pos[i].ep=r.ep; LV.pos[i].status='gruen'; renderLV(); doSave(true); toast('EP übernommen: '+fmt(r.ep)+' €'); }
 function setLvSystem(v){ LV.system=v; renderLV(); }
 
@@ -3497,9 +4083,40 @@ function filterLV(q){
 function istBieterPos(p){
   return /vom bieter|einzutragen|einzusetzen|einzugeben/i.test((p.desc||'')+' '+(p.langtext||'')) || /\.{6,}/.test(p.langtext||'');
 }
+// Welche Artikel kommen fuer das gelbe Feld in Frage? Haengt am Positionstyp.
+// Erik am 27.08.2026: "warum steht das denn nicht gleich in dem gelben Feld" -
+// ein zweites Auswahlfeld daneben macht den Rechner unuebersichtlich.
+function bieterVorschlaege(p){
+  const t=p&&p.typ;
+  if(t==='grundierung') return grundierungKandidaten();
+  if(t==='entkopplung') return entkopplungKandidaten();
+  if(t==='spachtel')    return ausgleichKandidaten();
+  if(t==='wand'||t==='boden'||t==='naturstein'){
+    const k=fliesenKandidaten(t, p.desc, p.langtext);
+    return k.passt.concat(k.rest);
+  }
+  return [];
+}
+// Wird im gelben Feld ein Artikel aus der Preisdatenbank gewaehlt, soll er auch
+// gerechnet werden - sonst steht im Angebot ein anderes Produkt als im Preis.
 function setBieter(i,k,v){
   const p=LV.pos[i]; if(!p.bieterFelder) p.bieterFelder=[];
-  p.bieterFelder[k]=v; scheduleSave();
+  p.bieterFelder[k]=v;
+  // Umgekehrter Weg: was im gelben Feld steht, ist das angebotene Fabrikat.
+  if(k===0 && ['wand','boden','naturstein','reservefliesen'].indexOf(p.typ)>-1){
+    p.fabrikat=v; p._fabTouched=true;
+  }
+  const treffer=(PREISE||[]).find(function(a){ return (a.name||'')===v; });
+  if(treffer && k===0){
+    if(p.typ==='grundierung')      { p.grundArt=treffer.name;      autoEP(p, LV.system||'sakret'); renderLV(); }
+    else if(p.typ==='entkopplung') { p.entkopplungArt=treffer.name; autoEP(p, LV.system||'sakret'); renderLV(); }
+    else if(p.typ==='spachtel')    { p.spachtelArt=treffer.name;    autoEP(p, LV.system||'sakret'); renderLV(); }
+    else if(['wand','boden','naturstein'].indexOf(p.typ)>-1){
+      p.fabrikat=treffer.name; p.flieseEk=parseFloat(treffer.ek)||0; p._fabTouched=true;
+      autoEP(p, LV.system||'sakret'); renderLV();
+    }
+  }
+  scheduleSave();
 }
 // Interaktive Darstellung: Punktlinien -> Eingabefelder
 function langtextEditHtml(p, i){
@@ -3507,11 +4124,27 @@ function langtextEditHtml(p, i){
   const style='font-size:12px;color:var(--text);margin-top:3px;line-height:1.7;white-space:pre-wrap';
   if(!istBieterPos(p)) return '<div style="'+style+'">'+esc(lt)+'</div>';
   if(!p.bieterFelder) p.bieterFelder=[];
-  const feld=function(k){ return '<input type="text" value="'+esc(p.bieterFelder[k]||'')+'" oninput="setBieter('+i+','+k+',this.value)" placeholder="hier eintragen" style="min-width:200px;padding:2px 7px;font-size:12px;font-weight:600;border:1px solid var(--accent);border-radius:4px;background:#fffef0"'+'>'; };
+  // Das gelbe Feld bekommt eine Vorschlagsliste aus der Preisdatenbank. Es
+  // bleibt ein Textfeld - man kann also auch etwas eintippen, das nicht in der
+  // Datenbank steht. Wird ein Vorschlag gewaehlt, rechnet die App damit.
+  const vor=bieterVorschlaege(p);
+  const lid='bf'+i;
+  const liste = vor.length
+    ? '<datalist id="'+lid+'">' + vor.map(function(a){
+        return '<option value="'+esc(a.name)+'">'+fmt(a.ek)+' €'+(a.eu?('/'+String(a.eu).replace(/^\//,'')):'')+'</option>';
+      }).join('') + '</datalist>'
+    : '';
+  const feld=function(k){
+    return '<input type="text"'+(vor.length&&k===0?(' list="'+lid+'"'):'')
+      +' value="'+esc(p.bieterFelder[k]||'')+'" oninput="setBieter('+i+','+k+',this.value)"'
+      +' placeholder="'+(vor.length&&k===0?'hier eintragen oder aus der Preisdatenbank wählen':'hier eintragen')+'"'
+      +' style="min-width:'+(vor.length&&k===0?'300px':'200px')+';padding:2px 7px;font-size:12px;font-weight:600;'
+      +'border:1px solid var(--accent);border-radius:4px;background:#fffef0">';
+  };
   let k=-1;
   let html=esc(lt).replace(/\.{6,}/g, function(){ k++; return feld(k); });
   if(k<0) html += '\n'+feld(0);   // Hinweis ohne Punktlinie -> ein Feld anhängen
-  return '<div style="'+style+'">'+html+'</div>';
+  return '<div style="'+style+'">'+html+liste+'</div>';
 }
 // PDF-/Druck-Darstellung: Punktlinien durch den Eintrag ersetzen (leer -> Punkte bleiben)
 function langtextPrintHtml(p){
@@ -3540,7 +4173,7 @@ function renderLV(){
       <td><select style="padding:4px 5px;font-size:11px;width:118px" onchange="upd(${i},'typ',this.value)">${typOptions(p.typ)}</select></td>
       <td><input type="number" step="0.01" value="${p.menge||''}" placeholder="0" oninput="upd(${i},'menge',this.value)" style="text-align:right;width:70px;padding:4px 6px"></td>
       <td style="color:var(--muted);font-size:13px">${p.einheit||''}</td>
-      <td><input type="number" step="0.01" value="${p.ep||''}" placeholder="0,00" oninput="upd(${i},'ep',this.value)" style="text-align:right;width:95px;padding:4px 6px;font-weight:600;border-color:${bc}"></td>
+      <td><input id="ep-${i}" type="number" step="0.01" value="${p.ep||''}" placeholder="0,00" oninput="upd(${i},'ep',this.value)" style="text-align:right;width:95px;padding:4px 6px;font-weight:600;border-color:${bc}"></td>
       <td id="gp-${i}" style="text-align:right;font-weight:700;color:${gp>0?'var(--accent)':'var(--muted)'}">${gp>0?fmt(gp)+' €':'–'}</td>
       <td><select style="padding:3px 4px;font-size:11px;width:78px" onchange="upd(${i},'status',this.value)">
         <option value="gruen" ${p.status==='gruen'?'selected':''}>🟢 Grün</option>
@@ -3561,13 +4194,21 @@ function renderLV(){
   const kalkBox=document.getElementById('lv-kalk');
   if(kalkBox){
     if(LV.pos.length>0 && tot>0){
-      const zpct=parseFloat(document.getElementById('kk-zinput')?.value)||20;
-      const zuschlag=tot*(zpct/100);
+      // ===== KEIN ZWEITER ZUSCHLAG (Erik 27.08.2026) =====================
+      // Die 20 % fuer BGK, AGK, Gewinn und Wagnis stecken bereits in JEDEM
+      // Einheitspreis - dort liegen sie auf dem Material (Material × 1,20).
+      // Hier lagen sie ein zweites Mal auf der ganzen Summe: bei LV-15 waren
+      // das 23.135,72 EUR zu viel. Erik: "das verfaelscht alles".
+      // Das Feld bleibt stehen, steht aber auf 0 - so laesst sich bei Bedarf
+      // ein bewusster Aufschlag (z.B. Baustellenrisiko) eintragen.
+      const zpct=parseFloat(document.getElementById('kk-zinput')?.value);
+      const zProz=isNaN(zpct)?0:zpct;
+      const zuschlag=tot*(zProz/100);
       const netto=tot+zuschlag;
       const mwst=netto*0.19;
       const brutto=netto+mwst;
       document.getElementById('kk-basis').textContent=fmt(tot)+' €';
-      document.getElementById('kk-zpct').textContent=zpct;
+      document.getElementById('kk-zpct').textContent=zProz;
       document.getElementById('kk-zuschlag').textContent=fmt(zuschlag)+' €';
       document.getElementById('kk-netto').textContent=fmt(netto)+' €';
       document.getElementById('kk-mwst').textContent=fmt(mwst)+' €';
@@ -3632,6 +4273,9 @@ function findePreis(beschreibung){
 function doSave(silent){
   // lokale Sicherung
   try{localStorage.setItem('buesing_v2',JSON.stringify(LV));}catch(e){}
+  // Ein LV ohne Positionen gehoert nicht ins Archiv - sonst legt jeder
+  // Zwischenzustand eine leere Karteileiche an.
+  if(!(LV.pos && LV.pos.length)){ if(silent) setSaveStatus('nichts zu speichern'); return; }
   // Summe berechnen
   let summe=0;
   (LV.pos||[]).forEach(p=>{ summe += (parseFloat(p.menge)||0)*(parseFloat(p.ep)||0); });
@@ -3700,6 +4344,118 @@ function loadDemo(){
   toast('Demo-LV 71629 geladen ✓');
 }
 
+// ============================================
+// POSITIONEN ALS DATEI SICHERN
+// Der PDF-Ausdruck war bisher der einzige Weg, ein LV aus der App
+// herauszubekommen. Darin stehen die App-Notizen ("Typ passt nicht zur
+// Einheit …") mitten im Positionstext - wer das wieder einliest, haelt sie
+// fuer LV-Text. Diese Datei trennt sauber: Text ist Text, Notiz ist Notiz.
+function exportDatenObjekt(){
+  return {
+    titel:     LV.titel || 'LV',
+    gesichert: new Date().toISOString(),
+    system:    LV.system || 'sakret',
+    luecken:   LV.luecken || [],
+    stundensatz: LOHN(),
+    positionen: (LV.pos||[]).map(function(p){
+      return {
+        nr:        p.nr || '',
+        titel:     p.desc || '',
+        langtext:  p.langtext || '',
+        menge:     p.menge || 0,
+        einheit:   p.einheit || '',
+        typ:       p.typ || '',
+        ep:        p.ep || 0,
+        gp:        Math.round((p.menge||0)*(p.ep||0)*100)/100,
+        status:    p.status || '',
+        notiz:     p.notiz || '',
+        wKlasse:   p.wKlasse || '',
+        fabrikat:  p.fabrikat || '',
+        flieseEk:  p.flieseEk || 0
+      };
+    })
+  };
+}
+// ===== PREISDATENBANK ALS DATEI (Erik 27.08.2026) =========================
+// Damit sich der komplette Bestand ansehen und vergleichen laesst - vor allem
+// die EINHEIT je Artikel. An ihr haengt, ob die App durch die Gebindegroesse
+// teilt: "/50m" ergibt 0,61 EUR/m, "m" dagegen 30,40 EUR/m.
+function doExportPreise(){
+  if(!PREISE || !PREISE.length){ toast('Keine Preise geladen'); return; }
+  const daten = {
+    quelle:    'Büsing LV-App · Preisdatenbank',
+    gesichert: new Date().toISOString(),
+    anzahl:    PREISE.length,
+    artikel:   PREISE.map(function(a){
+      const g = basisGebinde(a);
+      return {
+        id:       a.id,
+        artnr:    a.artnr || '',
+        name:     a.name || '',
+        kat:      a.kat || '',
+        ek:       parseFloat(a.ek) || 0,
+        eu:       a.eu || '',
+        format:   a.format || '',
+        lief:     a.lief || '',
+        dat:      a.dat || '',
+        geprueft: a.geprueft || '',
+        // Was die App daraus macht - damit sich Fehler sofort zeigen
+        einzelpreis:   istEinzelpreis(a),
+        je_grundeinheit: g ? Math.round((a.ek/g.menge)*10000)/10000 : null,
+        grundeinheit:    g ? g.einheit : ''
+      };
+    })
+  };
+  const text = JSON.stringify(daten, null, 1);
+  const name = 'Buesing_Preisdatenbank_' + heuteDE().replace(/\./g,'-') + '.json';
+  try{
+    const blob = new Blob([text], {type:'application/json'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){
+      try{ if(a.parentNode) a.parentNode.removeChild(a); }catch(e){}
+      try{ URL.revokeObjectURL(url); }catch(e){}
+    }, 2000);
+    toast('✓ ' + PREISE.length + ' Artikel gesichert');
+  }catch(e){
+    try{ navigator.clipboard.writeText(text);
+         alert('Die Datei liess sich nicht speichern, der Inhalt liegt aber in der Zwischenablage.\n\n'
+             + PREISE.length + ' Artikel. Einfach einfuegen.');
+    }catch(e2){ alert('Sichern nicht moeglich: ' + e.message); }
+  }
+}
+
+function doExportDaten(){
+  if(!LV.pos || !LV.pos.length){ toast('Kein LV geladen'); return; }
+  const daten = exportDatenObjekt();
+  const name  = (daten.titel.replace(/[^\w\-. ]+/g,'_').slice(0,60) || 'LV') + '_Positionen.json';
+  const text  = JSON.stringify(daten, null, 1);
+  try{
+    const blob = new Blob([text], {type:'application/json'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){
+      try{ if(a.parentNode) a.parentNode.removeChild(a); }catch(e){}
+      try{ URL.revokeObjectURL(url); }catch(e){}
+    }, 2000);
+    toast('✓ '+daten.positionen.length+' Positionen gesichert');
+  }catch(e){
+    // Faellt der Download aus (aeltere iPad-Browser), den Text wenigstens
+    // in die Zwischenablage legen - von dort laesst er sich einfuegen.
+    try{
+      navigator.clipboard.writeText(text);
+      alert('Die Datei liess sich nicht speichern, der Inhalt liegt aber in der Zwischenablage.\n\n'
+        + daten.positionen.length + ' Positionen. Einfach einfuegen.');
+    }catch(e2){
+      alert('Sichern nicht moeglich: ' + e.message);
+    }
+  }
+}
+
 function doExportPDF(){
   document.getElementById('pr-d').textContent=new Date().toLocaleDateString('de-DE');
   document.getElementById('pr-ti').textContent=LV.titel||'LV-Kalkulation';
@@ -3752,8 +4508,88 @@ function updateKatCounts(){
   });
 }
 
+// Bei Kartonware steht in der Datenbank der Kartonpreis - so wie er auf der
+// Lieferantenrechnung steht, damit er sich vergleichen laesst. Gerechnet wird
+// aber mit dem Stueckpreis. Erik am 26.08.2026: der gehoert in die Liste.
+// Deshalb hier eine zweite, kleine Zeile unter dem Kartonpreis.
+// Die beiden Import-Hinweise ueber der Preisliste standen dort dauerhaft,
+// auch wenn man laengst uebernommen hatte (Erik 26.08.2026). Jetzt lassen sie
+// sich wegklicken; nach einer erfolgreichen Uebernahme verschwinden sie von
+// selbst. Die Entscheidung merkt sich der Browser.
+function hinweisWeg(id){
+  const el=document.getElementById(id); if(el) el.style.display='none';
+  try{ localStorage.setItem('hinweis_weg_'+id,'1'); }catch(e){}
+}
+function hinweiseWiederherstellen(){
+  ['bauplatten-import','abdicht-import'].forEach(function(id){
+    let weg=false;
+    try{ weg = localStorage.getItem('hinweis_weg_'+id)==='1'; }catch(e){}
+    const el=document.getElementById(id);
+    if(el && weg) el.style.display='none';
+  });
+}
+// ===== FESTE REGEL (Erik, 26.08.2026) =====================================
+// In der Preisdatenbank steht der GEBINDEPREIS - so, wie er auf der
+// Lieferantenrechnung steht, damit er sich Zeile fuer Zeile vergleichen
+// laesst. Darunter steht IMMER der Preis je Grundeinheit: je Stueck, Meter,
+// Quadratmeter, Kilo oder Liter. Denn gerechnet wird mit dem, nicht mit dem
+// Sackpreis.
+//
+// Die Gebindegroesse steht bei den Lieferanten mal in der Einheit ("/15kg"),
+// mal im Format ("25kg"), mal nur im Artikelnamen ("(50 Stk)", "0,12x50m").
+// Deshalb wird in dieser Reihenfolge gesucht und im Feld der LETZTE Treffer
+// genommen - bei "0,12x50m" ist die 50 die Rollenlaenge, nicht die Breite.
+const BASIS_EINHEIT = [
+  {muster:/(\d+(?:[.,]\d+)?)\s*(?:stk|stück|stueck|st)\b/i, einheit:'Stk'},
+  {muster:/(\d+(?:[.,]\d+)?)\s*(?:m²|m2|qm)\b/i,            einheit:'m²'},
+  {muster:/(\d+(?:[.,]\d+)?)\s*(?:lfm|lfdm|m)\b/i,          einheit:'m'},
+  {muster:/(\d+(?:[.,]\d+)?)\s*(?:kg)\b/i,                  einheit:'kg'},
+  {muster:/(\d+(?:[.,]\d+)?)\s*(?:l|ltr|liter)\b/i,         einheit:'l'},
+];
+// Einheiten, die schon die Grundeinheit SIND - da gibt es nichts umzurechnen.
+const SCHON_GRUNDEINHEIT = /^(stk|stück|stueck|st|m|lfm|lfdm|m²|m2|qm|kg|l|ltr|liter)$/i;
+// Rollenware, die 1 m breit ist: die Rollenlaenge in Metern IST die Flaeche.
+const ROLLE_IST_FLAECHE = /dichtbahn|dichtmatte|entkopplungsmatte|dichtfolie/i;
+
+function basisGebinde(p){
+  const eu = String(p.eu||'').replace(/^\//,'').trim();
+  if(SCHON_GRUNDEINHEIT.test(eu)) return null;          // steht schon je Einheit
+  for(const feld of [p.eu, p.format, p.name]){
+    const txt = String(feld||''); if(!txt) continue;
+    for(const r of BASIS_EINHEIT){
+      const alle = txt.match(new RegExp(r.muster.source, 'gi'));
+      if(!alle || !alle.length) continue;
+      const letzter = alle[alle.length-1].match(r.muster);
+      const menge = parseFloat(String(letzter[1]).replace(',','.'));
+      if(!(menge > 0) || menge === 1) return null;      // Gebinde = eine Einheit
+      let einheit = r.einheit;
+      if(einheit==='m' && ROLLE_IST_FLAECHE.test(String(p.name||''))) einheit='m²';
+      return {menge:menge, einheit:einheit};
+    }
+  }
+  return null;
+}
+// Bestaetigt: der Preis stimmt noch. Aendert den Preis NICHT - nur das
+// Pruefdatum. Damit verschwindet der Hinweis, ohne dass etwas verfaelscht wird.
+function preisBestaetigen(id){
+  const a=(PREISE||[]).find(function(x){ return x.id===id; });
+  if(!a) return;
+  a.geprueft = heuteDE();
+  renderP();
+  dbSavePreise().then(function(ok){
+    toast(ok ? ('\u2713 ' + String(a.name).slice(0,34) + ' als aktuell bestätigt')
+             : 'Bestätigt – Speichern prüfen!');
+  });
+}
+function stkZeile(p, betrag){
+  const g = basisGebinde(p);
+  if(!g || !(betrag > 0)) return '';
+  return '<div style="color:var(--muted);font-size:11px;font-weight:500">= '
+       + fmt(betrag/g.menge) + ' €/' + g.einheit + '</div>';
+}
 function renderP(){
   updateKatCounts();
+  hinweiseWiederherstellen();
   const s=(document.getElementById('ps3')?.value||'').toLowerCase();
   let liste=PREISE.filter(p=>{
     return (PF==='alle'||p.kat===PF)&&(!s||p.name.toLowerCase().includes(s)||(p.lief||'').toLowerCase().includes(s)||(p.artnr||'').toLowerCase().includes(s));
@@ -3772,7 +4608,9 @@ function renderP(){
       hw.style.display='block';
       hw.innerHTML='<b>⚠ '+veraltet.length+' von '+liste.length+' Preisen sind älter als '+PREIS_MAX_MONATE
         +' Monate oder haben kein Datum.</b><br>Sie werden weiterhin gerechnet, aber jede Position, die sie benutzt, '
-        +'bekommt einen Hinweis „Preis prüfen". Vor einem verbindlichen Angebot beim Lieferanten nachfragen.';
+        +'bekommt einen Hinweis „Preis prüfen". Vor einem verbindlichen Angebot beim Lieferanten nachfragen.'
+        +'<br><br>Stimmt ein Preis noch? Dann in der Zeile auf <b>„✓ noch aktuell"</b> – das setzt das Prüfdatum '
+        +'auf heute, ohne den Preis zu ändern. Der Hinweis ist damit erledigt.';
     } else hw.style.display='none';
   }
   document.getElementById('pb').innerHTML=liste.map(p=>{
@@ -3784,10 +4622,11 @@ function renderP(){
       <td><b>${p.name}</b>${w?` <span class="bdg bw" title="Preis ${esc(al.grund)} – bitte aktualisieren">${wtxt}</span>`:''}${p.artnr?`<div style="color:var(--muted);font-size:11px">Art.-Nr. ${p.artnr}</div>`:''}</td>
       <td style="color:var(--muted);font-size:12px">${p.format||'–'}</td>
       <td style="font-size:12px"><span style="display:flex;align-items:center">${liefLogo(p.lief)}${p.lief||'–'}</span></td>
-      <td style="text-align:right;font-weight:600">${fmt(p.ek)} €${p.eu}</td>
-      <td style="text-align:right;color:var(--accent);font-weight:700">${vk} €${p.eu}</td>
-      <td style="color:var(--muted);font-size:12px">${p.dat||'–'}</td>
+      <td style="text-align:right;font-weight:600">${fmt(p.ek)} €${p.eu}${stkZeile(p,p.ek)}</td>
+      <td style="text-align:right;color:var(--accent);font-weight:700">${vk} €${p.eu}${stkZeile(p,p.ek*1.2)}</td>
+      <td style="color:var(--muted);font-size:12px">${p.dat||'–'}${p.geprueft?`<div style="font-size:11px;color:#1a9e4b">✓ bestätigt ${esc(p.geprueft)}</div>`:''}</td>
       <td class="np" style="display:flex;gap:4px">
+        ${w?`<button class="bg sm" title="Preis ist noch aktuell – Hinweis erledigt" onclick="preisBestaetigen(${p.id})">✓ noch aktuell</button>`:''}
         <button class="bg sm" onclick="editPreis(${p.id})">✏️ Bearbeiten</button>
         <button class="bg sm" style="color:var(--red)" onclick="delPreis(${p.id})">✕</button>
       </td>
@@ -4017,6 +4856,72 @@ const BAUPLATTEN_IMPORT = [
   {name:'Bauplatte 3 cm', format:'260×60 · 1,56 m²/Pl.', ek:10.20, eu:'/m²', lief:'Krüger Hannover', dat:'10.03.2026', kat:'bauplatten', artnr:'2502070010'},
   {name:'Bauplatte 5 cm', format:'260×60 · 1,56 m²/Pl.', ek:38.74, eu:'/m²', lief:'Krüger Hannover', dat:'10.03.2026', kat:'bauplatten', artnr:'2502070008'},
 ];
+// Abdichtungspreise aus der Krueger-Auftragsbestaetigung KAB 151002046 vom
+// 22.05.2026 (aus dem Angebot KAN 150001332). Alle elf Preise stimmten beim
+// Abgleich am 26.08.2026 exakt mit der Preisdatenbank ueberein - neu sind nur
+// die Artikelnummern und das Datum. Damit hoert die App auf, bei jeder
+// Abdichtungsposition "Preis prüfen (ohne Datum)" zu melden.
+//
+// Die Gebindegroessen stehen so auf der Rechnung und sind damit belegt:
+// Dichtecken 50 St./Karton, O-DZW 50 Stk/Karton, DZM 50 nur 10 Stk/Karton.
+// ACHTUNG: Krueger schreibt in der Mengenspalte "Stück" und meint den KARTON
+// ("1 Stück ... 50 St./Karton = 1 Stk = 1 Karton"). Die Einheit taugt deshalb
+// NICHT zur Umrechnung - massgeblich bleibt die Stueckzahl im Artikelnamen.
+const ABDICHT_IMPORT = [
+  {artnr:'2603010091', name:'Sakret Universalgrundierung',              format:'20L',       ek:129.25, eu:'/20L',    kat:'grundierung'},
+  {artnr:'2603010099', name:'Sakret Dichtbahn O-DI',                    format:'30m Rolle', ek:114.80, eu:'/Rolle',  kat:'abdichtung'},
+  {artnr:'2603010093', name:'Sakret Flexible Dichtungsschlämme FDS',    format:'15kg',      ek:62.96,  eu:'/15kg',   kat:'abdichtung'},
+  {artnr:'2603010124', name:'Sakret Dichtband Wannenanschluss DBW',     format:'10m',       ek:28.06,  eu:'/10m',    kat:'abdichtung'},
+  {artnr:'2603010104', name:'Sakret Dichtband flexibel O-DB',           format:'50m',       ek:30.40,  eu:'/50m',    kat:'abdichtung'},
+  {artnr:'2603010112', name:'Sakret Dichkleber easy DKe',               format:'310ml',     ek:10.51,  eu:'/310ml',  kat:'abdichtung'},
+  {artnr:'2708010003', name:'Sakret Multifunktionsecke Wanne',          format:'',          ek:8.81,   eu:'/Stück',  kat:'abdichtung'},
+  {artnr:'2603010090', name:'Sakret Dichtecken O-DE innen (50 Stk)',    format:'',          ek:104.17, eu:'/Karton', kat:'abdichtung'},
+  {artnr:'2603010107', name:'Sakret Dichtecken O-DE außen (50 Stk)',    format:'',          ek:104.17, eu:'/Karton', kat:'abdichtung'},
+  {artnr:'2603049999', name:'Sakret Dehnzonenmanschette DZM 50 (10 Stk)',format:'',         ek:39.25,  eu:'/Karton', kat:'abdichtung'},
+  {artnr:'2604010191', name:'Sakret Dehnzonenmanschette O-DZW (50 Stk)',format:'',          ek:92.82,  eu:'/Karton', kat:'abdichtung'},
+  {artnr:'2603030001', name:'Sakret Objektkleber Flex OK C2TE S1 ⭐',   format:'25kg',      ek:12.22,  eu:'/Sack',   kat:'kleber'},
+];
+const ABDICHT_IMPORT_DATUM = '22.05.2026';
+function importAbdichtPreise(){
+  let neu=0, preisNeu=0, nurDatum=0;
+  ABDICHT_IMPORT.forEach(function(b, idx){
+    // Erst ueber die Artikelnummer suchen, dann ueber den genauen Namen -
+    // aeltere Eintraege haben noch keine Nummer.
+    // Der Lieferantenbeleg vom 26.08. hat Kopien angelegt, deren Einheit "Stk"
+    // oder "Geb" lautet - Krueger schreibt in der Mengenspalte "Stück" und
+    // meint den Karton. Solche Kopien werden hier MIT repariert, nicht
+    // uebergangen: gesucht wird ueber Artikelnummer, exakten Namen und
+    // schliesslich ueber den Namensanfang. (Erik 27.08.2026)
+    const rein = function(t){ return String(t||'').toLowerCase()
+      .replace(/[⭐()]/g,' ').replace(/\s+/g,' ').trim(); };
+    const ziel = rein(b.name).replace(/\s*\d+\s*stk\s*$/,'').trim();
+    let treffer = (PREISE||[]).filter(function(p){
+      if(p.artnr && String(p.artnr)===b.artnr) return true;
+      const n = rein(p.name);
+      return n===rein(b.name) || n.indexOf(ziel)===0;
+    });
+    if(!treffer.length){
+      PREISE.push(Object.assign({id:Date.now()+idx, dat:ABDICHT_IMPORT_DATUM}, b));
+      neu++; return;
+    }
+    treffer.forEach(function(v){
+      const alt = parseFloat(v.ek);
+      Object.assign(v, {name:b.name, format:b.format, ek:b.ek, eu:b.eu, kat:b.kat,
+                        artnr:b.artnr, lief:'Krüger Hannover', dat:ABDICHT_IMPORT_DATUM});
+      if(alt !== b.ek) preisNeu++; else nurDatum++;
+    });
+  });
+  renderP();
+  const teile=[];
+  if(neu)      teile.push(neu+' neu angelegt');
+  if(preisNeu) teile.push(preisNeu+' Preis geändert');
+  if(nurDatum) teile.push(nurDatum+' auf Stand '+ABDICHT_IMPORT_DATUM);
+  dbSavePreise().then(function(ok){
+    toast(teile.join(', ') + (ok ? ' ✓' : ' – Speichern prüfen!'));
+    if(ok) hinweisWeg('abdicht-import');
+  });
+}
+
 // Übernahme in die Preisdatenbank: fehlende anlegen, bereits vorhandene (per Artnr) auf den aktuellen Preis bringen
 function importBauplatten(){
   let neu=0, akt=0;
@@ -4027,7 +4932,10 @@ function importBauplatten(){
   });
   if(neu===0 && akt===0){ toast('Bauplatten sind bereits aktuell in der Datenbank'); return; }
   renderP();
-  dbSavePreise().then(function(ok){ toast((neu?neu+' neu':'')+(neu&&akt?', ':'')+(akt?akt+' aktualisiert':'')+(ok?' ✓':' – Speichern prüfen!')); });
+  dbSavePreise().then(function(ok){
+    toast((neu?neu+' neu':'')+(neu&&akt?', ':'')+(akt?akt+' aktualisiert':'')+(ok?' ✓':' – Speichern prüfen!'));
+    if(ok) hinweisWeg('bauplatten-import');
+  });
 }
 function pZuK(ek){document.getElementById('k-fl').value=ek;document.querySelectorAll('.nb')[2].click();kalkuliere();}
 
@@ -4749,7 +5657,16 @@ async function ladeLV(id){
     const res = await fetch(API_URL+'?action=get_lv&id='+id);
     const data = await res.json();
     if(data.ok && data.lv){
+      // DIE ID MUSS MIT. Ohne sie schrieb das naechste Speichern entweder eine
+      // KOPIE an (id 0 -> INSERT) oder - schlimmer - ueberschrieb dasjenige LV,
+      // dessen ID gerade noch in LV.id stand. Genau so ist am 27.08.2026 ein
+      // fertiges LV verschwunden.
+      LV = {};
+      LV.id = parseInt(id) || 0;
       LV.titel = data.lv.titel || '';
+      LV.auftraggeber = data.lv.auftraggeber || '';
+      LV.status = data.lv.status || 'bearbeitung';
+      LV.system = data.lv.system || 'sakret';
       LV.pos = data.lv.positionen || [];
       // Ansicht auf das geladene LV umschalten (das war der Bug: lv-main blieb versteckt)
       document.getElementById('lv-up').style.display='none';

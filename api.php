@@ -34,11 +34,46 @@ register_shutdown_function(function () {
 
 $action = $_GET['action'] ?? '';
 
+// Schalter fuer den Zugriffsschutz weiter unten. Steht hier oben, damit er
+// leicht zu finden ist: false = aus (Stand heute), true = an.
+define('ZUGRIFFSSCHUTZ', false);
+
+// ===== SELBSTTEST =====
+// Ohne Anmeldung erreichbar, verraet keine Zugangsdaten. Im Browser aufrufen:
+//   api.php?action=status
+// Damit laesst sich von jedem Geraet aus pruefen, ob PHP laeuft, die Datenbank
+// antwortet und eine Sitzung besteht - ohne sich erst anmelden zu muessen.
+if ($action === 'status') {
+    $db = 'nicht geprueft'; $artikel = null; $nutzer = null;
+    try {
+        $t = getDB();
+        $artikel = (int) $t->query("SELECT COUNT(*) FROM preise")->fetchColumn();
+        $nutzer  = (int) $t->query("SELECT COUNT(*) FROM nutzer")->fetchColumn();
+        $db = 'verbunden';
+    } catch (Throwable $e) {
+        $db = 'FEHLER: ' . $e->getMessage();
+    }
+    echo json_encode([
+        'ok'             => true,
+        'php'            => PHP_VERSION,
+        'datenbank'      => $db,
+        'artikel'        => $artikel,
+        'nutzer'         => $nutzer,
+        'sitzung'        => session_id() ? 'vorhanden' : 'keine',
+        'angemeldet'     => (!empty($_SESSION['nutzer_id']) || !empty($_SESSION['lv_user'])) ? 'ja' : 'nein',
+        'zugriffsschutz' => ZUGRIFFSSCHUTZ ? 'an' : 'aus',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // ===== ZUGRIFFSSCHUTZ =====
-// Jede Aktion ausser dem Login selbst erfordert eine gueltige Sitzung –
-// entweder Buero-System (\$_SESSION['nutzer_id']) ODER LV-Login (\$_SESSION['lv_user']).
+// Sperrt jede Aktion ausser Login und Selbsttest fuer nicht angemeldete
+// Aufrufer. ABGESCHALTET, bis geprueft ist, dass die Sitzung auf dem Server
+// zuverlaessig ankommt: Am 22.08.2026 kam Erik weder ins Dashboard, noch
+// funktionierte der Upload. Ein Schutz, der den Betrieb lahmlegt, ist keiner -
+// erst pruefen, dann wieder einschalten. Zum Einschalten: false -> true.
 $eingeloggt = !empty($_SESSION['nutzer_id']) || !empty($_SESSION['lv_user']);
-if ($action !== 'login' && !$eingeloggt) {
+if (ZUGRIFFSSCHUTZ && $action !== 'login' && !$eingeloggt) {
     http_response_code(401);
     echo json_encode(['ok' => false, 'error' => 'Nicht angemeldet.']);
     exit;
@@ -60,6 +95,9 @@ switch ($action) {
             ],
             'preise' => [
                 'artnr' => "VARCHAR(60) NOT NULL DEFAULT ''",
+                // Wann Erik zuletzt bestaetigt hat, dass der Preis noch gilt.
+                // Getrennt von 'dat' - das bleibt das Datum des Lieferantenbelegs.
+                'geprueft' => "VARCHAR(20) NOT NULL DEFAULT ''",
             ],
             'lieferanten' => [
                 'strasse'  => "VARCHAR(150) NOT NULL DEFAULT ''",
@@ -152,33 +190,33 @@ switch ($action) {
             break;
         }
 
-        // Gibt es die artnr-Spalte schon? (sonst ueberspringen, damit nichts abstuerzt)
-        $hatArtnr = false;
+        // Welche Zusatzspalten gibt es schon? Fehlt eine, wird sie einfach
+        // weggelassen - so laeuft das Speichern auch auf einer aelteren
+        // Datenbank weiter, statt mit einem SQL-Fehler abzubrechen.
+        $vorhanden = [];
         foreach ($pdo->query("SHOW COLUMNS FROM preise")->fetchAll(PDO::FETCH_ASSOC) as $c) {
-            if ($c['Field'] === 'artnr') { $hatArtnr = true; break; }
+            $vorhanden[$c['Field']] = true;
         }
+        $spalten = ['name', 'kat', 'ek', 'eu', 'format', 'lief', 'dat'];
+        foreach (['artnr', 'geprueft'] as $zusatz) {
+            if (!empty($vorhanden[$zusatz])) $spalten[] = $zusatz;
+        }
+        $liste  = implode(', ', $spalten);
+        $frage  = implode(', ', array_fill(0, count($spalten), '?'));
         $pdo->beginTransaction();
         try {
             $pdo->exec("DELETE FROM preise");
-            if ($hatArtnr) {
-                $stmt = $pdo->prepare("INSERT INTO preise (name, kat, ek, eu, format, lief, dat, artnr) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                foreach ($data['preise'] as $p) {
-                    $stmt->execute([
-                        $p['name'] ?? '', $p['kat'] ?? '', $p['ek'] ?? 0,
-                        $p['eu'] ?? '', $p['format'] ?? '', $p['lief'] ?? '', $p['dat'] ?? '', $p['artnr'] ?? ''
-                    ]);
+            $stmt = $pdo->prepare("INSERT INTO preise ($liste) VALUES ($frage)");
+            foreach ($data['preise'] as $p) {
+                $werte = [];
+                foreach ($spalten as $sp) {
+                    $werte[] = ($sp === 'ek') ? ($p['ek'] ?? 0) : ($p[$sp] ?? '');
                 }
-            } else {
-                $stmt = $pdo->prepare("INSERT INTO preise (name, kat, ek, eu, format, lief, dat) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                foreach ($data['preise'] as $p) {
-                    $stmt->execute([
-                        $p['name'] ?? '', $p['kat'] ?? '', $p['ek'] ?? 0,
-                        $p['eu'] ?? '', $p['format'] ?? '', $p['lief'] ?? '', $p['dat'] ?? ''
-                    ]);
-                }
+                $stmt->execute($werte);
             }
             $pdo->commit();
-            echo json_encode(['ok' => true, 'count' => count($data['preise']), 'artnr' => $hatArtnr]);
+            echo json_encode(['ok' => true, 'count' => count($data['preise']),
+                              'spalten' => $spalten]);
         } catch (Exception $e) {
             $pdo->rollBack();
             echo json_encode(['error' => $e->getMessage()]);
