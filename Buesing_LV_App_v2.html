@@ -746,9 +746,14 @@ async function doLogin(){
     if(le){ le.textContent='Server nicht erreichbar – bitte Internetverbindung prüfen und erneut versuchen.'; le.style.display='block'; }
   }
 }
+// Steht klein unter dem Namen. Erik hat am 27.08.2026 zweimal eine
+// Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
+// Mit der Nummer im Bild ist das in einer Sekunde geklaert.
+// BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
+const APP_STAND = '27.08.2026 · 41';
 function setGreeting(){
   const g=document.getElementById('greeting');
-  if(g && currentUser.name) g.textContent='Hallo '+currentUser.name;
+  if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
   if(typeof renderStart==='function') renderStart();
 }
 // Already logged in this session? / Single-Sign-On vom Buero-Dashboard
