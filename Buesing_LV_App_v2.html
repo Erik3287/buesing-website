@@ -750,7 +750,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 43';
+const APP_STAND = '27.08.2026 · 44';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -3162,11 +3162,12 @@ const TRB_KLEBER_KG  = 31.0;  // je m2 - MOERTELBETT ("Konstruktionshoehe
                               // Mit 12,0 kg/m2 waren es 1,91 EUR je Auftritt. 31,0
                               // kg/m2 sind rund 19 mm Bett - mit der Fliese ergibt
                               // das die im LV geforderten ca. 30 mm.
-const TRB_ZEIT_STK   = 1.10;  // h JE STUFE, nicht je m2. Erik am 27.08.2026:
-                              // erst 0,60, dann 1,00, dann 1,20 - zuletzt ueber
-                              // den Endpreis vorgegeben ("der Gesamtpreis der
-                              // Stufe muss bei ca. 80 Euro liegen, ein klein
-                              // wenig drunter"). 1,10 h ergibt 78,06 EUR.
+const TRB_ZEIT_STK   = 1.20;  // h JE STUFE, nicht je m2. Erik am 27.08.2026:
+                              // erst 0,60, dann 1,00, dann 1,20. Kurz auf 1,10
+                              // gesenkt, weil er "ca. 80 Euro, ein klein wenig
+                              // drunter" nannte - das sagte er aber, BEVOR er die
+                              // 1,20-Fassung gesehen hatte. Danach: bleibt bei
+                              // 1,20 h, also 83,86 EUR je Auftritt.
 const TRB_FUGE_KG    = 0.18;  // je m2, wie beim Boden
 // Die Stufenmasse stehen im Text: "25,0 cm x 1,30 m" bzw. "17,19 cm x 130 cm".
 // ACHTUNG bei der Reihenfolge (mm|cm|m): mit (cm|m|mm) trifft "130 mm" schon
