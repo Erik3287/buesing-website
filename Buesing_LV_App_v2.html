@@ -750,7 +750,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 47';
+const APP_STAND = '27.08.2026 · 48';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1283,7 +1283,11 @@ const TYP_REGELN = [
   ['loch',          ['ausbildung von löchern','löcher','löchern']],
   ['sauberlaufrahmen',['winkelrahmen','einbaurahmen sauberlauf','rahmen zur aufnahme']],
   ['sauberlaufmatte',['sauberlaufmatte','aluprofilmatte']],
-  ['behandlung',    ['imprägnierung','oberflächenbehandlung','fleckschutz']],
+  // 'Erstbehandlung und Einpflege ... unter Verwendung von
+  // Spezial-Impraegniermittel' - das Wort 'Impraegnierung' kommt darin gar
+  // nicht vor, deshalb blieben die vier Positionen ohne Typ (27.08.2026).
+  ['behandlung',    ['imprägnierung','imprägniermittel','impraegniermittel',
+                     'erstbehandlung','einpflege','oberflächenbehandlung','fleckschutz']],
   ['dichtband',     ['dichtband','dichtstreifen','anschlussband']],
   ['manschette',    ['dichtmanschette','manschette','rohrdurchgäng','rohrdurchgang']],
   ['dichtecke',     ['dichtecke','dichtecken']],
@@ -1396,7 +1400,7 @@ function pruefeTyp(text){
 // Treppenbelag") - beide wurden dadurch zu Fliesen-Treppenbelag erklaert.
 // Aus der Ueberschrift heraus greift der Typ weiter: alle vier echten
 // Positionen heissen "Treppenfliesen, Auf-/Antritt der Treppenstufen".
-const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge','treppenbelag','fensterbank','fb_rundung','fb_kante'];
+const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge','treppenbelag','fensterbank','fb_rundung','fb_kante','behandlung'];
 function erkenneTyp(desc, langtext, einheit){
   const soll = einheitKlasse(einheit);
   if(soll==='zeit') return 'stundenlohn';
