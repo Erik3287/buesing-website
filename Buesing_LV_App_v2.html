@@ -750,7 +750,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 56';
+const APP_STAND = '27.08.2026 · 57';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1251,7 +1251,7 @@ async function kiPreise(input){
 // POSITIONS-TYP-ERKENNUNG
 // ============================================
 const TYPEN = [
-  ['wand','Wand verlegen'],['boden','Boden verlegen'],['naturstein','Naturstein'],['betonwerkstein','Betonwerkstein'],['treppenbelag','Treppenbelag'],['sockel','Sockelfliesen (lfdm)'],['fensterbank','Fensterbank (lfdm)'],['fb_rundung','Fensterbank Ecke rund'],['fb_kante','Fensterbank Kante schleifen'],['spiegel','Wandspiegel'],['revision','Revisionsunterlagen'],['ueberschrift','— Überschrift —'],
+  ['wand','Wand verlegen'],['boden','Boden verlegen'],['naturstein','Naturstein'],['betonwerkstein','Betonwerkstein'],['treppenbelag','Treppenbelag'],['sockel','Sockelfliesen (lfdm)'],['fensterbank','Fensterbank (lfdm)'],['fb_rundung','Fensterbank Ecke rund'],['fb_kante','Fensterbank Kante schleifen'],['spiegel','Wandspiegel'],['revision','Revisionsunterlagen'],['matte_anarbeiten','Matte einfliesen (lfdm)'],['ueberschrift','— Überschrift —'],
   ['abdicht_flaeche','Abdichtung Fläche'],['dichtband','Dichtband'],['manschette','Manschette'],['dichtecke','Dichtecke'],
   ['grundierung','Grundierung'],['spachtel','Vorspachtel'],['entkopplung','Entkopplung Boden'],['stundenlohn','Stundenlohn'],
   ['profil','Profil/Schiene'],['reservefliesen','Reservefliesen'],['loch','Loch/Anschnitt'],
@@ -1266,6 +1266,7 @@ const TYP_REGELN = [
   // Hinter der Abdichtung: '15.03.34 Estrichflaeche abdichten im Bereich
   // Sauberlaufmatte' ist eine ABDICHTUNG, keine Matte - das Wort im Titel
   // hat sie sonst zur Matte gemacht (Erik 27.08.2026).
+  ['matte_anarbeiten',['sauberlaufmatte einfliesen','matte einfliesen','anarbeiten des vorbeschriebenen bodenfliesenbelages an eingebauten mattenrahmen']],
   ['sauberlaufrahmen',['winkelrahmen','einbaurahmen sauberlauf','rahmen zur aufnahme']],
   ['sauberlaufmatte',['sauberlaufmatte','aluprofilmatte']],
   ['baustelle',     ['baustelleneinrichtung','baustelle einrichten']],
@@ -1344,7 +1345,7 @@ function typNorm(t){
 const TYP_EINHEIT = {
   flaeche: ['wand','boden','naturstein','betonwerkstein','abdicht_flaeche','entkopplung','grundierung','spachtel',
             'duschelement','reinigung','behandlung','schutz','reservefliesen'],
-  laenge:  ['dichtband','profil','hohlkehlsockel','sockel','fensterbank','fb_kante','silikon','randfuge','sauberlaufrahmen','rohrkasten'],
+  laenge:  ['dichtband','profil','hohlkehlsockel','sockel','fensterbank','fb_kante','silikon','randfuge','sauberlaufrahmen','rohrkasten','matte_anarbeiten'],
   zeit:    ['stundenlohn'],
   stueck:  ['manschette','dichtecke','loch','ablauf','ablauf_doppel','fliesentausch','treppenbelag','fb_rundung','spiegel','revision',
             // Das Rezept liefert den Preis der GANZEN Matte, nicht je m2.
@@ -1408,7 +1409,7 @@ function pruefeTyp(text){
 // Treppenbelag") - beide wurden dadurch zu Fliesen-Treppenbelag erklaert.
 // Aus der Ueberschrift heraus greift der Typ weiter: alle vier echten
 // Positionen heissen "Treppenfliesen, Auf-/Antritt der Treppenstufen".
-const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge','treppenbelag','fensterbank','fb_rundung','fb_kante','behandlung','spiegel','revision'];
+const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge','treppenbelag','fensterbank','fb_rundung','fb_kante','behandlung','spiegel','revision','matte_anarbeiten'];
 function erkenneTyp(desc, langtext, einheit){
   const soll = einheitKlasse(einheit);
   if(soll==='zeit') return 'stundenlohn';
@@ -2998,6 +2999,9 @@ const FESTPREISE = {
   // Verwendbarkeitsnachweise in drei Ordnern. Der Haken steht im letzten
   // Satz - die Schlussrechnung wird erst danach ausgezahlt.
   revision:      {ep:450.00, label:'Revisionsunterlagen (3 Sätze, komplett in Ordnern)'},
+  // Anarbeiten des Fliesenbelags an den Mattenrahmen, einschl. Schnitte und
+  // Hoehenanpassung. Erik am 27.08.2026: '12,50 pro Meter'.
+  matte_anarbeiten: {ep:12.50, label:'Fliesenbelag an Mattenrahmen anarbeiten'},
 };
 // ===== REINIGUNG: zwei verschiedene Arbeiten (Erik 27.08.2026) ============
 // "Untergrund saeubern" ist der Besen VOR dem Verlegen - 1,60 EUR/m².
@@ -4005,7 +4009,7 @@ function renderCalcOut(i){
 }
 function renderCalcHTML(i){
   const p=LV.pos[i];
-  const SUP=['wand','boden','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','treppenbelag','sockel','fensterbank','fb_rundung','fb_kante','spiegel','revision','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
+  const SUP=['wand','boden','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','treppenbelag','sockel','fensterbank','fb_rundung','fb_kante','spiegel','revision','matte_anarbeiten','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
   if(SUP.indexOf(p.typ)<0){
     const lbl=(TYPEN.find(t=>t[0]===p.typ)||['','dieser Typ'])[1];
     return '<div style="font-size:12px;color:var(--muted);padding:12px 0">EP-Rechner für „'+lbl+'" ist noch nicht gebaut. Kommt Schritt für Schritt dazu.</div>';
