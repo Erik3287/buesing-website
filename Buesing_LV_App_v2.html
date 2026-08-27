@@ -750,7 +750,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 55';
+const APP_STAND = '27.08.2026 · 56';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1263,6 +1263,11 @@ const TYPEN = [
 ];
 const TYP_REGELN = [
   ['stundenlohn',   ['stundenlohn','bauvorarbeiter','baufacharbeiter','auszubildende']],
+  // Hinter der Abdichtung: '15.03.34 Estrichflaeche abdichten im Bereich
+  // Sauberlaufmatte' ist eine ABDICHTUNG, keine Matte - das Wort im Titel
+  // hat sie sonst zur Matte gemacht (Erik 27.08.2026).
+  ['sauberlaufrahmen',['winkelrahmen','einbaurahmen sauberlauf','rahmen zur aufnahme']],
+  ['sauberlaufmatte',['sauberlaufmatte','aluprofilmatte']],
   ['baustelle',     ['baustelleneinrichtung','baustelle einrichten']],
   ['reservefliesen',['reservefliesen','lieferung von reserve']],
   ['ablauf_doppel', ['doppelstöckig','doppelstoeckig']],
@@ -1283,8 +1288,6 @@ const TYP_REGELN = [
   ['fensterbank',   ['fensterbank kunststein','fensterbank naturstein','fensterbank kunstst']],
   ['fliesentausch', ['austausch einzelner','bestandswandfliesen gegen','austausch einzelne']],
   ['loch',          ['ausbildung von löchern','löcher','löchern']],
-  ['sauberlaufrahmen',['winkelrahmen','einbaurahmen sauberlauf','rahmen zur aufnahme']],
-  ['sauberlaufmatte',['sauberlaufmatte','aluprofilmatte']],
   // 'Erstbehandlung und Einpflege ... unter Verwendung von
   // Spezial-Impraegniermittel' - das Wort 'Impraegnierung' kommt darin gar
   // nicht vor, deshalb blieben die vier Positionen ohne Typ (27.08.2026).
@@ -1340,10 +1343,12 @@ function typNorm(t){
 // abzurechnen ist ein Widerspruch - der faellt sonst niemandem auf.
 const TYP_EINHEIT = {
   flaeche: ['wand','boden','naturstein','betonwerkstein','abdicht_flaeche','entkopplung','grundierung','spachtel',
-            'duschelement','reinigung','behandlung','schutz','sauberlaufmatte','reservefliesen'],
+            'duschelement','reinigung','behandlung','schutz','reservefliesen'],
   laenge:  ['dichtband','profil','hohlkehlsockel','sockel','fensterbank','fb_kante','silikon','randfuge','sauberlaufrahmen','rohrkasten'],
   zeit:    ['stundenlohn'],
-  stueck:  ['manschette','dichtecke','loch','ablauf','ablauf_doppel','fliesentausch','treppenbelag','fb_rundung','spiegel','revision'],
+  stueck:  ['manschette','dichtecke','loch','ablauf','ablauf_doppel','fliesentausch','treppenbelag','fb_rundung','spiegel','revision',
+            // Das Rezept liefert den Preis der GANZEN Matte, nicht je m2.
+            'sauberlaufmatte'],
 };
 function einheitKlasse(eh){
   const e=typNorm(eh).replace(/[^a-z0-9²]/g,'');
@@ -3043,15 +3048,33 @@ const EMCO_RAHMEN = {
 const EMCO_EK_RABATT=0.30, EMCO_VK_ABSCHLAG=0.05, EMCO_LOHN=0.15;
 
 function emcoMasse(p){
-  const txt=(p.desc||'')+' '+(p.langtext||'');
+  const titel=String(p.desc||''), lang=String(p.langtext||'');
   // ACHTUNG bei der Reihenfolge: (cm|m|mm) trifft bei "900 mm" schon auf das
   // erste m und macht daraus 900 METER - die Matte wurde dann 1,35 Mio. m²
   // gross und der Preis 614 Mio. EUR. Das laengere Kuerzel muss zuerst stehen.
-  const m=txt.match(/(\d+(?:[.,]\d+)?)\s*(cm|mm|m)?\s*[×xX]\s*(\d+(?:[.,]\d+)?)\s*(cm|mm|m)?/);
-  if(!m) return null;
-  const einh=(m[4]||m[2]||'cm').toLowerCase();
-  const f=einh==='m'?1000:(einh==='mm'?1:10);
-  return {b:parseFloat(m[1].replace(',','.'))*f, t:parseFloat(m[3].replace(',','.'))*f};
+  const lies=function(txt, muster){
+    const m=String(txt||'').match(muster);
+    if(!m) return null;
+    const einh=(m[4]||m[2]||'cm').toLowerCase();
+    const f=einh==='m'?1000:(einh==='mm'?1:10);
+    const b=parseFloat(m[1].replace(',','.'))*f, t=parseFloat(m[3].replace(',','.'))*f;
+    return (b>0 && t>0) ? {b:b, t:t} : null;
+  };
+  const paar = /(\d+(?:[.,]\d+)?)\s*(cm|mm|m)?\s*[×xX\/]\s*(\d+(?:[.,]\d+)?)\s*(cm|mm|m)?/;
+  // Die Reihenfolge ist entscheidend. Im LV-15 steht bei 15.03.30 zuerst
+  // "Rahmenprofilmasse (HxBxT): 25 x 28 x 3 mm" und erst danach
+  // "Abmessungen b/l. ca. 1,50/0,90 m". Wer einfach das erste Zahlenpaar
+  // nimmt, baut eine Matte von 25 x 28 mm (Erik 27.08.2026).
+  // 1. ausdrueckliche Groessenangabe im Langtext
+  // \b ist Pflicht: ohne Wortgrenze trifft "maße" mitten in
+  // "Rahmenprofilmaße" und liefert wieder die 25 x 28 mm.
+  const gross = lang.match(/\b(?:abmessung(?:en)?|gr(?:ö|oe)(?:ß|ss)e(?:\s+mattenrahmen)?|ma(?:ß|ss)e)\s*(?:b\s*\/\s*l\.?)?\s*:?\s*(?:ca\.?\s*)?([^\n;]{0,40})/i);
+  if(gross){ const r=lies(gross[1], paar); if(r) return r; }
+  // 2. die Ueberschrift ("Sauberlaufmatte 1,50/0,90")
+  const rT=lies(titel, paar); if(rT) return rT;
+  // 3. Langtext, aber ohne Profilmasse mit drei Zahlen (HxBxT)
+  const ohneProfil = lang.replace(/\d+(?:[.,]\d+)?\s*[×xX]\s*\d+(?:[.,]\d+)?\s*[×xX]\s*\d+(?:[.,]\d+)?\s*(?:mm|cm|m)?/g, ' ');
+  return lies(ohneProfil, paar);
 }
 // Erkennt, ob der Einbaurahmen in DERSELBEN Position gefordert ist
 // (Erik 22.07.: LVs schreiben Matte + Rahmen oft zusammen aus, Einheit dann i.d.R. Stück)
