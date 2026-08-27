@@ -750,7 +750,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 59';
+const APP_STAND = '27.08.2026 · 60';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1305,7 +1305,8 @@ const TYP_REGELN = [
                      'abdichten von außenecken','abdichten von aussenecken']],
   ['entkopplung',   ['entkopplungsmatte','entkoppelungsmatte','entkopplung','entkoppeln','enkoppeln','ditra','kerdimatte','verbundentkopplung']],
   ['abdicht_flaeche',['alternative abdichtung','dichtungsfolie','dichtbahn','verbundabdichtung','seccoral','abdichten','abdichtung']],
-  ['spachtel',      ['vorspachtel','vorspachteln']],
+  ['spachtel',      ['vorspachtel','vorspachteln','untergrundausgleich','ausgleichsschicht',
+                     'bodenausgleich','nivelliermasse','ausgleichsmasse','spachtelung']],
   ['grundierung',   ['haftgrund','haftbrücke','haftschlämme','gisogrund','verbundestrich','grundierung','grundieren','voranstrich','primer']],
   ['profil',        ['kantenschutzprofil','kantenschutz','kantenprofil','fliesenprofil','winkelprofil','winkelschiene','abschlussprofil','eckschutz','übergangsprofil','edelstahlschiene','türabschluss','winkelrahmen','belagsabschluss','profil','schiene',
                      'trennschiene','trennschien','trennprofil']],
@@ -1415,7 +1416,11 @@ function pruefeTyp(text){
 // Treppenbelag") - beide wurden dadurch zu Fliesen-Treppenbelag erklaert.
 // Aus der Ueberschrift heraus greift der Typ weiter: alle vier echten
 // Positionen heissen "Treppenfliesen, Auf-/Antritt der Treppenstufen".
-const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge','treppenbelag','fensterbank','fb_rundung','fb_kante','behandlung','spiegel','revision','matte_anarbeiten','schraegschnitt'];
+const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge','treppenbelag','fensterbank','fb_rundung','fb_kante','behandlung','spiegel','revision','matte_anarbeiten','schraegschnitt','spachtel',
+  // "Spachtelung mit Gefaelle ZUM BODENABLAUF" ist eine Spachtelung, keine
+  // Ablauf-Position. Alle echten Ablauf-Positionen im LV-15 heissen schon in
+  // der Ueberschrift "Zulage Bodeneinlauf" (Erik 27.08.2026).
+  'ablauf'];
 function erkenneTyp(desc, langtext, einheit){
   const soll = einheitKlasse(einheit);
   if(soll==='zeit') return 'stundenlohn';
@@ -2830,7 +2835,11 @@ function epGrundierung(p, system){
 }
 function epSpachtel(p, system){
   const warn=[], zeilen=[];
-  const modus = p.spachtelModus || 'vorspachtel';
+  // "Untergrundausgleichsschicht", "Ausgleichsschicht", "Nivellier" -> das
+  // ist der Bodenausgleich, nicht die standfeste Vorspachtelung.
+  const autoAusgleich = /ausgleichsschicht|untergrundausgleich|bodenausgleich|nivellier|ausgleichsmasse|mit gefälle/i
+                          .test((p.desc||'')+' '+(p.langtext||''));
+  const modus = p.spachtelModus || (autoAusgleich ? 'ausgleich' : 'vorspachtel');
   if(modus==='ausgleich'){
     // Bodenausgleich: schichtdickenabhaengig, 1,6 kg/m² je mm, 8 min/m²
     const ausText = spachtelDickeAusText((p.desc||'')+' '+(p.langtext||''));
@@ -4495,7 +4504,10 @@ function renderCalcHTML(i){
       +'</select></div>';
   }
   if(p.typ==='spachtel'){
-    if(!p.spachtelModus) p.spachtelModus='vorspachtel';
+    if(!p.spachtelModus){
+      p.spachtelModus = /ausgleichsschicht|untergrundausgleich|bodenausgleich|nivellier|ausgleichsmasse|mit gefälle/i
+                          .test((p.desc||'')+' '+(p.langtext||'')) ? 'ausgleich' : 'vorspachtel';
+    }
     const ausText = spachtelDickeAusText((p.desc||'')+' '+(p.langtext||''));
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Art der Spachtelung</div>'
       +'<select onchange="setSpachtelModus('+i+',this.value)" style="width:auto;padding:6px 8px">'
