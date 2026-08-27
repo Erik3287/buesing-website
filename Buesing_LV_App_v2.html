@@ -1246,7 +1246,7 @@ async function kiPreise(input){
 // POSITIONS-TYP-ERKENNUNG
 // ============================================
 const TYPEN = [
-  ['wand','Wand verlegen'],['boden','Boden verlegen'],['naturstein','Naturstein'],
+  ['wand','Wand verlegen'],['boden','Boden verlegen'],['naturstein','Naturstein'],['betonwerkstein','Betonwerkstein'],
   ['abdicht_flaeche','Abdichtung Fläche'],['dichtband','Dichtband'],['manschette','Manschette'],['dichtecke','Dichtecke'],
   ['grundierung','Grundierung'],['spachtel','Vorspachtel'],['entkopplung','Entkopplung Boden'],['stundenlohn','Stundenlohn'],
   ['profil','Profil/Schiene'],['reservefliesen','Reservefliesen'],['loch','Loch/Anschnitt'],
@@ -1278,6 +1278,11 @@ const TYP_REGELN = [
   ['spachtel',      ['vorspachtel','vorspachteln']],
   ['grundierung',   ['haftgrund','haftbrücke','haftschlämme','gisogrund','verbundestrich','grundierung','grundieren','voranstrich','primer']],
   ['profil',        ['kantenschutzprofil','kantenschutz','kantenprofil','fliesenprofil','winkelprofil','winkelschiene','abschlussprofil','eckschutz','übergangsprofil','edelstahlschiene','türabschluss','winkelrahmen','belagsabschluss','profil','schiene']],
+  // Nur der Betonwerkstein-BODEN. Mit den weiten Woertern ("betonwerkstein",
+  // "din 18500", "verbundverlegung") sind im LV-15 auch Trittstufen,
+  // Setzstufen, Sockel und sogar "Erstbehandlung und Einpflege" hier
+  // gelandet - das sind voellig andere Leistungen.
+  ['betonwerkstein',['betonwerksteinboden','werksteinboden']],
   ['naturstein',    ['naturstein','natursteinplatten','sandstein','obernkirchener','mittelbett']],
   ['silikon',       ['elastische verfugung','dauerelastisch','fugendichtstoff','silikonbasis','anschluss- und bewegungsfugen','fugen in boden- und wandbelägen','silikon']],
   ['randfuge',      ['randfuge','weichfedernder randstreifen','randstreifen']],
@@ -1748,6 +1753,31 @@ function beschreibungTreffer(typ, desc, langtext){
     if(punkte>bestP){ bestP=punkte; best=x; bestWort=wort; }
   });
   return (best && bestP>=3) ? {artikel:best, punkte:bestP, wort:bestWort} : null;
+}
+// Lieferantenkuerzel fuer die Anzeige. Erik am 27.08.2026: er will auf einen
+// Blick sehen, wo das Material herkommt.
+const LIEFERANT_KURZ = [
+  [/keramundo/i,        'Keramundo'],
+  [/kr(ü|ue)ger/i,      'Krüger'],
+  [/linnenbecker/i,     'Linnenbecker'],
+  [/emco/i,             'EMCO'],
+  [/rinklake/i,         'Rinklake'],
+];
+function liefKurz(name){
+  const n=String(name||'').trim();
+  if(!n || n==='–') return '';
+  for(const r of LIEFERANT_KURZ){ if(r[0].test(n)) return r[1]; }
+  return n.length>14 ? n.slice(0,14) : n;
+}
+// Betonwerkstein steht in der Datenbank unter "sonstiges" - eigene Kategorie
+// gibt es nicht. Ueber den Namen finden und nach Preis sortieren, damit der
+// guenstigere Lieferant oben steht.
+function betonwerksteinKandidaten(){
+  return (PREISE||[]).filter(function(x){
+    const e=String(x.eu||'').toLowerCase().replace(/^\//,'');
+    if(e!=='m2' && e!=='m²') return false;
+    return /betonwerkstein|werksteinplatte|bodenplatte\s*r?\d|agglo/i.test(x.name||'');
+  }).sort(function(a,b){ return (a.ek||0)-(b.ek||0); });
 }
 // Bester Treffer zum ausgeschriebenen Fabrikat - oder null.
 function fabTreffer(ausgeschrieben, typ, desc, langtext){
@@ -2898,6 +2928,64 @@ function epHohlkehle(p){
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn};
 }
+// ===== BETONWERKSTEIN (m2) ===============================================
+// LV-15 Pos. 15.03.6: Betonwerksteinboden nach DIN 18500, 300x300 mm,
+// Plattenstaerke 20 mm, Verbundverlegung im Duennbett bis 5 mm.
+// Erik am 27.08.2026 zu den Mengen: "4,5 Kilo pro Qm Kleber waeren
+// ausreichend. 1,05 statt 0,95 passt." - die dickere Platte kostet also
+// 0,10 h/m2 mehr Zeit als eine Fliese (rund 5,80 EUR).
+const BWS_KLEBER_KG = 4.5;    // Duennbett bis 5 mm - Fliese braucht 3,0
+const BWS_FUGE_KG   = 0.55;   // Erik hat es am 27.08.2026 im PCI-Verbrauchsrechner
+                              // nachgerechnet: Fuge 3 mm breit, 18 mm tief,
+                              // Format 30x30 -> 0,55 kg je m2.
+const BWS_ZEIT      = 1.05;   // h/m2 - Fliese 0,95
+function epBetonwerkstein(p, system){
+  const warn=[], zeilen=[];
+  const sys=SYSTEME[system]||SYSTEME.sakret;
+  const erkU=erkenneUmfang(p.desc, p.langtext);
+  if(!p.umfang) p.umfang=erkU.u;
+  if(!erkU.sicher) warn.push('PRUEFEN|Leistungsumfang prüfen – '+erkU.grund);
+  const mitPlatte    = p.umfang!=='nur_verlegen';
+  const mitBauchemie = p.umfang!=='nur_liefern';
+  const mitLohn      = p.umfang!=='nur_liefern';
+
+  const ek=parseFloat(p.flieseEk)||0;
+  let platte=0;
+  if(mitPlatte){
+    if(!ek) warn.push('EINGABE|Plattenpreis (€/m²) im Feld links wählen oder eintragen');
+    platte=ek*1.06;
+    zeilen.push(['Betonwerksteinplatte', ek?(fmt(ek)+' €/m² × 1,06'):'—', platte]);
+  } else {
+    zeilen.push(['Betonwerksteinplatte','bauseits gestellt – nicht berechnet',0]);
+  }
+
+  let kleber=0, fuge=0;
+  const kgtxt=BWS_KLEBER_KG.toFixed(1).replace('.',',');
+  const fgtxt=BWS_FUGE_KG.toFixed(2).replace('.',',');
+  if(mitBauchemie){
+    const kCfg=sys.kleber_klein, kA=findArtikel(kCfg.name, kCfg.nicht);
+    if(kA){ kleber=preisJe(kA,kCfg.gebinde)*BWS_KLEBER_KG;
+            zeilen.push(['Kleber '+kgtxt+' kg', preisTxt(kA,kCfg.gebinde,'kg')+' × '+kgtxt, kleber]); }
+    else  { warn.push('ARTIKEL|'+kCfg.name); zeilen.push(['Kleber '+kgtxt+' kg','fehlt',0]); }
+    const fA=findArtikel(FUGE_STD.name, FUGE_STD.nicht);
+    if(fA){ fuge=preisJe(fA,FUGE_STD.gebinde)*BWS_FUGE_KG;
+            zeilen.push(['Fuge '+fgtxt+' kg', preisTxt(fA,FUGE_STD.gebinde,'kg')+' × '+fgtxt, fuge]); }
+    else  { warn.push('ARTIKEL|'+FUGE_STD.name); zeilen.push(['Fuge '+fgtxt+' kg','fehlt',0]); }
+  } else {
+    zeilen.push(['Kleber + Fuge','nur Lieferung – keine Bauchemie',0]);
+  }
+
+  const roh=platte+kleber+fuge;
+  const kalk=roh*1.20;
+  zeilen.push(['Material roh','',roh]);
+  zeilen.push(['Material × 1,20','',kalk]);
+  const zeittxt=BWS_ZEIT.toFixed(2).replace('.',',');
+  const lohn=mitLohn ? BWS_ZEIT*LOHN() : 0;
+  if(mitLohn) zeilen.push(['Lohn (20 mm Platte)', zeittxt+' h × '+fmt(LOHN()), lohn]);
+  else        zeilen.push(['Lohn','nur Lieferung – kein Lohn',0]);
+  const ep=Math.round((kalk+lohn)*100)/100;
+  return {ep, zeilen, warn};
+}
 function epNaturstein(p, system){
   const warn=[], zeilen=[];
   const ek=parseFloat(p.flieseEk)||0;
@@ -3088,6 +3176,7 @@ function berechneEPKern(p, system){
   if(t==='stundenlohn') return epStundenlohn(p);
   if(t==='profil') return epProfil(p, system);
   if(t==='naturstein') return epNaturstein(p, system);
+  if(t==='betonwerkstein') return epBetonwerkstein(p, system);
   if(t==='rohrkasten') return epRohrkasten(p, system);
   if(t==='duschelement') return epDuschelement(p, system);
   if(t==='reinigung') return epReinigung(p);
@@ -3152,7 +3241,7 @@ function autoEP(p, system){
 
   // Fliesen-Typen ohne Fliesenpreis sind NICHT rechenbar -> rot,
   // ausser die Fliese ist bauseits gestellt ("nur verlegen").
-  const brauchtFliese = ['wand','boden','naturstein','reservefliesen'].indexOf(p.typ) > -1
+  const brauchtFliese = ['wand','boden','naturstein','betonwerkstein','reservefliesen'].indexOf(p.typ) > -1
                         && p.umfang !== 'nur_verlegen';
   const flieseFehlt   = brauchtFliese && !(parseFloat(p.flieseEk) > 0);
 
@@ -3348,13 +3437,13 @@ function renderCalcOut(i){
 }
 function renderCalcHTML(i){
   const p=LV.pos[i];
-  const SUP=['wand','boden','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
+  const SUP=['wand','boden','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
   if(SUP.indexOf(p.typ)<0){
     const lbl=(TYPEN.find(t=>t[0]===p.typ)||['','dieser Typ'])[1];
     return '<div style="font-size:12px;color:var(--muted);padding:12px 0">EP-Rechner für „'+lbl+'" ist noch nicht gebaut. Kommt Schritt für Schritt dazu.</div>';
   }
   let felder='';
-  if(p.typ==='wand' || p.typ==='boden'){
+  if(p.typ==='wand' || p.typ==='boden' || p.typ==='betonwerkstein'){
     const erkU=erkenneUmfang(p.desc, p.langtext);
     if(!p.umfang) p.umfang=erkU.u;
     const ampelU = erkU.sicher ? '<span style="color:#1a9e4b">🟢 '+erkU.grund+'</span>' : '<span style="color:#e0a800">🟡 '+erkU.grund+'</span>';
@@ -3753,6 +3842,24 @@ function renderCalcHTML(i){
         +'<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Mosaikfläche m²/Stk</div>'
         +'<input type="number" step="0.01" value="'+(p.mosaikFlaeche||'')+'" placeholder="1,00" oninput="setDusch('+i+',\'mosaikFlaeche\',this.value)" style="width:100px;padding:6px 8px"></div>';
     }
+  }
+  if(p.typ==='betonwerkstein'){
+    // Denselben Artikel gibt es bei mehreren Lieferanten zu verschiedenen
+    // Preisen (Erik 27.08.2026: Bodenplatte R2201 - Keramundo 35,50,
+    // Krueger 37,23). Deshalb steht der Lieferant IM Auswahlfeld.
+    const bwsK = betonwerksteinKandidaten();
+    let bwsOpt = '<option value="">– Platte aus der Preisdatenbank wählen –</option>';
+    bwsK.forEach(function(x){
+      const sel = (p.fabrikat && fabrikatGleich(p.fabrikat, x.name)) ? ' selected' : '';
+      bwsOpt += '<option value="'+esc(x.name)+'|'+x.ek+'"'+sel+'>'
+              + esc(liefKurz(x.lief)||'?') + ' · ' + fmt(x.ek) + ' €/m² · ' + esc(x.name.slice(0,52)) + '</option>';
+    });
+    felder+='<div style="min-width:330px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Betonwerksteinplatte</div>'
+      +'<select onchange="waehleFliese('+i+',this.value)" style="width:100%;padding:6px 8px;font-size:12px">'+bwsOpt+'</select>'
+      +(p.fabrikat?('<div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(p.fabrikat)+'</div>'):'')
+      +'</div>'
+      +'<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Platte €/m² (dein EK)</div>'
+      +'<input type="number" step="0.01" value="'+(p.flieseEk||'')+'" placeholder="0,00" oninput="setFliese('+i+',this.value)" style="width:110px;padding:6px 8px"></div>';
   }
   if(p.typ==='naturstein'){
     felder+='<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Naturstein €/m² (dein EK)</div>'
