@@ -1285,7 +1285,7 @@ const TYP_REGELN = [
   ['betonwerkstein',['betonwerksteinboden','werksteinboden']],
   ['naturstein',    ['naturstein','natursteinplatten','sandstein','obernkirchener','mittelbett']],
   ['silikon',       ['elastische verfugung','dauerelastisch','fugendichtstoff','silikonbasis','anschluss- und bewegungsfugen','fugen in boden- und wandbelägen','silikon']],
-  ['randfuge',      ['randfuge','weichfedernder randstreifen','randstreifen']],
+  ['randfuge',      ['randfuge','weichfedernder randstreifen','randstreifen','randdämmstreifen','randdaemmstreifen']],
   ['schutz',        ['schutz von fußböden','hartfaserplatten','bodenbelag schützen','schutzvlies','abdecken mit']],
   // Ueberschriften wie "Untergrund saeubern" waren nicht erfasst - 15 von 16
   // Reinigungspositionen im LV-15 blieben deshalb ohne Typ (Erik 27.08.2026).
@@ -1365,7 +1365,13 @@ function pruefeTyp(text){
 // Und fuer Silikon: "Anschluss- und Bewegungsfugen dauerelastisch
 // verfugen" steht als Schlussarbeit im Langtext der Treppen- und der
 // Kerdimatten-Position. Eine eigene Silikonposition heisst auch so.
-const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung'];
+// Diese Typen zaehlen NUR aus der Ueberschrift. Im Langtext stehen sie als
+// Nebensatz einer ganz anderen Leistung.
+// "randfuge" kam am 27.08.2026 dazu: "Die Verlegung erfolgt mit Randstreifen
+// aus Trittschalldaemmung" steht in 12 Langtexten des LV-15 - darunter die
+// vier Treppenpositionen und drei Bodenflaechen. Alle wurden dadurch zur
+// Randfuge erklaert. Eine echte Randfugen-Position gibt es im LV-15 nicht.
+const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge'];
 function erkenneTyp(desc, langtext, einheit){
   const soll = einheitKlasse(einheit);
   if(soll==='zeit') return 'stundenlohn';
