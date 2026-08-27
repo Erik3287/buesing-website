@@ -750,7 +750,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 41';
+const APP_STAND = '27.08.2026 · 42';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -3155,10 +3155,15 @@ function epBetonwerkstein(p, system){
 // Treppenstufe geht." Seine Werte, alle bestaetigt:
 const TRB_VERSCHNITT = 1.20;  // aus der 30er Fliese wird ein 25-cm-Auftritt
                               // geschnitten - Boden hat 1,06
-const TRB_KLEBER_KG  = 12.0;  // je m2 - MOERTELBETT ("Konstruktionshoehe
-                              // ca. 30 mm"), nicht Duennbett wie beim Boden (3,0)
-const TRB_ZEIT_STK   = 1.00;  // h JE STUFE, nicht je m2. Erik am 27.08.2026
-                              // von 0,60 auf 1,00 heraufgesetzt.
+const TRB_KLEBER_KG  = 31.0;  // je m2 - MOERTELBETT ("Konstruktionshoehe
+                              // ca. 30 mm"), nicht Duennbett wie beim Boden (3,0).
+                              // Erik am 27.08.2026: "der Kleber ist noch zu wenig,
+                              // wir muessen da mindestens auf 4,90 Euro kommen."
+                              // Mit 12,0 kg/m2 waren es 1,91 EUR je Auftritt. 31,0
+                              // kg/m2 sind rund 19 mm Bett - mit der Fliese ergibt
+                              // das die im LV geforderten ca. 30 mm.
+const TRB_ZEIT_STK   = 1.20;  // h JE STUFE, nicht je m2. Erik am 27.08.2026
+                              // erst auf 1,00, dann auf 1,20 heraufgesetzt.
 const TRB_FUGE_KG    = 0.18;  // je m2, wie beim Boden
 // Die Stufenmasse stehen im Text: "25,0 cm x 1,30 m" bzw. "17,19 cm x 130 cm".
 // ACHTUNG bei der Reihenfolge (mm|cm|m): mit (cm|m|mm) trifft "130 mm" schon
@@ -3229,7 +3234,7 @@ function epTreppenbelag(p, system){
     const kg=TRB_KLEBER_KG*flaeche;
     const kgtxt=kg.toFixed(1).replace('.',',');
     if(kA){ kleber=preisJe(kA,kCfg.gebinde)*kg;
-            zeilen.push(['Mörtelbett '+kgtxt+' kg', preisTxt(kA,kCfg.gebinde,'kg')+' × 12,0 kg/m²', kleber]); }
+            zeilen.push(['Mörtelbett '+kgtxt+' kg', preisTxt(kA,kCfg.gebinde,'kg')+' × '+TRB_KLEBER_KG.toFixed(1).replace('.',',')+' kg/m²', kleber]); }
     else  { warn.push('ARTIKEL|'+kCfg.name); zeilen.push(['Mörtelbett '+kgtxt+' kg','fehlt',0]); }
     const fA=findArtikel(FUGE_STD.name, FUGE_STD.nicht);
     const fkg=TRB_FUGE_KG*flaeche;
