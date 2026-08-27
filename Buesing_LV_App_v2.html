@@ -1246,7 +1246,7 @@ async function kiPreise(input){
 // POSITIONS-TYP-ERKENNUNG
 // ============================================
 const TYPEN = [
-  ['wand','Wand verlegen'],['boden','Boden verlegen'],['naturstein','Naturstein'],['betonwerkstein','Betonwerkstein'],
+  ['wand','Wand verlegen'],['boden','Boden verlegen'],['naturstein','Naturstein'],['betonwerkstein','Betonwerkstein'],['treppenbelag','Treppenbelag'],
   ['abdicht_flaeche','Abdichtung Fläche'],['dichtband','Dichtband'],['manschette','Manschette'],['dichtecke','Dichtecke'],
   ['grundierung','Grundierung'],['spachtel','Vorspachtel'],['entkopplung','Entkopplung Boden'],['stundenlohn','Stundenlohn'],
   ['profil','Profil/Schiene'],['reservefliesen','Reservefliesen'],['loch','Loch/Anschnitt'],
@@ -1294,6 +1294,11 @@ const TYP_REGELN = [
   ['reinigung',     ['untergrund säubern','untergrund saeubern','untergrund reinigen',
                      'säubern','saeubern','feinreinigung','endreinigung','bauendreinigung',
                      'staubfreien untergrund','trocken reinigen','groben verschmutzungen']],
+  // Vor 'boden', denn im Langtext steht "Bodenfliesen als
+  // Treppenstufenauftritt" - die Fliese ist dieselbe, die Leistung nicht.
+  ['treppenbelag',  ['treppenfliesen','treppenstufenauftritt','treppenstufenantritt',
+                     'auftritt der treppenstufen','antritt der treppenstufen',
+                     'stufenauftritt','stufenantritt','treppenbelag']],
   ['wand',          ['wandbelag','wandfliesen','steingut-wandfliesen','wandkeramik']],
   ['boden',         ['bodenbelag','bodenfliesen','feinsteinzeug','anarbeiten von bodenfliesen']],
 ];
@@ -1313,11 +1318,11 @@ function typNorm(t){
 // Welche Einheit passt zu welchem Typ? Eine Flaechenabdichtung in "m"
 // abzurechnen ist ein Widerspruch - der faellt sonst niemandem auf.
 const TYP_EINHEIT = {
-  flaeche: ['wand','boden','naturstein','abdicht_flaeche','entkopplung','grundierung','spachtel',
+  flaeche: ['wand','boden','naturstein','betonwerkstein','abdicht_flaeche','entkopplung','grundierung','spachtel',
             'duschelement','reinigung','behandlung','schutz','sauberlaufmatte','reservefliesen'],
   laenge:  ['dichtband','profil','hohlkehlsockel','silikon','randfuge','sauberlaufrahmen','rohrkasten'],
   zeit:    ['stundenlohn'],
-  stueck:  ['manschette','dichtecke','loch','ablauf','ablauf_doppel','fliesentausch'],
+  stueck:  ['manschette','dichtecke','loch','ablauf','ablauf_doppel','fliesentausch','treppenbelag'],
 };
 function einheitKlasse(eh){
   const e=typNorm(eh).replace(/[^a-z0-9²]/g,'');
@@ -1793,7 +1798,7 @@ function betonwerksteinKandidaten(){
 // steht unter dem Rechner-Symbol, damit man in der Liste auf einen Blick
 // sieht, wo das Material herkommt. Klick zeigt, was derselbe Artikel bei
 // den anderen kostet.
-const FLIESE_TYPEN = ['wand','boden','naturstein','betonwerkstein','reservefliesen'];
+const FLIESE_TYPEN = ['wand','boden','naturstein','betonwerkstein','treppenbelag','reservefliesen'];
 function posArtikel(p){
   if(!p || !p.fabrikat) return null;
   const a=findArtikel(p.fabrikat);
@@ -3106,6 +3111,117 @@ function epBetonwerkstein(p, system){
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn};
 }
+// ===== TREPPENBELAG (Stk) ================================================
+// LV-15 Pos. 15.03.7/8/11/12: dieselbe Fliese wie auf der Bodenflaeche,
+// aber auf eine Treppenstufe verlegt und nach STUECK abgerechnet.
+// Erik am 27.08.2026: "im Prinzip die gleiche Position wie 15.03.4, nur
+// dass es hier um die Verlegung der gleichen Fliese auf einer
+// Treppenstufe geht." Seine Werte, alle bestaetigt:
+const TRB_VERSCHNITT = 1.20;  // aus der 30er Fliese wird ein 25-cm-Auftritt
+                              // geschnitten - Boden hat 1,06
+const TRB_KLEBER_KG  = 12.0;  // je m2 - MOERTELBETT ("Konstruktionshoehe
+                              // ca. 30 mm"), nicht Duennbett wie beim Boden (3,0)
+const TRB_ZEIT_STK   = 0.60;  // h JE STUFE, nicht je m2
+const TRB_FUGE_KG    = 0.18;  // je m2, wie beim Boden
+// Die Stufenmasse stehen im Text: "25,0 cm x 1,30 m" bzw. "17,19 cm x 130 cm".
+// ACHTUNG bei der Reihenfolge (mm|cm|m): mit (cm|m|mm) trifft "130 mm" schon
+// auf das erste m und wird zu 130 Metern.
+function stufeMasse(txt){
+  const t=String(txt||'');
+  const einheit=function(z, e){
+    const v=parseFloat(String(z).replace(',','.'));
+    if(!isFinite(v)) return 0;
+    if(e==='mm') return v/1000;
+    if(e==='m')  return v;
+    return v/100;                      // cm ist der Normalfall im LV
+  };
+  let m=t.match(/(\d+(?:[.,]\d+)?)\s*(mm|cm|m)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)/i);
+  if(m){
+    const tiefe=einheit(m[1], m[2].toLowerCase()), breite=einheit(m[3], m[4].toLowerCase());
+    if(tiefe>0 && breite>0) return {tiefe:tiefe, breite:breite, quelle:'aus dem Positionstext'};
+  }
+  // Rueckfallweg: Steigungsverhaeltnis (Antritt/Auftritt) + Treppenbreite
+  const sv=t.match(/steigungsverh[^\d]*(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)\s*cm/i);
+  const tb=t.match(/treppenbreite[^\d]*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)/i);
+  if(sv && tb){
+    const istAntritt=/antritt/i.test(t);
+    const tiefe=einheit(istAntritt?sv[1]:sv[2], 'cm');
+    const breite=einheit(tb[1], tb[2].toLowerCase());
+    if(tiefe>0 && breite>0) return {tiefe:tiefe, breite:breite, quelle:'aus Steigungsverhältnis und Treppenbreite'};
+  }
+  return null;
+}
+function stufeFlaeche(p){
+  const t=parseFloat(p.stufeTiefe), b=parseFloat(p.stufeBreite);
+  if(t>0 && b>0) return {tiefe:t, breite:b, quelle:'von Hand eingetragen'};
+  return stufeMasse((p.desc||'')+' '+(p.langtext||''));
+}
+function epTreppenbelag(p, system){
+  const warn=[], zeilen=[];
+  const sys=SYSTEME[system]||SYSTEME.sakret;
+  const erkU=erkenneUmfang(p.desc, p.langtext);
+  if(!p.umfang) p.umfang=erkU.u;
+  if(!erkU.sicher) warn.push('PRUEFEN|Leistungsumfang prüfen – '+erkU.grund);
+  const mitFliese    = p.umfang!=='nur_verlegen';
+  const mitBauchemie = p.umfang!=='nur_liefern';
+  const mitLohn      = p.umfang!=='nur_liefern';
+
+  const ma=stufeFlaeche(p);
+  if(!ma){
+    warn.push('EINGABE|Stufenmaße nicht im Text gefunden – Tiefe und Breite im Rechner eintragen');
+    return {ep:0, zeilen:[['Stufenmaße','fehlen',0]], warn:warn};
+  }
+  const flaeche=ma.tiefe*ma.breite;
+  const mtxt=(ma.tiefe*100).toFixed(1).replace('.',',')+' cm × '
+           + (ma.breite*100).toFixed(0)+' cm = '+flaeche.toFixed(3).replace('.',',')+' m²';
+  zeilen.push(['Stufenfläche', mtxt, null]);
+
+  const ek=parseFloat(p.flieseEk)||0;
+  let fliese=0;
+  if(mitFliese){
+    if(!ek) warn.push('EINGABE|Fliesenpreis (€/m²) im Feld links eintragen');
+    fliese=ek*TRB_VERSCHNITT*flaeche;
+    zeilen.push(['Fliese', ek?(fmt(ek)+' €/m² × 1,20 Verschnitt × '+flaeche.toFixed(3).replace('.',',')):'—', fliese]);
+  } else {
+    zeilen.push(['Fliese','bauseits gestellt – nicht berechnet',0]);
+  }
+
+  let kleber=0, fuge=0;
+  if(mitBauchemie){
+    const kCfg=sys.kleber_klein, kA=findArtikel(kCfg.name, kCfg.nicht);
+    const kg=TRB_KLEBER_KG*flaeche;
+    const kgtxt=kg.toFixed(1).replace('.',',');
+    if(kA){ kleber=preisJe(kA,kCfg.gebinde)*kg;
+            zeilen.push(['Mörtelbett '+kgtxt+' kg', preisTxt(kA,kCfg.gebinde,'kg')+' × 12,0 kg/m²', kleber]); }
+    else  { warn.push('ARTIKEL|'+kCfg.name); zeilen.push(['Mörtelbett '+kgtxt+' kg','fehlt',0]); }
+    const fA=findArtikel(FUGE_STD.name, FUGE_STD.nicht);
+    const fkg=TRB_FUGE_KG*flaeche;
+    if(fA){ fuge=preisJe(fA,FUGE_STD.gebinde)*fkg;
+            zeilen.push(['Fuge '+fkg.toFixed(2).replace('.',',')+' kg', preisTxt(fA,FUGE_STD.gebinde,'kg')+' × 0,18 kg/m²', fuge]); }
+    else  { warn.push('ARTIKEL|'+FUGE_STD.name); zeilen.push(['Fuge','fehlt',0]); }
+  } else {
+    zeilen.push(['Mörtel + Fuge','nur Lieferung – keine Bauchemie',0]);
+  }
+
+  const roh=fliese+kleber+fuge;
+  const kalk=roh*1.20;
+  zeilen.push(['Material roh','',roh]);
+  zeilen.push(['Material × 1,20','',kalk]);
+  const lohn=mitLohn ? TRB_ZEIT_STK*LOHN() : 0;
+  if(mitLohn) zeilen.push(['Lohn je Stufe','0,60 h × '+fmt(LOHN()), lohn]);
+  else        zeilen.push(['Lohn','nur Lieferung – kein Lohn',0]);
+  // Rektifiziert wie beim Boden, aber auf die Stufenflaeche umgerechnet -
+  // der Zuschlag ist ein m2-Wert.
+  const autoRekt=istRektifiziert((p.desc||'')+' '+(p.langtext||''));
+  const rekt=(p.rektifiziert===undefined||p.rektifiziert===null) ? autoRekt : !!p.rektifiziert;
+  let zuschlag=0;
+  if(rekt && mitLohn){
+    zuschlag=REKT_ZUSCHLAG*flaeche;
+    zeilen.push(['Rektifiziert', 'enge Fugen · '+fmt(REKT_ZUSCHLAG)+' €/m² × '+flaeche.toFixed(3).replace('.',','), zuschlag]);
+  }
+  const ep=Math.round((kalk+lohn+zuschlag)*100)/100;
+  return {ep, zeilen, warn};
+}
 function epNaturstein(p, system){
   const warn=[], zeilen=[];
   const ek=parseFloat(p.flieseEk)||0;
@@ -3297,6 +3413,7 @@ function berechneEPKern(p, system){
   if(t==='profil') return epProfil(p, system);
   if(t==='naturstein') return epNaturstein(p, system);
   if(t==='betonwerkstein') return epBetonwerkstein(p, system);
+  if(t==='treppenbelag') return epTreppenbelag(p, system);
   if(t==='rohrkasten') return epRohrkasten(p, system);
   if(t==='duschelement') return epDuschelement(p, system);
   if(t==='reinigung') return epReinigung(p);
@@ -3361,7 +3478,7 @@ function autoEP(p, system){
 
   // Fliesen-Typen ohne Fliesenpreis sind NICHT rechenbar -> rot,
   // ausser die Fliese ist bauseits gestellt ("nur verlegen").
-  const brauchtFliese = ['wand','boden','naturstein','betonwerkstein','reservefliesen'].indexOf(p.typ) > -1
+  const brauchtFliese = ['wand','boden','naturstein','betonwerkstein','treppenbelag','reservefliesen'].indexOf(p.typ) > -1
                         && p.umfang !== 'nur_verlegen';
   const flieseFehlt   = brauchtFliese && !(parseFloat(p.flieseEk) > 0);
 
@@ -3557,13 +3674,13 @@ function renderCalcOut(i){
 }
 function renderCalcHTML(i){
   const p=LV.pos[i];
-  const SUP=['wand','boden','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
+  const SUP=['wand','boden','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','treppenbelag','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
   if(SUP.indexOf(p.typ)<0){
     const lbl=(TYPEN.find(t=>t[0]===p.typ)||['','dieser Typ'])[1];
     return '<div style="font-size:12px;color:var(--muted);padding:12px 0">EP-Rechner für „'+lbl+'" ist noch nicht gebaut. Kommt Schritt für Schritt dazu.</div>';
   }
   let felder='';
-  if(p.typ==='wand' || p.typ==='boden' || p.typ==='betonwerkstein'){
+  if(p.typ==='wand' || p.typ==='boden' || p.typ==='betonwerkstein' || p.typ==='treppenbelag'){
     const erkU=erkenneUmfang(p.desc, p.langtext);
     if(!p.umfang) p.umfang=erkU.u;
     const ampelU = erkU.sicher ? '<span style="color:#1a9e4b">🟢 '+erkU.grund+'</span>' : '<span style="color:#e0a800">🟡 '+erkU.grund+'</span>';
@@ -3691,6 +3808,20 @@ function renderCalcHTML(i){
       +'<select onchange="setStufe('+i+',this.value)" style="width:auto;padding:6px 8px">'
       + STUFEN.map(s=>'<option value="'+s[0]+'"'+(s[0]===p.stufe?' selected':'')+'>'+s[1]+'</option>').join('')
       +'</select><div style="font-size:11px;color:var(--muted);margin-top:3px">'+erkannt+'</div>'+hinweisGF+'</div>';
+  }
+  if(p.typ==='treppenbelag'){
+    const ma=stufeFlaeche(p);
+    const fl=ma ? (ma.tiefe*ma.breite) : 0;
+    const hinweis = ma
+      ? '<span style="color:#1a9e4b">🟢 '+esc(ma.quelle)+' · '+fl.toFixed(3).replace('.',',')+' m² je Stufe</span>'
+      : '<span style="color:var(--red)">🔴 im Text nicht gefunden – bitte eintragen</span>';
+    felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Stufe: Tiefe × Breite (cm)'
+      + ' <button class="bg sm" style="padding:2px 7px;font-size:11px" onclick="stufeAusLV('+i+')" title="Maße neu aus dem LV-Text lesen">🔄 aus LV</button></div>'
+      + '<input type="number" step="0.1" value="'+(ma?(ma.tiefe*100).toFixed(2).replace(/\.?0+$/,''):'')+'" placeholder="25" '
+      + 'oninput="setStufeMass('+i+',\'stufeTiefe\',this.value)" style="width:80px;padding:6px 8px"> × '
+      + '<input type="number" step="0.1" value="'+(ma?(ma.breite*100).toFixed(2).replace(/\.?0+$/,''):'')+'" placeholder="130" '
+      + 'oninput="setStufeMass('+i+',\'stufeBreite\',this.value)" style="width:80px;padding:6px 8px">'
+      + '<div style="font-size:11px;margin-top:3px">'+hinweis+'</div></div>';
   }
   if(p.typ==='baustelle'){
     const basis=baustelleBasis();
@@ -3924,7 +4055,7 @@ function renderCalcHTML(i){
                         : '<span style="color:#1a9e4b">🟢 aus der Überschrift erkannt</span>')
       +'</div></div>';
   }
-  if(p.typ==='wand'||p.typ==='boden'){
+  if(p.typ==='wand'||p.typ==='boden'||p.typ==='treppenbelag'){
     const autoRk = istRektifiziert((p.desc||'')+' '+(p.langtext||''));
     const rk = (p.rektifiziert===undefined || p.rektifiziert===null) ? autoRk : !!p.rektifiziert;
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Rektifiziert</div>'
@@ -4287,6 +4418,20 @@ function nebenangebot(i){
   toast(p.nebenangebot?'Als Nebenangebot markiert':'Nebenangebot-Markierung entfernt');
 }
 function setFliese(i,v){ LV.pos[i].flieseEk=parseFloat(v)||0; calcGeaendertLeise(i); }
+// Stufenmasse werden in cm eingegeben, gerechnet wird in Metern.
+function setStufeMass(i,feld,v){
+  const cm=parseFloat(String(v).replace(',','.'));
+  LV.pos[i][feld] = (cm>0) ? cm/100 : '';
+  calcGeaendertLeise(i);
+}
+function stufeAusLV(i){
+  const p=LV.pos[i];
+  p.stufeTiefe=''; p.stufeBreite='';
+  const ma=stufeMasse((p.desc||'')+' '+(p.langtext||''));
+  toast(ma ? ('Stufe aus dem LV: '+(ma.tiefe*100).toFixed(1).replace('.',',')+' cm × '+(ma.breite*100).toFixed(0)+' cm')
+           : 'Im LV-Text stehen keine Stufenmaße – bitte von Hand eintragen.');
+  calcGeaendert(i);
+}
 function uebernehmeEP(i){ const r=berechneEP(LV.pos[i], LV.system||'sakret'); LV.pos[i].ep=r.ep; LV.pos[i].status='gruen'; renderLV(); doSave(true); toast('EP übernommen: '+fmt(r.ep)+' €'); }
 function setLvSystem(v){ LV.system=v; renderLV(); }
 
