@@ -362,7 +362,8 @@ tr:hover td{background:#fafafa}
           <option value="fliesen">Fliesen</option><option value="kleber">Kleber</option>
           <option value="fuge">Fuge & Silikon</option><option value="grundierung">Grundierung</option>
           <option value="abdichtung">Abdichtung</option><option value="profile">Profile</option>
-          <option value="emco">EMCO</option><option value="bauplatten">Bauplatten</option><option value="sonstiges">Sonstiges</option>
+          <option value="emco">EMCO</option><option value="bauplatten">Bauplatten</option>
+          <option value="duschelement">Duschelemente</option><option value="sonstiges">Sonstiges</option>
         </select>
       </div>
       <div class="f"><label>Lieferant</label><select id="np-l"><option value="">– wählen –</option></select></div>
@@ -390,6 +391,7 @@ tr:hover td{background:#fafafa}
       <button class="fb-btn" data-kat="profile" onclick="filtP('profile',this)">Profile</button>
       <button class="fb-btn" data-kat="emco" onclick="filtP('emco',this)">EMCO</button>
       <button class="fb-btn" data-kat="bauplatten" onclick="filtP('bauplatten',this)">Bauplatten</button>
+      <button class="fb-btn" data-kat="duschelement" onclick="filtP('duschelement',this)">Duschelemente</button>
       <button class="fb-btn" data-kat="sonstiges" onclick="filtP('sonstiges',this)">Sonstiges</button>
     </div>
     <div id="bauplatten-import" style="margin:6px 0;padding:8px 12px;background:#eef4fb;border:1px solid #d3e2f2;border-radius:8px;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -753,7 +755,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 64';
+const APP_STAND = '27.08.2026 · 65';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5531,6 +5533,8 @@ function renderP(){
               <option value="abdichtung" ${p.kat==='abdichtung'?'selected':''}>Abdichtung</option>
               <option value="profile" ${p.kat==='profile'?'selected':''}>Profile</option>
               <option value="emco" ${p.kat==='emco'?'selected':''}>EMCO</option>
+              <option value="bauplatten" ${p.kat==='bauplatten'?'selected':''}>Bauplatten</option>
+              <option value="duschelement" ${p.kat==='duschelement'?'selected':''}>Duschelemente</option>
               <option value="sonstiges" ${p.kat==='sonstiges'?'selected':''}>Sonstiges</option>
             </select>
           </div>
