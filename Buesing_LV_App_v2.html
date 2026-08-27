@@ -406,6 +406,8 @@ tr:hover td{background:#fafafa}
       <div class="sw" style="flex:1 1 240px"><span class="si">🔍</span><input type="text" id="ps3" placeholder="Artikel suchen…" oninput="renderP()"></div>
       <button class="bg sm" onclick="doExportPreise()" title="Alle Artikel als Datei sichern – zum Weitergeben oder Prüfen">💾 Preisdatenbank exportieren</button>
       <button class="bg sm" onclick="importAbdichtPreise()" title="Setzt bei den Sakret-Systemartikeln Preis, Einheit, Artikelnummer und Datum auf die Krüger-Auftragsbestätigung vom 22.05.2026">🔧 Sakret-Preise prüfen &amp; reparieren</button>
+      <button class="bg sm" onclick="document.getElementById('preisdatei').click()" title="Eine vorbereitete Preisliste (JSON) direkt einlesen – ohne KI, Zeile für Zeile wie in der Datei">📥 Preisliste einlesen</button>
+      <input type="file" id="preisdatei" accept=".json" style="display:none" onchange="preislisteEinlesen(this.files[0]); this.value='';">
     </div>
     <div style="overflow-x:auto">
       <table>
@@ -750,7 +752,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 61';
+const APP_STAND = '27.08.2026 · 63';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -800,6 +802,66 @@ async function dbGetPreise(){
   return null;
 }
 
+// Eine fertig aufbereitete Preisliste direkt uebernehmen. Der normale Weg
+// laesst die KI ein PDF lesen - bei 220 Zeilen aus einem Preisblatt mit vier
+// Preisspalten ist das zu unsicher (Erik 27.08.2026, Rinklake-Liste).
+// Artikel mit gleichem Lieferanten UND gleichem Namen werden aktualisiert,
+// alles andere kommt neu dazu. Nichts wird geloescht.
+async function preislisteEinlesen(datei){
+  if(!datei) return;
+  let liste;
+  try{
+    liste = JSON.parse(await datei.text());
+    if(!Array.isArray(liste)) liste = liste.preise || liste.artikel;
+    if(!Array.isArray(liste) || !liste.length) throw new Error('keine Artikelliste');
+  }catch(e){
+    toast('Datei nicht lesbar: '+(e.message||e)); return;
+  }
+  const schluessel = function(x){
+    return String(x.lief||'').toLowerCase().trim()+'|'+String(x.name||'').replace(/\s*⭐/,'').toLowerCase().replace(/\s+/g,' ').trim();
+  };
+  const vorhanden = {};
+  (PREISE||[]).forEach(function(x,i){ vorhanden[schluessel(x)] = i; });
+  // Derselbe Artikel, nur kuerzer benannt: "Rinklake FE 100" in der Datenbank,
+  // "Rinklake FE 100 Fliesenschiene" in der neuen Liste. Ohne diese Zeile
+  // stuenden beide nebeneinander (Erik 27.08.2026).
+  const findeKurz = function(neuSchl){
+    const t=neuSchl.split('|'); const lief=t[0], name=t[1];
+    for(const k in vorhanden){
+      const p2=k.split('|');
+      if(p2[0]!==lief || !p2[1]) continue;
+      if(name.length>p2[1].length && name.indexOf(p2[1]+' ')===0) return vorhanden[k];
+    }
+    return undefined;
+  };
+  let neu=0, aktualisiert=0, uebersprungen=0;
+  liste.forEach(function(x){
+    if(!x || !x.name || !(parseFloat(x.ek)>0)){ uebersprungen++; return; }
+    const k=schluessel(x);
+    const treffer = (vorhanden[k]!==undefined) ? vorhanden[k] : findeKurz(k);
+    if(treffer!==undefined){
+      const alt=PREISE[treffer];
+      alt.name = x.name;              // den ausfuehrlicheren Namen uebernehmen
+      alt.ek=parseFloat(x.ek);
+      if(x.eu) alt.eu=x.eu;
+      if(x.artnr) alt.artnr=x.artnr;
+      if(x.dat) alt.dat=x.dat;
+      alt.geprueft='';
+      aktualisiert++;
+    } else {
+      PREISE.push({id:0, artnr:x.artnr||'', name:x.name, kat:x.kat||'sonstiges',
+                   ek:parseFloat(x.ek), eu:x.eu||'', format:x.format||'',
+                   lief:x.lief||'', dat:x.dat||'', geprueft:'',
+                   einzelpreis:(x.einzelpreis!==false),
+                   je_grundeinheit:(x.je_grundeinheit!=null?x.je_grundeinheit:null),
+                   grundeinheit:x.grundeinheit||''});
+      neu++;
+    }
+  });
+  renderP();
+  await dbSavePreise();
+  toast(neu+' neu · '+aktualisiert+' aktualisiert'+(uebersprungen?(' · '+uebersprungen+' ohne Preis übersprungen'):''));
+}
 async function dbSavePreise(){
   try{
     const res = await fetch(API_URL + '?action=save_preise', {
@@ -5799,6 +5861,21 @@ function sysNorm(s){ return (s||'').toLowerCase().replace(/[^a-z0-9äöüß]+/g,
 // Sucht den passenden Artikel in der Preisdatenbank über Stichwort-Abgleich
 function findArtikel(name, nicht){
   if(!PREISE || !PREISE.length) return null;
+  // Der EXAKTE Name gewinnt immer. Die Punktesuche unten wirft Woerter unter
+  // drei Buchstaben weg - aus "Rinklake FE 100" wird "rinklake 100", und das
+  // passt genauso auf FEQ-S 100 oder FEG 100. Solange nur drei
+  // Rinklake-Artikel in der Datenbank standen, fiel das nicht auf; mit der
+  // vollen Preisliste (220 Artikel) schon (Erik 27.08.2026).
+  const gesucht = sysNorm(name);
+  const tabuE = (nicht||[]).map(sysNorm).filter(Boolean);
+  const exakt = PREISE.filter(function(x){
+    const n=sysNorm(x.name);
+    return n===gesucht && !tabuE.some(function(t){ return n.includes(t); });
+  });
+  if(exakt.length){
+    const zeitE = function(a){ const d=preisDatum(a); return d ? d.getTime() : -1; };
+    return exakt.sort(function(a,b){ return zeitE(b)-zeitE(a); })[0];
+  }
   const ziel = sysNorm(name).split(' ').filter(w=>w.length>=3);
   if(!ziel.length) return null;
   // Ausschluss-Woerter: verhindern Fehlgriffe bei aehnlichen Namen
