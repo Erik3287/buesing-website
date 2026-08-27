@@ -1776,6 +1776,9 @@ function betonwerksteinKandidaten(){
   return (PREISE||[]).filter(function(x){
     const e=String(x.eu||'').toLowerCase().replace(/^\//,'');
     if(e!=='m2' && e!=='m²') return false;
+    // Fensterbaenke, Stufen und Sockel sind kein Bodenbelag - die Agglo
+    // Marmor Fensterbank zu 229,11 EUR/m2 stand sonst mit in der Auswahl.
+    if(/fensterbank|fensterb\.|trittstufe|setzstufe|winkelstufe|sockel|abdeckplatte/i.test(x.name||'')) return false;
     return /betonwerkstein|werksteinplatte|bodenplatte\s*r?\d|agglo/i.test(x.name||'');
   }).sort(function(a,b){ return (a.ek||0)-(b.ek||0); });
 }
@@ -3562,7 +3565,11 @@ function renderCalcHTML(i){
       +'<select onchange="setUmfang('+i+',this.value)" style="width:auto;padding:6px 8px">'
       + UMFAENGE.map(function(u){return '<option value="'+u[0]+'"'+(u[0]===p.umfang?' selected':'')+'>'+u[1]+'</option>';}).join('')
       +'</select><div style="font-size:11px;margin-top:3px">'+ampelU+'</div></div>';
-    if(p.umfang!=='nur_verlegen'){
+    // Betonwerkstein braucht nur die Umfang-Auswahl von hier oben. Alles
+    // Weitere in diesem Block ist Fliesen-Sache (Fabrikat, Rutschklasse,
+    // rektifiziert, Fliesenpreis) - stand es mit drin, hatte 15.03.6 zwei
+    // EK-Felder untereinander und ein rotes "Kein Fabrikat/Preis".
+    if(p.umfang!=='nur_verlegen' && p.typ!=='betonwerkstein'){
       const txtAll=(p.desc||'')+' '+(p.langtext||'');
       const alleFab = fabrikateAusText(txtAll);
       const ausgeschrieben = alleFab.length ? alleFab[0] : null;
