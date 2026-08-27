@@ -750,7 +750,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 50';
+const APP_STAND = '27.08.2026 · 52';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1296,7 +1296,8 @@ const TYP_REGELN = [
   ['abdicht_flaeche',['alternative abdichtung','dichtungsfolie','dichtbahn','verbundabdichtung','seccoral','abdichten','abdichtung']],
   ['spachtel',      ['vorspachtel','vorspachteln']],
   ['grundierung',   ['haftgrund','haftbrücke','haftschlämme','gisogrund','verbundestrich','grundierung','grundieren','voranstrich','primer']],
-  ['profil',        ['kantenschutzprofil','kantenschutz','kantenprofil','fliesenprofil','winkelprofil','winkelschiene','abschlussprofil','eckschutz','übergangsprofil','edelstahlschiene','türabschluss','winkelrahmen','belagsabschluss','profil','schiene']],
+  ['profil',        ['kantenschutzprofil','kantenschutz','kantenprofil','fliesenprofil','winkelprofil','winkelschiene','abschlussprofil','eckschutz','übergangsprofil','edelstahlschiene','türabschluss','winkelrahmen','belagsabschluss','profil','schiene',
+                     'trennschiene','trennschien','trennprofil']],
   // Nur der Betonwerkstein-BODEN. Mit den weiten Woertern ("betonwerkstein",
   // "din 18500", "verbundverlegung") sind im LV-15 auch Trittstufen,
   // Setzstufen, Sockel und sogar "Erstbehandlung und Einpflege" hier
@@ -1592,6 +1593,14 @@ const OF_WORTE = {
 function erkenneOberflaeche(text){
   const t=(text||'').toLowerCase();
   if(t.indexOf('türabschluss')>-1||t.indexOf('tuerabschluss')>-1) return {of:'glaenzend', sicher:true, grund:'Türabschluss → immer glänzend'};
+  // Edelstahl geht vor. Bei 15.04.12 ("Trennschiene aus Edelstahl (V2A) ...
+  // Fabrk. Profil Schlueter") gewann sonst das Wort "Schlueter" und die App
+  // rechnete mit einem pulverbeschichteten Alu-Profil (Erik 27.08.2026).
+  if(/edelstahl|v2a|v4a|1\.4301|1\.4571/.test(t)){
+    const geb = OF_WORTE.gebuerstet.some(function(w){ return t.indexOf(w)>-1; });
+    return {of: geb?'gebuerstet':'glaenzend', sicher:true,
+            grund:'Edelstahl erkannt'+(geb?' – gebürstet':' – blank')};
+  }
   const treffer=[];
   for(const key in OF_WORTE){ if(OF_WORTE[key].some(function(w){return t.indexOf(w)>-1;})) treffer.push(key); }
   if(treffer.length===1) return {of:treffer[0], sicher:true, grund:'im LV-Text erkannt'};
