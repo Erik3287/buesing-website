@@ -3278,7 +3278,8 @@ function epTreppenbelag(p, system){
 // Der Verschnitt steckt schon in dieser Regel - kein Aufschlag obendrauf.
 const SOCKEL_QM_STD  = 0.15;   // m2 je lfdm, wenn im Text kein Format steht
 const SOCKEL_KLEBER  = 1.00;   // EUR je lfdm (Erik: "Nimm fuer Kleber 1 Euro pro Meter")
-const SOCKEL_ZEIT    = 10/60;  // h je lfdm (Erik: "10 Minuten pro Meter")
+const SOCKEL_ZEIT    = 0.12;   // h je lfdm = 7,2 min (Erik 27.08.2026: erst
+                               // 10 min, dann "7,2 sind gut. Das nehmen wir")
 function sockelQmProM(txt){
   const f=formatAusText(txt);
   if(!f || !f.a || !f.b) return null;
@@ -3321,7 +3322,7 @@ function epSockel(p, system){
   zeilen.push(['Material roh','',roh]);
   zeilen.push(['Material × 1,20','',kalk]);
   const lohn=mitLohn ? SOCKEL_ZEIT*LOHN() : 0;
-  if(mitLohn) zeilen.push(['Lohn je Meter','10 min × '+fmt(LOHN())+'/h', lohn]);
+  if(mitLohn) zeilen.push(['Lohn je Meter','0,12 h (7,2 min) × '+fmt(LOHN()), lohn]);
   else        zeilen.push(['Lohn','nur Lieferung – kein Lohn',0]);
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn};
