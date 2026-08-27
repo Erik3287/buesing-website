@@ -750,7 +750,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 57';
+const APP_STAND = '27.08.2026 · 58';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1272,7 +1272,9 @@ const TYP_REGELN = [
   ['baustelle',     ['baustelleneinrichtung','baustelle einrichten']],
   ['reservefliesen',['reservefliesen','lieferung von reserve']],
   ['ablauf_doppel', ['doppelstöckig','doppelstoeckig']],
-  ['ablauf',        ['ablaufgarnitur','anarbeiten eines bodenablaufs','bodenablaufs','bodenablauf']],
+  ['ablauf',        ['ablaufgarnitur','anarbeiten eines bodenablaufs','bodenablaufs','bodenablauf',
+                     // 'Zulage Bodeneinlauf einfliesen' - dieselbe Leistung, anderes Wort
+                     'bodeneinlauf','bodeneinläufe','duschrinne einfliesen']],
   ['rohrkasten',    ['rohrkasten','rohrverkleidung','vorwandinstallation verkleiden','schacht verkleiden','installationsschacht']],
   ['duschelement',  ['duschelement','gefälle im fliesenbereich','verfliesbares','jackoboard']],
   ['hohlkehlsockel',['hohlkehlsockel','hohlkehle']],
@@ -1288,15 +1290,18 @@ const TYP_REGELN = [
   ['fb_kante',      ['seitliches schleifen','seitliche schleifen','kante schleifen']],
   ['fensterbank',   ['fensterbank kunststein','fensterbank naturstein','fensterbank kunstst']],
   ['fliesentausch', ['austausch einzelner','bestandswandfliesen gegen','austausch einzelne']],
-  ['loch',          ['ausbildung von löchern','löcher','löchern']],
+  ['loch',          ['ausbildung von löchern','löcher','löchern','öffnung anlegen','öffnungen anlegen','durchbruch anlegen']],
   // 'Erstbehandlung und Einpflege ... unter Verwendung von
   // Spezial-Impraegniermittel' - das Wort 'Impraegnierung' kommt darin gar
   // nicht vor, deshalb blieben die vier Positionen ohne Typ (27.08.2026).
   ['behandlung',    ['imprägnierung','imprägniermittel','impraegniermittel',
                      'erstbehandlung','einpflege','oberflächenbehandlung','fleckschutz']],
-  ['dichtband',     ['dichtband','dichtstreifen','anschlussband']],
+  ['dichtband',     ['dichtband','dichtstreifen','anschlussband','sicherheitsdichtband',
+                     // Vliesgewebe wird wie ein Dichtband nach Metern verlegt
+                     'vliesgewebe','dichtgewebe','gewebeband']],
   ['manschette',    ['dichtmanschette','manschette','rohrdurchgäng','rohrdurchgang']],
-  ['dichtecke',     ['dichtecke','dichtecken']],
+  ['dichtecke',     ['dichtecke','dichtecken','außenecken','aussenecken','innenecken',
+                     'abdichten von außenecken','abdichten von aussenecken']],
   ['entkopplung',   ['entkopplungsmatte','entkoppelungsmatte','entkopplung','entkoppeln','enkoppeln','ditra','kerdimatte','verbundentkopplung']],
   ['abdicht_flaeche',['alternative abdichtung','dichtungsfolie','dichtbahn','verbundabdichtung','seccoral','abdichten','abdichtung']],
   ['spachtel',      ['vorspachtel','vorspachteln']],
