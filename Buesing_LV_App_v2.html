@@ -750,7 +750,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 46';
+const APP_STAND = '27.08.2026 · 47';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1251,7 +1251,7 @@ async function kiPreise(input){
 // POSITIONS-TYP-ERKENNUNG
 // ============================================
 const TYPEN = [
-  ['wand','Wand verlegen'],['boden','Boden verlegen'],['naturstein','Naturstein'],['betonwerkstein','Betonwerkstein'],['treppenbelag','Treppenbelag'],['sockel','Sockelfliesen (lfdm)'],['fensterbank','Fensterbank (lfdm)'],
+  ['wand','Wand verlegen'],['boden','Boden verlegen'],['naturstein','Naturstein'],['betonwerkstein','Betonwerkstein'],['treppenbelag','Treppenbelag'],['sockel','Sockelfliesen (lfdm)'],['fensterbank','Fensterbank (lfdm)'],['fb_rundung','Fensterbank Ecke rund'],['fb_kante','Fensterbank Kante schleifen'],
   ['abdicht_flaeche','Abdichtung Fläche'],['dichtband','Dichtband'],['manschette','Manschette'],['dichtecke','Dichtecke'],
   ['grundierung','Grundierung'],['spachtel','Vorspachtel'],['entkopplung','Entkopplung Boden'],['stundenlohn','Stundenlohn'],
   ['profil','Profil/Schiene'],['reservefliesen','Reservefliesen'],['loch','Loch/Anschnitt'],
@@ -1276,6 +1276,8 @@ const TYP_REGELN = [
   // (15.09.5), die Kopfbearbeitung (15.09.4, nach Stueck), die
   // Titel-Ueberschrift 15.09 und die GEFLIESTEN Innenfensterbaenke
   // (15.06.01.23) in diesen Typ - alles andere Leistungen.
+  ['fb_rundung',    ['anarbeitung rundung','kopfbearbeitung','ecken abgerundet']],
+  ['fb_kante',      ['seitliches schleifen','seitliche schleifen','kante schleifen']],
   ['fensterbank',   ['fensterbank kunststein','fensterbank naturstein','fensterbank kunstst']],
   ['fliesentausch', ['austausch einzelner','bestandswandfliesen gegen','austausch einzelne']],
   ['loch',          ['ausbildung von löchern','löcher','löchern']],
@@ -1332,9 +1334,9 @@ function typNorm(t){
 const TYP_EINHEIT = {
   flaeche: ['wand','boden','naturstein','betonwerkstein','abdicht_flaeche','entkopplung','grundierung','spachtel',
             'duschelement','reinigung','behandlung','schutz','sauberlaufmatte','reservefliesen'],
-  laenge:  ['dichtband','profil','hohlkehlsockel','sockel','fensterbank','silikon','randfuge','sauberlaufrahmen','rohrkasten'],
+  laenge:  ['dichtband','profil','hohlkehlsockel','sockel','fensterbank','fb_kante','silikon','randfuge','sauberlaufrahmen','rohrkasten'],
   zeit:    ['stundenlohn'],
-  stueck:  ['manschette','dichtecke','loch','ablauf','ablauf_doppel','fliesentausch','treppenbelag'],
+  stueck:  ['manschette','dichtecke','loch','ablauf','ablauf_doppel','fliesentausch','treppenbelag','fb_rundung'],
 };
 function einheitKlasse(eh){
   const e=typNorm(eh).replace(/[^a-z0-9²]/g,'');
@@ -1394,7 +1396,7 @@ function pruefeTyp(text){
 // Treppenbelag") - beide wurden dadurch zu Fliesen-Treppenbelag erklaert.
 // Aus der Ueberschrift heraus greift der Typ weiter: alle vier echten
 // Positionen heissen "Treppenfliesen, Auf-/Antritt der Treppenstufen".
-const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge','treppenbelag','fensterbank'];
+const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge','treppenbelag','fensterbank','fb_rundung','fb_kante'];
 function erkenneTyp(desc, langtext, einheit){
   const soll = einheitKlasse(einheit);
   if(soll==='zeit') return 'stundenlohn';
@@ -2888,6 +2890,10 @@ const FESTPREISE = {
   randfuge:      {ep:4.90,  label:'Randfuge / Randdämmstreifen (vor Estrich)'},
   reinigung:     {ep:1.60,  label:'Untergrund säubern (vor dem Verlegen)'},
   behandlung:    {ep:14.55, label:'Imprägnierung / Fleckschutz'},
+  // Fensterbank-Zulagen, Erik am 27.08.2026. Die Kante wird so weit
+  // geschliffen und poliert, wie die Bank aus der Wand vorsteht.
+  fb_rundung:    {ep:41.50, label:'Fensterbank – Ecke abgerundet (R 15 mm)'},
+  fb_kante:      {ep:14.90, label:'Fensterbank – Kante seitlich geschliffen und poliert'},
 };
 // ===== REINIGUNG: zwei verschiedene Arbeiten (Erik 27.08.2026) ============
 // "Untergrund saeubern" ist der Besen VOR dem Verlegen - 1,60 EUR/m².
@@ -3854,7 +3860,7 @@ function renderCalcOut(i){
 }
 function renderCalcHTML(i){
   const p=LV.pos[i];
-  const SUP=['wand','boden','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','treppenbelag','sockel','fensterbank','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
+  const SUP=['wand','boden','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','treppenbelag','sockel','fensterbank','fb_rundung','fb_kante','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
   if(SUP.indexOf(p.typ)<0){
     const lbl=(TYPEN.find(t=>t[0]===p.typ)||['','dieser Typ'])[1];
     return '<div style="font-size:12px;color:var(--muted);padding:12px 0">EP-Rechner für „'+lbl+'" ist noch nicht gebaut. Kommt Schritt für Schritt dazu.</div>';
