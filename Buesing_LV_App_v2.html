@@ -3131,7 +3131,8 @@ const TRB_VERSCHNITT = 1.20;  // aus der 30er Fliese wird ein 25-cm-Auftritt
                               // geschnitten - Boden hat 1,06
 const TRB_KLEBER_KG  = 12.0;  // je m2 - MOERTELBETT ("Konstruktionshoehe
                               // ca. 30 mm"), nicht Duennbett wie beim Boden (3,0)
-const TRB_ZEIT_STK   = 0.60;  // h JE STUFE, nicht je m2
+const TRB_ZEIT_STK   = 1.00;  // h JE STUFE, nicht je m2. Erik am 27.08.2026
+                              // von 0,60 auf 1,00 heraufgesetzt.
 const TRB_FUGE_KG    = 0.18;  // je m2, wie beim Boden
 // Die Stufenmasse stehen im Text: "25,0 cm x 1,30 m" bzw. "17,19 cm x 130 cm".
 // ACHTUNG bei der Reihenfolge (mm|cm|m): mit (cm|m|mm) trifft "130 mm" schon
@@ -3218,7 +3219,7 @@ function epTreppenbelag(p, system){
   zeilen.push(['Material roh','',roh]);
   zeilen.push(['Material × 1,20','',kalk]);
   const lohn=mitLohn ? TRB_ZEIT_STK*LOHN() : 0;
-  if(mitLohn) zeilen.push(['Lohn je Stufe','0,60 h × '+fmt(LOHN()), lohn]);
+  if(mitLohn) zeilen.push(['Lohn je Stufe', TRB_ZEIT_STK.toFixed(2).replace('.',',')+' h × '+fmt(LOHN()), lohn]);
   else        zeilen.push(['Lohn','nur Lieferung – kein Lohn',0]);
   // Rektifiziert wie beim Boden, aber auf die Stufenflaeche umgerechnet -
   // der Zuschlag ist ein m2-Wert.
