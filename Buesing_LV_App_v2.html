@@ -750,7 +750,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 60';
+const APP_STAND = '27.08.2026 · 61';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -2835,11 +2835,19 @@ function epGrundierung(p, system){
 }
 function epSpachtel(p, system){
   const warn=[], zeilen=[];
-  // "Untergrundausgleichsschicht", "Ausgleichsschicht", "Nivellier" -> das
-  // ist der Bodenausgleich, nicht die standfeste Vorspachtelung.
-  const autoAusgleich = /ausgleichsschicht|untergrundausgleich|bodenausgleich|nivellier|ausgleichsmasse|mit gefälle/i
-                          .test((p.desc||'')+' '+(p.langtext||''));
+  const spTxt=(p.desc||'')+' '+(p.langtext||'');
+  // GEFAELLE schliesst die Ausgleichsmasse aus. Erik am 27.08.2026:
+  // "Bodenausgleichsmasse ist selbstverlaufend - somit kann sie nicht dafuer
+  // genutzt werden, um ein Gefaelle zu spachteln (weil sie ja verlaeuft).
+  // Somit geht das nur mit Sakret WBS." Ich hatte "mit Gefaelle" zuvor sogar
+  // als Ausloeser FUER die Ausgleichsmasse eingebaut - genau verkehrt herum.
+  const mitGefaelle = /gefälle|gefaelle/i.test(spTxt);
+  const autoAusgleich = !mitGefaelle
+      && /ausgleichsschicht|untergrundausgleich|bodenausgleich|nivellier|ausgleichsmasse/i.test(spTxt);
   const modus = p.spachtelModus || (autoAusgleich ? 'ausgleich' : 'vorspachtel');
+  if(modus==='ausgleich' && mitGefaelle){
+    warn.push('PRUEFEN|Das LV verlangt ein Gefälle – eine selbstverlaufende Ausgleichsmasse kann keins halten. Standfeste Spachtelmasse (WBS) wählen.');
+  }
   if(modus==='ausgleich'){
     // Bodenausgleich: schichtdickenabhaengig, 1,6 kg/m² je mm, 8 min/m²
     const ausText = spachtelDickeAusText((p.desc||'')+' '+(p.langtext||''));
@@ -4505,8 +4513,10 @@ function renderCalcHTML(i){
   }
   if(p.typ==='spachtel'){
     if(!p.spachtelModus){
-      p.spachtelModus = /ausgleichsschicht|untergrundausgleich|bodenausgleich|nivellier|ausgleichsmasse|mit gefälle/i
-                          .test((p.desc||'')+' '+(p.langtext||'')) ? 'ausgleich' : 'vorspachtel';
+      const spT=(p.desc||'')+' '+(p.langtext||'');
+      p.spachtelModus = (!/gefälle|gefaelle/i.test(spT)
+          && /ausgleichsschicht|untergrundausgleich|bodenausgleich|nivellier|ausgleichsmasse/i.test(spT))
+        ? 'ausgleich' : 'vorspachtel';
     }
     const ausText = spachtelDickeAusText((p.desc||'')+' '+(p.langtext||''));
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Art der Spachtelung</div>'
