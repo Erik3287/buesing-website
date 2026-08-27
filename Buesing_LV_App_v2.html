@@ -1803,6 +1803,27 @@ function betonwerksteinKandidaten(){
     return /betonwerkstein|werksteinplatte|bodenplatte\s*r?\d|agglo/i.test(x.name||'');
   }).sort(function(a,b){ return (a.ek||0)-(b.ek||0); });
 }
+// Dieselbe Fliese steht oft in mehreren Positionen: die Bodenflaeche und
+// die Treppenstufen dazu nennen exakt dieselben Fabrikate. Erik am
+// 27.08.2026 zu 15.03.7: "der Fliesenpreis fehlt" - er hatte sie bei
+// 15.03.4 laengst gewaehlt. Was in einer Position entschieden ist, soll
+// die naechste vorschlagen.
+function fabSchluessel(p){
+  const f=fabrikateAusText((p.desc||'')+' '+(p.langtext||''));
+  if(!f.length) return '';
+  return f.map(function(x){ return fabToken(x).join(' '); }).sort().join(' | ');
+}
+function flieseAusNachbar(p){
+  const key=fabSchluessel(p);
+  if(!key || !LV.pos) return null;
+  for(const q of LV.pos){
+    if(q===p) continue;
+    if(!q.fabrikat || !(parseFloat(q.flieseEk)>0)) continue;
+    if(fabSchluessel(q)!==key) continue;
+    return {nr:q.nr||'', name:q.fabrikat, ek:parseFloat(q.flieseEk)};
+  }
+  return null;
+}
 // ===== LIEFERANT JE POSITION =============================================
 // Erik am 27.08.2026: "mach einfach einen Button mit dem Lieferanten." Er
 // steht unter dem Rechner-Symbol, damit man in der Liste auf einen Blick
@@ -3651,8 +3672,13 @@ function renderCalcOut(i){
   const p=LV.pos[i];
   const r=berechneEP(p, LV.system||'sakret');
   let h='<table style="width:100%;font-size:12px;border-collapse:collapse">';
-  r.zeilen.forEach(z=>{ h+='<tr><td style="padding:2px 0;color:#555">'+z[0]+'</td><td style="padding:2px 8px;color:#999;text-align:right">'+z[1]+'</td><td style="padding:2px 0;text-align:right;font-weight:600">'+fmt(z[2])+' €</td></tr>'; });
+  // Eine Zeile ohne Betrag (z[2] === null) ist eine reine Angabe, kein
+  // Posten - die Stufenflaeche stand sonst mit "0,00 EUR" da (27.08.2026).
+  r.zeilen.forEach(z=>{ h+='<tr><td style="padding:2px 0;color:#555">'+z[0]+'</td><td style="padding:2px 8px;color:#999;text-align:right">'+z[1]+'</td><td style="padding:2px 0;text-align:right;font-weight:600">'+(z[2]===null?'':(fmt(z[2])+' €'))+'</td></tr>'; });
   const STK=['manschette','dichtecke','loch','ablauf','ablauf_doppel','fliesentausch','sauberlaufmatte'];
+  // Jeder Typ, der laut TYP_EINHEIT nach Stueck rechnet, gehoert hier dazu -
+  // sonst stand beim Treppenbelag "68,64 EUR/m²" statt "je Stück".
+  (TYP_EINHEIT.stueck||[]).forEach(function(t){ if(STK.indexOf(t)<0) STK.push(t); });
   if(p.typ==='duschelement' && !/m2|m²|qm/i.test(p.einheit||'')) STK.push('duschelement');
   const einh=(p.typ==='dichtband'||p.typ==='profil'||p.typ==='hohlkehlsockel'||p.typ==='silikon'||p.typ==='randfuge'||p.typ==='sauberlaufrahmen')?'/m':(STK.indexOf(p.typ)>-1?'/Stück':(p.typ==='stundenlohn')?'/Std':'/m²');
   h+='<tr><td style="padding:5px 0;border-top:1px solid #ddd;font-weight:700">EP netto</td><td style="border-top:1px solid #ddd"></td><td style="padding:5px 0;border-top:1px solid #ddd;text-align:right;font-weight:700;color:var(--accent)">'+fmt(r.ep)+' €'+einh+'</td></tr></table>';
@@ -3736,12 +3762,24 @@ function renderCalcHTML(i){
       if(!dbTreffer){
         let kandidaten = alleFab.map(function(f){ return {fab:f, t:fabTreffer(f, p.typ, p.desc, p.langtext)}; })
                                   .filter(function(x){ return x.t; });
+        // Zuerst schauen, ob dieselbe Fliese in diesem LV schon gewaehlt ist.
+        const nachbar = flieseAusNachbar(p);
+        if(nachbar && !fabrikatGleich(p.fabrikat, nachbar.name)){
+          treffer = '<div style="margin-top:5px;padding:7px 9px;background:#eef7ee;border:1px solid #1a9e4b;border-radius:6px;font-size:11.5px">'
+            + '<b>Wie in Position ' + esc(nachbar.nr) + '?</b><br>'
+            + esc(nachbar.name) + ' · <b>' + fmt(nachbar.ek) + ' €/m²</b>'
+            + ' <button class="bg sm" style="padding:2px 8px;font-size:11px;margin-left:4px" '
+            + 'onclick="waehleFliese(' + i + ',this.dataset.v)" data-v="' + esc(nachbar.name) + '|' + nachbar.ek + '">ja, übernehmen</button>'
+            + '<div style="color:var(--muted);margin-top:3px">dort schon gewählt – das LV nennt hier dieselben Fabrikate</div>'
+            + '</div>';
+          kandidaten = [];
+        }
         // Kein Fabrikat im LV? Dann ueber die Produktbeschreibung suchen.
-        if(!kandidaten.length){
+        if(!treffer && !kandidaten.length){
           const bt = beschreibungTreffer(p.typ, p.desc, p.langtext);
           if(bt) kandidaten = [{fab:'BESCHR:'+bt.wort, t:bt}];
         }
-        if(kandidaten.length){
+        if(!treffer && kandidaten.length){
           const beste = kandidaten.sort(function(a,b){ return b.t.punkte-a.t.punkte; })[0];
           const a=beste.t.artikel;
           const gleich = fabrikatGleich(p.fabrikat, a.name);
