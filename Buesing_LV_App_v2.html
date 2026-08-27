@@ -1376,7 +1376,13 @@ function pruefeTyp(text){
 // aus Trittschalldaemmung" steht in 12 Langtexten des LV-15 - darunter die
 // vier Treppenpositionen und drei Bodenflaechen. Alle wurden dadurch zur
 // Randfuge erklaert. Eine echte Randfugen-Position gibt es im LV-15 nicht.
-const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge'];
+// "treppenbelag" kam am 27.08.2026 dazu. Das Wort steht auch in den
+// Betonwerkstein-Stufen ("Treppenbelag aus Betonwerkstein ... als
+// Trittstufen") und in den Sockelfliesen ("passend zu den Boden und
+// Treppenbelag") - beide wurden dadurch zu Fliesen-Treppenbelag erklaert.
+// Aus der Ueberschrift heraus greift der Typ weiter: alle vier echten
+// Positionen heissen "Treppenfliesen, Auf-/Antritt der Treppenstufen".
+const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge','treppenbelag'];
 function erkenneTyp(desc, langtext, einheit){
   const soll = einheitKlasse(einheit);
   if(soll==='zeit') return 'stundenlohn';
@@ -1400,9 +1406,12 @@ function erkenneTyp(desc, langtext, einheit){
 }
 function typenNeuErkennen(){
   if(!LV.pos||!LV.pos.length){ toast('Keine Positionen vorhanden'); return; }
-  let geaendert=0;
+  let geaendert=0, verschont=0;
   LV.pos.forEach(function(p){
     if(p.status==='gruen') return;              // Geprueftes bleibt unangetastet
+    // Was Erik selbst im Auswahlfeld eingestellt hat, bleibt ebenfalls stehen.
+    // Vorher setzte der Knopf auch solche Positionen zurueck.
+    if(p._typHand){ verschont++; return; }
     const neu=erkenneTyp(p.desc, p.langtext, p.einheit);
     if(neu!==p.typ){
       p.typ=neu; delete p.stufe; delete p.oberflaeche; delete p.rutsch; delete p.umfang;
@@ -1412,7 +1421,8 @@ function typenNeuErkennen(){
   });
   renderLV();
   doSave(true);
-  toast(geaendert ? (geaendert+' Position(en) neu zugeordnet') : 'Alle Typen waren bereits korrekt');
+  const zusatz = verschont ? (' · '+verschont+' von Hand gewählte unangetastet') : '';
+  toast((geaendert ? (geaendert+' Position(en) neu zugeordnet') : 'Alle Typen waren bereits korrekt')+zusatz);
 }
 function typOptions(sel){
   return TYPEN.map(function(e){return '<option value="'+e[0]+'"'+(e[0]===sel?' selected':'')+'>'+e[1]+'</option>';}).join('');
@@ -4611,6 +4621,8 @@ function upd(i,f,v){
   // (falsche) EP stehen, obwohl der Typ schon korrigiert war.
   if(f==='typ'){
     const p=LV.pos[i];
+    // Von Hand gewaehlt - "Typen neu erkennen" laesst das kuenftig stehen.
+    p._typHand = true;
     delete p.stufe; delete p.oberflaeche; delete p.rutsch; delete p.umfang;
     if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
     renderLV(); scheduleSave(); return;
