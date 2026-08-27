@@ -750,7 +750,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 52';
+const APP_STAND = '27.08.2026 · 53';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1251,7 +1251,7 @@ async function kiPreise(input){
 // POSITIONS-TYP-ERKENNUNG
 // ============================================
 const TYPEN = [
-  ['wand','Wand verlegen'],['boden','Boden verlegen'],['naturstein','Naturstein'],['betonwerkstein','Betonwerkstein'],['treppenbelag','Treppenbelag'],['sockel','Sockelfliesen (lfdm)'],['fensterbank','Fensterbank (lfdm)'],['fb_rundung','Fensterbank Ecke rund'],['fb_kante','Fensterbank Kante schleifen'],['spiegel','Wandspiegel'],
+  ['wand','Wand verlegen'],['boden','Boden verlegen'],['naturstein','Naturstein'],['betonwerkstein','Betonwerkstein'],['treppenbelag','Treppenbelag'],['sockel','Sockelfliesen (lfdm)'],['fensterbank','Fensterbank (lfdm)'],['fb_rundung','Fensterbank Ecke rund'],['fb_kante','Fensterbank Kante schleifen'],['spiegel','Wandspiegel'],['ueberschrift','— Überschrift —'],
   ['abdicht_flaeche','Abdichtung Fläche'],['dichtband','Dichtband'],['manschette','Manschette'],['dichtecke','Dichtecke'],
   ['grundierung','Grundierung'],['spachtel','Vorspachtel'],['entkopplung','Entkopplung Boden'],['stundenlohn','Stundenlohn'],
   ['profil','Profil/Schiene'],['reservefliesen','Reservefliesen'],['loch','Loch/Anschnitt'],
@@ -1432,7 +1432,8 @@ function typenNeuErkennen(){
     // Was Erik selbst im Auswahlfeld eingestellt hat, bleibt ebenfalls stehen.
     // Vorher setzte der Knopf auch solche Positionen zurueck.
     if(p._typHand){ verschont++; return; }
-    const neu=erkenneTyp(p.desc, p.langtext, p.einheit);
+    const neu = istUeberschriftPos(p, LV.pos) ? 'ueberschrift'
+                                             : erkenneTyp(p.desc, p.langtext, p.einheit);
     if(neu!==p.typ){
       p.typ=neu; delete p.stufe; delete p.oberflaeche; delete p.rutsch; delete p.umfang;
       autoEP(p, LV.system||'sakret');            // neuer Typ -> neues Rezept -> neuer EP
@@ -1443,6 +1444,34 @@ function typenNeuErkennen(){
   doSave(true);
   const zusatz = verschont ? (' · '+verschont+' von Hand gewählte unangetastet') : '';
   toast((geaendert ? (geaendert+' Position(en) neu zugeordnet') : 'Alle Typen waren bereits korrekt')+zusatz);
+}
+// ===== UEBERSCHRIFTEN ====================================================
+// Ein LV enthaelt Zeilen, in die man nichts eintragen kann: "15.03
+// Fliesenarbeiten - Treppenhaus". Sie standen bisher rot als "Typ nicht
+// erkannt" - in LV-15 waren das 16 von 192 Zeilen (Erik 27.08.2026:
+// "wenn es eine Position gibt in der man nichts eintragen kann, kann diese
+// weg. Steht dort Menge 0, dann will ich das vorher sehen").
+// Erkannt wird nur, was ALLE drei Bedingungen erfuellt:
+//   1. keine Menge
+//   2. kein Einheitspreis eingetragen
+//   3. entweder gar kein Langtext, oder die Nummer ist die Kapitelnummer
+//      weiterer Positionen (15.06.01 zu 15.06.01.11), oder es sind die
+//      Vorbemerkungen
+// Eine Position mit Menge 0 UND eigenem Text bleibt eine Position -
+// 15.03.11 (Treppenantritt) und 15.03.6 (Betonwerksteinboden) haben im
+// LV-15 die Menge 0 und muessen sichtbar bleiben.
+function istUeberschriftPos(p, alle){
+  if(!p) return false;
+  if(parseFloat(p.menge)>0) return false;
+  if(parseFloat(p.ep)>0) return false;
+  const nr=String(p.nr||'').trim();
+  if(!String(p.langtext||'').trim()) return true;
+  if(/vorbemerkung/i.test(p.desc||p.titel||'')) return true;
+  if(nr && (alle||[]).some(function(q){
+        const n2=String(q.nr||'').trim();
+        return n2.length>nr.length && n2.indexOf(nr+'.')===0;
+      })) return true;
+  return false;
 }
 function typOptions(sel){
   return TYPEN.map(function(e){return '<option value="'+e[0]+'"'+(e[0]===sel?' selected':'')+'>'+e[1]+'</option>';}).join('');
@@ -3612,6 +3641,7 @@ function berechneEP(p, system){
 }
 function berechneEPKern(p, system){
   const t=p.typ;
+  if(t==='ueberschrift') return {ep:0, zeilen:[], warn:[]};
   if(t==='wand'||t==='boden') return epFliese(p, system);
   if(t==='abdicht_flaeche') return epAbdichtFlaeche(p, system);
   if(t==='dichtband') return epDichtband(p, system);
@@ -3656,6 +3686,10 @@ function autoEP(p, system){
   system = system || LV.system || 'sakret';
   if(!p.typ) p.typ = erkenneTyp(p.desc, p.langtext, p.einheit);
 
+  if(p.typ === 'ueberschrift'){
+    p.ep = 0; p.menge = 0; p.notiz = '';
+    return p;
+  }
   if(p.typ === 'unbekannt'){
     p.ep = 0; p.status = 'rot';
     p.notiz = 'Typ nicht erkannt – bitte Typ wählen';
@@ -4778,12 +4812,23 @@ function renderLV(){
     // "unbekannt" in der Datenbank und waere trotz des neuen
     // Betonwerkstein-Rechners leer geblieben (27.08.2026). Erneut pruefen
     // ist gefahrlos: eine von Erik gewaehlte Kategorie wird nie ueberschrieben.
+    if((!p.typ || p.typ==='unbekannt') && istUeberschriftPos(p, LV.pos)) p.typ='ueberschrift';
     if(!p.typ || p.typ==='unbekannt') p.typ=erkenneTyp(p.desc, p.langtext, p.einheit);
+    const suchtext=((p.nr||'')+' '+(p.desc||'')+' '+(p.langtext||'')+' '+(p.notiz||'')+' '+((TYPEN.find(t=>t[0]===p.typ)||['',''])[1])).toLowerCase().replace(/"/g,'');
+    // Ueberschriften sind keine Positionen: eigene Zeile, kein Preis, und sie
+    // zaehlen nicht in die Ampel. Sonst stehen im LV-15 16 rote Zeilen, die
+    // nie welche sein sollten.
+    if(p.typ==='ueberschrift'){
+      return `<tr class="pos-row" data-i="${i}" data-such="${suchtext}">
+        <td style="font-weight:700;color:var(--muted);font-size:13px">${p.nr||''}</td>
+        <td colspan="7" style="font-weight:700;font-size:13px;padding:10px 0 6px">${p.desc||''}</td>
+        <td class="np"><select style="padding:3px 4px;font-size:11px;width:118px" onchange="upd(${i},'typ',this.value)">${typOptions(p.typ)}</select></td>
+      </tr>`;
+    }
     const gp=(parseFloat(p.menge)||0)*(parseFloat(p.ep)||0);
     tot+=gp;
     if(p.status==='gruen')g++;else if(p.status==='gelb')y++;else r++;
     const bc=p.status==='gruen'?'var(--green)':p.status==='gelb'?'var(--yellow)':'var(--red)';
-    const suchtext=((p.nr||'')+' '+(p.desc||'')+' '+(p.langtext||'')+' '+(p.notiz||'')+' '+((TYPEN.find(t=>t[0]===p.typ)||['',''])[1])).toLowerCase().replace(/"/g,'');
     return `<tr class="pos-row" data-i="${i}" data-such="${suchtext}">
       <td style="font-weight:700;color:var(--accent);font-size:13px">${p.nr||''}</td>
       <td><div style="font-size:13px;font-weight:600">${p.desc||''}</div>${langtextEditHtml(p,i)}${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${p.notiz}</div>`:''}</td>
