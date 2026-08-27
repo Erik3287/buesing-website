@@ -750,7 +750,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 44';
+const APP_STAND = '27.08.2026 · 45';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1251,7 +1251,7 @@ async function kiPreise(input){
 // POSITIONS-TYP-ERKENNUNG
 // ============================================
 const TYPEN = [
-  ['wand','Wand verlegen'],['boden','Boden verlegen'],['naturstein','Naturstein'],['betonwerkstein','Betonwerkstein'],['treppenbelag','Treppenbelag'],
+  ['wand','Wand verlegen'],['boden','Boden verlegen'],['naturstein','Naturstein'],['betonwerkstein','Betonwerkstein'],['treppenbelag','Treppenbelag'],['sockel','Sockelfliesen (lfdm)'],
   ['abdicht_flaeche','Abdichtung Fläche'],['dichtband','Dichtband'],['manschette','Manschette'],['dichtecke','Dichtecke'],
   ['grundierung','Grundierung'],['spachtel','Vorspachtel'],['entkopplung','Entkopplung Boden'],['stundenlohn','Stundenlohn'],
   ['profil','Profil/Schiene'],['reservefliesen','Reservefliesen'],['loch','Loch/Anschnitt'],
@@ -1270,6 +1270,7 @@ const TYP_REGELN = [
   ['rohrkasten',    ['rohrkasten','rohrverkleidung','vorwandinstallation verkleiden','schacht verkleiden','installationsschacht']],
   ['duschelement',  ['duschelement','gefälle im fliesenbereich','verfliesbares','jackoboard']],
   ['hohlkehlsockel',['hohlkehlsockel','hohlkehle']],
+  ['sockel',        ['sockelfliesen','sockelfliese']],
   ['fliesentausch', ['austausch einzelner','bestandswandfliesen gegen','austausch einzelne']],
   ['loch',          ['ausbildung von löchern','löcher','löchern']],
   ['sauberlaufrahmen',['winkelrahmen','einbaurahmen sauberlauf','rahmen zur aufnahme']],
@@ -1325,7 +1326,7 @@ function typNorm(t){
 const TYP_EINHEIT = {
   flaeche: ['wand','boden','naturstein','betonwerkstein','abdicht_flaeche','entkopplung','grundierung','spachtel',
             'duschelement','reinigung','behandlung','schutz','sauberlaufmatte','reservefliesen'],
-  laenge:  ['dichtband','profil','hohlkehlsockel','silikon','randfuge','sauberlaufrahmen','rohrkasten'],
+  laenge:  ['dichtband','profil','hohlkehlsockel','sockel','silikon','randfuge','sauberlaufrahmen','rohrkasten'],
   zeit:    ['stundenlohn'],
   stueck:  ['manschette','dichtecke','loch','ablauf','ablauf_doppel','fliesentausch','treppenbelag'],
 };
@@ -1834,7 +1835,7 @@ function flieseAusNachbar(p){
 // steht unter dem Rechner-Symbol, damit man in der Liste auf einen Blick
 // sieht, wo das Material herkommt. Klick zeigt, was derselbe Artikel bei
 // den anderen kostet.
-const FLIESE_TYPEN = ['wand','boden','naturstein','betonwerkstein','treppenbelag','reservefliesen'];
+const FLIESE_TYPEN = ['wand','boden','naturstein','betonwerkstein','treppenbelag','sockel','reservefliesen'];
 function posArtikel(p){
   if(!p || !p.fabrikat) return null;
   const a=findArtikel(p.fabrikat);
@@ -3268,6 +3269,63 @@ function epTreppenbelag(p, system){
   const ep=Math.round((kalk+lohn+zuschlag)*100)/100;
   return {ep, zeilen, warn};
 }
+// ===== SOCKELFLIESEN (lfdm) ==============================================
+// Erik am 27.08.2026: "Ich schneide aus einer 30x60 Fliese (0,18qm) 2 Stueck
+// Sockel a 60cm (also insgesamt 1,20m Sockel aus einer Fliese - egal wie
+// hoch)." Zwei Streifen entlang der langen Kante, die Hoehe spielt keine
+// Rolle. Daraus folgt: Verbrauch = Flaeche / (2 x lange Kante) = halbe
+// KURZE Kante. 30x60 und 30x30 ergeben beide 0,15 m2 je lfdm.
+// Der Verschnitt steckt schon in dieser Regel - kein Aufschlag obendrauf.
+const SOCKEL_QM_STD  = 0.15;   // m2 je lfdm, wenn im Text kein Format steht
+const SOCKEL_KLEBER  = 1.00;   // EUR je lfdm (Erik: "Nimm fuer Kleber 1 Euro pro Meter")
+const SOCKEL_ZEIT    = 10/60;  // h je lfdm (Erik: "10 Minuten pro Meter")
+function sockelQmProM(txt){
+  const f=formatAusText(txt);
+  if(!f || !f.a || !f.b) return null;
+  const kurz=Math.min(f.a,f.b)/100;
+  return {qm:kurz/2, format:Math.min(f.a,f.b)+'×'+Math.max(f.a,f.b)+' cm'};
+}
+function epSockel(p, system){
+  const warn=[], zeilen=[];
+  const erkU=erkenneUmfang(p.desc, p.langtext);
+  if(!p.umfang) p.umfang=erkU.u;
+  if(!erkU.sicher) warn.push('PRUEFEN|Leistungsumfang prüfen – '+erkU.grund);
+  const mitFliese    = p.umfang!=='nur_verlegen';
+  const mitBauchemie = p.umfang!=='nur_liefern';
+  const mitLohn      = p.umfang!=='nur_liefern';
+
+  const auto=sockelQmProM((p.desc||'')+' '+(p.langtext||''));
+  const qm = (parseFloat(p.sockelQm)>0) ? parseFloat(p.sockelQm) : (auto ? auto.qm : SOCKEL_QM_STD);
+  const herkunft = (parseFloat(p.sockelQm)>0) ? 'von Hand'
+                 : (auto ? ('aus Format '+auto.format) : 'Standardwert');
+  const qmtxt = qm.toFixed(3).replace('.',',');
+
+  const ek=parseFloat(p.flieseEk)||0;
+  let fliese=0;
+  if(mitFliese){
+    if(!ek) warn.push('EINGABE|Fliesenpreis (€/m²) im Feld links eintragen');
+    fliese=ek*qm;
+    zeilen.push(['Fliese '+qmtxt+' m²/m', (ek?(fmt(ek)+' €/m² × '+qmtxt):'—')+' · '+herkunft, fliese]);
+  } else {
+    zeilen.push(['Fliese','bauseits gestellt – nicht berechnet',0]);
+  }
+  let kleber=0;
+  if(mitBauchemie){
+    kleber=SOCKEL_KLEBER;
+    zeilen.push(['Kleber + Fuge', 'Pauschale je Meter', kleber]);
+  } else {
+    zeilen.push(['Kleber + Fuge','nur Lieferung – keine Bauchemie',0]);
+  }
+  const roh=fliese+kleber;
+  const kalk=roh*1.20;
+  zeilen.push(['Material roh','',roh]);
+  zeilen.push(['Material × 1,20','',kalk]);
+  const lohn=mitLohn ? SOCKEL_ZEIT*LOHN() : 0;
+  if(mitLohn) zeilen.push(['Lohn je Meter','10 min × '+fmt(LOHN())+'/h', lohn]);
+  else        zeilen.push(['Lohn','nur Lieferung – kein Lohn',0]);
+  const ep=Math.round((kalk+lohn)*100)/100;
+  return {ep, zeilen, warn};
+}
 function epNaturstein(p, system){
   const warn=[], zeilen=[];
   const ek=parseFloat(p.flieseEk)||0;
@@ -3460,6 +3518,7 @@ function berechneEPKern(p, system){
   if(t==='naturstein') return epNaturstein(p, system);
   if(t==='betonwerkstein') return epBetonwerkstein(p, system);
   if(t==='treppenbelag') return epTreppenbelag(p, system);
+  if(t==='sockel') return epSockel(p, system);
   if(t==='rohrkasten') return epRohrkasten(p, system);
   if(t==='duschelement') return epDuschelement(p, system);
   if(t==='reinigung') return epReinigung(p);
@@ -3524,7 +3583,7 @@ function autoEP(p, system){
 
   // Fliesen-Typen ohne Fliesenpreis sind NICHT rechenbar -> rot,
   // ausser die Fliese ist bauseits gestellt ("nur verlegen").
-  const brauchtFliese = ['wand','boden','naturstein','betonwerkstein','treppenbelag','reservefliesen'].indexOf(p.typ) > -1
+  const brauchtFliese = ['wand','boden','naturstein','betonwerkstein','treppenbelag','sockel','reservefliesen'].indexOf(p.typ) > -1
                         && p.umfang !== 'nur_verlegen';
   const flieseFehlt   = brauchtFliese && !(parseFloat(p.flieseEk) > 0);
 
@@ -3725,13 +3784,13 @@ function renderCalcOut(i){
 }
 function renderCalcHTML(i){
   const p=LV.pos[i];
-  const SUP=['wand','boden','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','treppenbelag','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
+  const SUP=['wand','boden','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','treppenbelag','sockel','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
   if(SUP.indexOf(p.typ)<0){
     const lbl=(TYPEN.find(t=>t[0]===p.typ)||['','dieser Typ'])[1];
     return '<div style="font-size:12px;color:var(--muted);padding:12px 0">EP-Rechner für „'+lbl+'" ist noch nicht gebaut. Kommt Schritt für Schritt dazu.</div>';
   }
   let felder='';
-  if(p.typ==='wand' || p.typ==='boden' || p.typ==='betonwerkstein' || p.typ==='treppenbelag'){
+  if(p.typ==='wand' || p.typ==='boden' || p.typ==='betonwerkstein' || p.typ==='treppenbelag' || p.typ==='sockel'){
     const erkU=erkenneUmfang(p.desc, p.langtext);
     if(!p.umfang) p.umfang=erkU.u;
     const ampelU = erkU.sicher ? '<span style="color:#1a9e4b">🟢 '+erkU.grund+'</span>' : '<span style="color:#e0a800">🟡 '+erkU.grund+'</span>';
