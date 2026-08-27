@@ -750,7 +750,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 54';
+const APP_STAND = '27.08.2026 · 55';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -2350,6 +2350,39 @@ const ABD_GLEICHWERTIG = {
     raw:    {name:'RAW Dispersionsabdichtung', nicht:['schlämme','schlaemme']},
     typ:    'Dispersionsabdichtung, gebrauchsfertig (Wand, W1-I)'
   },
+  // Erik am 27.08.2026: "eigentlich haben wir alles im System, nur eben von
+  // einem anderen Hersteller." Deshalb steht hier zu jedem ausgeschriebenen
+  // Fremdprodukt sein eigenes.
+  'sopro no': {
+    sakret: 'Sakret Objektkleber Flex OK C2TE S1',
+    raw:    {name:'RAW Flexkleber S1 FKS1', nicht:['leicht','schnell']},
+    typ:    'Flexkleber C2TE S1'
+  },
+  "sopro's no": {
+    sakret: 'Sakret Objektkleber Flex OK C2TE S1',
+    raw:    {name:'RAW Flexkleber S1 FKS1', nicht:['leicht','schnell']},
+    typ:    'Flexkleber C2TE S1'
+  },
+  'sopro titecfuge': {
+    sakret: 'PCI Nanofug Premium',
+    raw:    {name:'RAW Fugenmörtel FG silbergrau'},
+    typ:    'Fugenmasse, flexibel'
+  },
+  'kerdi-keba': {
+    sakret: {name:'Sakret Dichtband flexibel O-DB', nicht:['wannen']},
+    raw:    {name:'RAW Dichtband PP/PE grau'},
+    typ:    'Dichtband für Anschluss- und Bewegungsfugen'
+  },
+  'pci pericret': {
+    sakret: 'Sakret Reparaturmörtel',
+    raw:    {name:'RAW Schnellreparaturmörtel SRM'},
+    typ:    'Reparatur- und Ausgleichsmörtel'
+  },
+  'schlüter-ditra': {
+    sakret: 'Schlüter Ditra Entkopplungsmatte',
+    raw:    {name:'RAW Entkopplungsmatte thermoplastisch'},
+    typ:    'Verbundentkopplungsmatte'
+  },
   'pci seccoral': {
     sakret: 'Sakret Flexible Dichtungsschlämme FDS',
     // "RAW Dichtungsschlämme" ist laut Erik die RAW-Fassung der Sakret FDS.
@@ -2364,6 +2397,23 @@ function istGleichwertigTxt(t){
   return /oder\s+(gleichwertig|gleichw|ähnlich|aehnlich|vergleichbar)|o\.?\s?glw\.?|o\.?\s?gl\.?\b|od\.?\s*gleichw/i.test(t||'');
 }
 
+// Alle im Positionstext genannten Fremdprodukte mit dem eigenen Gegenstueck.
+// Erik am 27.08.2026: "Es waere gut, wenn das Programm bei Seccoral z.B.
+// fragt 'ist das der richtige Artikel' und FDS oder RAW Dichtungsschlaemme
+// zeigt." Gilt fuer JEDE Position, auch ohne "oder gleichwertig" im Text -
+// dann steht dabei, dass das LV das Fremdprodukt verbindlich fordert.
+function fremdprodukte(txt, system){
+  const t=String(txt||'').toLowerCase().replace(/\s+/g,' ');
+  const raus=[], gesehen={};
+  for(const k in ABD_GLEICHWERTIG){
+    if(t.indexOf(k)<0) continue;
+    const e=abdichtErsatz(k, system);
+    if(!e || !e.bekannt || !e.name || gesehen[e.name]) continue;
+    gesehen[e.name]=true;
+    raus.push({genannt:k, name:e.name, typ:e.typ, artikel:e.artikel});
+  }
+  return raus;
+}
 // Zu einem im LV genannten Fabrikat das passende eigene Produkt finden.
 // Liefert immer eine Auskunft, nie stillschweigend einen Ersatz.
 function abdichtErsatz(fabrikat, system){
@@ -4494,7 +4544,27 @@ function renderCalcHTML(i){
         +'<input type="text" value="'+(p.farbe||'')+'" placeholder="z. B. hellanthrazit" oninput="setFarbe('+i+',this.value)" style="width:150px;padding:6px 8px"></div>';
     }
   }
+  // Nennt das LV Produkte anderer Hersteller, steht hier, was bei Erik dem
+  // entspricht - mit Preis, wenn der Artikel in der Datenbank steht.
+  let fremd='';
+  const fpl=fremdprodukte((p.desc||'')+' '+(p.langtext||''), LV.system||'sakret');
+  if(fpl.length){
+    const glw=istGleichwertigTxt((p.desc||'')+' '+(p.langtext||''));
+    fremd = '<div style="flex-basis:100%;background:#f4f8ff;border:1px solid #b9d3f2;border-radius:8px;padding:8px 11px;font-size:11.5px">'
+      + '<b>Das LV nennt fremde Produkte – bei dir heißt das:</b>'
+      + fpl.map(function(f){
+          const preis = f.artikel ? (' · <b>'+fmt(f.artikel.ek)+' €'+(f.artikel.eu?('/'+String(f.artikel.eu).replace(/^\//,'')):'')+'</b>')
+                                  : ' · <span style="color:var(--red)">noch nicht in der Preisdatenbank</span>';
+          return '<div style="margin-top:4px">' + esc(f.genannt) + ' &nbsp;→&nbsp; ' + esc(f.name) + preis
+               + (f.typ?('<span style="color:var(--muted)"> · '+esc(f.typ)+'</span>'):'') + '</div>';
+        }).join('')
+      + '<div style="color:var(--muted);margin-top:5px">'
+      + (glw ? 'Das LV erlaubt „oder gleichwertig“ – dein Produkt ist zulässig.'
+             : '⚠️ Das LV sagt NICHT „oder gleichwertig“ – als Nebenangebot kennzeichnen oder nachfragen.')
+      + '</div></div>';
+  }
   return '<div style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start;padding:12px 0">'
+    + fremd
     + felder
     +'<div id="calc-out-'+i+'" style="flex:1;min-width:300px">'+renderCalcOut(i)+'</div></div>';
 }
