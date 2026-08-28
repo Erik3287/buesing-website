@@ -270,6 +270,8 @@ tr:hover td{background:#fafafa}
           <button class="bg sm" onclick="neuesLV()">+ Neues LV</button>
           <button class="bg sm" onclick="doExportPDF()">📄 PDF-Angebot</button>
           <button class="bg sm" onclick="doExportDaten()" title="Alle Positionen als Datei sichern – zum Weitergeben oder Nachschauen">💾 Positionen als Datei</button>
+          <button class="bg sm" onclick="document.getElementById('pos-datei').click()" title="Eine gesicherte Positionsdatei in DIESES LV einlesen">📂 Datei einlesen</button>
+          <input type="file" id="pos-datei" accept=".json" style="display:none" onchange="positionsdateiLaden(this.files[0]); this.value='';">
           <button class="bg sm" onclick="typenNeuErkennen()" title="Alle Positions-Typen neu bestimmen">🔄 Typen neu erkennen</button>
           <button class="bg sm" onclick="alleEpNeuBerechnen()" title="Alle EP über das Regelwerk neu rechnen – geprüfte (grüne) Positionen bleiben unangetastet">🧮 Alle EP neu berechnen</button>
           <button class="btn sm" onclick="doSave()">💾 Speichern</button>
@@ -744,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 95';
+const APP_STAND = '28.08.2026 · 96';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
