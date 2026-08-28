@@ -256,7 +256,20 @@ switch ($action) {
     case 'save_lv':
         $data = json_decode(file_get_contents('php://input'), true);
         $id = intval($data['id'] ?? 0);
-        $pos = json_encode($data['positionen'] ?? []);
+        $liste = $data['positionen'] ?? [];
+        $pos = json_encode($liste);
+        // Ein neues LV ohne Positionen ist immer ein Versehen. Erik am
+        // 28.08.2026: "es gibt wieder ein leeres LV nach dem aktualisieren
+        // der seite. ich dachte das passiert nicht mehr?" - der Riegel in der
+        // App greift nur, wenn der Browser auch die neue App geladen hat.
+        // Hier greift er immer, egal welche Fassung gerade offen ist.
+        // Ein bestehendes LV (id > 0) darf leer werden - das waere ein
+        // ausdrueckliches Loeschen aller Positionen.
+        if ($id === 0 && (!is_array($liste) || count($liste) === 0)) {
+            echo json_encode(['ok' => false, 'leer' => true,
+                'error' => 'Ein neues LV ohne Positionen wird nicht angelegt.']);
+            break;
+        }
         if ($id > 0) {
             $stmt = $pdo->prepare("UPDATE lvs SET titel=?, auftraggeber=?, status=?, positionen=?, summe=?, nutzer=? WHERE id=?");
             $stmt->execute([$data['titel'] ?? '', $data['auftraggeber'] ?? '', $data['status'] ?? 'bearbeitung', $pos, $data['summe'] ?? 0, $data['nutzer'] ?? '', $id]);

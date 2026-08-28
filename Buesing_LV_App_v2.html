@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 115';
+const APP_STAND = '28.08.2026 · 116';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -6140,6 +6140,8 @@ function doSave(silent){
     .then(r=>r.json()).then(d=>{
       if(d.ok){ if(d.id) LV.id=d.id; delete LV.neu;
                 if(silent) setSaveStatus('✓ gespeichert'); else toast('LV gespeichert ✓ (Archiv)'); }
+      else if(d && d.leer){ if(silent) setSaveStatus('nur lokal – leeres LV wird nicht angelegt');
+                            else toast('Leeres LV wird nicht angelegt'); }
       else { if(silent) setSaveStatus('⚠ nur lokal'); else toast('Lokal gespeichert (DB-Fehler)'); }
     }).catch(e=>{ if(silent) setSaveStatus('⚠ offline (lokal)'); else toast('Lokal gespeichert (offline)'); });
 }
