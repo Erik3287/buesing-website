@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 105';
+const APP_STAND = '28.08.2026 · 106';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4126,6 +4126,36 @@ function werksteinKandidaten(){
     return e==='lfm' || e==='m' || e==='m2' || e==='m²';
   }).sort(function(a,b){ return (a.ek||0)-(b.ek||0); });
 }
+// Die Liste zeigte bis zum 28.08.2026 wahllos alle Stufen der Datenbank.
+// Erik zu 15.03.15: "warum erkennt die app nicht, dass die setzstufe 2cm
+// stark ist und schlaegt die 4cm platte vor?" Also: was zur Position passt,
+// steht jetzt oben. Aussortiert wird nichts - eine falsch beschriftete
+// Stufe waere sonst gar nicht mehr waehlbar.
+function stufeDickeAusText(p){
+  const t=(p.desc||'')+' '+(p.langtext||'');
+  const m=t.match(/(?:plattendicke|plattenst(?:ä|ae)rke|dicke)[^\d]{0,20}(\d+(?:[.,]\d+)?)\s*(cm|mm)?/i);
+  if(!m) return 0;
+  const v=parseFloat(String(m[1]).replace(',','.'));
+  return (m[2]||'cm').toLowerCase()==='mm' ? v/10 : v;   // in cm
+}
+function werksteinPassend(p){
+  const ma=stufeMasseWerkstein(p);
+  const art = ma.setz ? 'setzstufe' : (ma.wink ? 'winkelstufe' : 'trittstufe');
+  const dicke = stufeDickeAusText(p);
+  const alle = werksteinKandidaten();
+  const passt = function(x){
+    const n=(x.name||'').toLowerCase();
+    if(n.indexOf(art)<0) return false;
+    if(!dicke) return true;
+    // "Setzstufe 2 cm ..." - die Dicke steht als Zahl im Namen
+    const d=n.match(/(\d+(?:[.,]\d+)?)\s*cm/);
+    if(!d) return true;
+    return Math.abs(parseFloat(String(d[1]).replace(',','.')) - dicke) < 0.3;
+  };
+  return {art:art, dicke:dicke,
+          passend: alle.filter(passt),
+          andere:  alle.filter(function(x){ return !passt(x); })};
+}
 function werksteinArtikel(p){
   if(!p || !p.stufeArt) return null;
   return (PREISE||[]).find(function(x){ return x.name===p.stufeArt; }) || null;
@@ -4873,14 +4903,21 @@ function renderCalcHTML(i){
       +'oninput="setSpiegel('+i+',this.value)" style="width:120px;padding:6px 8px"></div>';
   }
   if(p.typ==='werksteinstufe'){
-    const wk=werksteinKandidaten();
     const ma=stufeMasseWerkstein(p);
-    let inner='<option value="">– Stufe aus der Preisdatenbank wählen –</option>';
-    wk.forEach(function(x){
+    const wp=werksteinPassend(p);
+    const opt=function(x){
       const sel=(p.stufeArt===x.name)?' selected':'';
-      inner+='<option value="'+esc(x.name)+'"'+sel+'>'+esc(liefKurz(x.lief)||'?')+' · '+fmt(x.ek)+' €/'
+      return '<option value="'+esc(x.name)+'"'+sel+'>'+esc(liefKurz(x.lief)||'?')+' · '+fmt(x.ek)+' €/'
            +esc(String(x.eu||'').replace(/^\//,''))+' · '+esc(x.name.slice(0,48))+'</option>';
-    });
+    };
+    let inner='<option value="">– Stufe aus der Preisdatenbank wählen –</option>';
+    if(wp.passend.length){
+      inner+='<optgroup label="Passend: '+esc(wp.art)+(wp.dicke?(', '+String(wp.dicke).replace('.',',')+' cm'):'')+'">'
+           + wp.passend.map(opt).join('') + '</optgroup>';
+      if(wp.andere.length) inner+='<optgroup label="Andere Stufen">'+wp.andere.map(opt).join('')+'</optgroup>';
+    } else {
+      inner+=wp.andere.map(opt).join('');
+    }
     felder += '<div style="min-width:330px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Stufe</div>'
       +'<select onchange="waehleStufe('+i+',this.value)" style="width:100%;padding:6px 8px;font-size:12px">'+inner+'</select>'
       +'<div style="font-size:11px;color:var(--muted);margin-top:3px">'
