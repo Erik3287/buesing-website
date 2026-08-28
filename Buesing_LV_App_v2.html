@@ -1044,6 +1044,7 @@ const WERTE = [
     ['WST_MOERTEL_KG','Mörtelbett','kg/m²',()=>WST_MOERTEL_KG,v=>WST_MOERTEL_KG=v],
     ['WST_ZEIT_STK','Zeit je Trittstufe (2 Mann)','h',()=>WST_ZEIT_STK,v=>WST_ZEIT_STK=v],
     ['WST_ZEIT_SETZ','Zeit je Setzstufe (1 Mann)','h',()=>WST_ZEIT_SETZ,v=>WST_ZEIT_SETZ=v],
+    ['WST_ZEIT_WINK','Zeit je Winkelstufe (2 Mann)','h',()=>WST_ZEIT_WINK,v=>WST_ZEIT_WINK=v],
     ['WST_SILIKON_M','Silikon je Stufe','lfdm',()=>WST_SILIKON_M,v=>WST_SILIKON_M=v],
     ['WST_RAND_M','Randstreifen je Stufe','lfdm',()=>WST_RAND_M,v=>WST_RAND_M=v],
     ['WST_RAND_EUR','Randstreifen Preis','€/lfdm',()=>WST_RAND_EUR,v=>WST_RAND_EUR=v],
@@ -4106,6 +4107,11 @@ function epSpiegel(p){
 // Duennbett geklebt statt ins Moertelbett gelegt und wiegt keine 12 kg.
 // Erik: "1 mann 20 minuten".
 let WST_ZEIT_SETZ  = 20/60;  // h je Setzstufe, ein Mann
+// Die Winkelstufe ist Tritt- und Setzstufe aus EINEM Stueck, entsprechend
+// schwer und sperrig. Erik am 28.08.2026: "um gottes willen - na da reicht
+// die zeit auf keinen fall! dann nehmen wir 2 mitarbeiter brauchen fuer eine
+// Stufe 45 minuten" - also 90 Mannminuten = 1,50 h Gesamtzeit.
+let WST_ZEIT_WINK  = 1.50;   // h je Winkelstufe, Gesamtzeit beider Mann
 let WST_SILIKON_M  = 1.30;   // lfm Silikon je Stufe (Fuge hinten zur Setzstufe/Wand)
 let WST_RAND_M     = 0.60;   // lfm Randstreifen je Stufe (2 x 30 cm an den Enden)
 // Eigener Meterpreis fuer den Randstreifen an der Stufe. Die Festpreis-Zulage
@@ -4152,11 +4158,12 @@ function stufeMasseWerkstein(p){
            : lies(/(?:laufbreite|plattenl(?:ä|ae)nge|stufenl(?:ä|ae)nge)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i);
   // Bei der Setzstufe zaehlt die Steigungshoehe, nicht der Auftritt.
   const setz = /setzstufe/i.test(t) && !/trittstufe|winkelstufe/i.test(t);
+  const wink = /winkelstufe/i.test(t);
   let tiefe =(parseFloat(p.stufeTiefeW)>0) ? parseFloat(p.stufeTiefeW)
            : (setz ? lies(/(?:steigungsh(?:ö|oe)he|stufenh(?:ö|oe)he|h(?:ö|oe)he)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i)
                    : lies(/(?:stufenbreite|auftrittbreite|auftritt|stufentiefe)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i));
   if(!laenge) laenge=lies(/(\d+(?:[.,]\d+)?)\s*(m)\b/i);
-  return {laenge:laenge||0, tiefe:tiefe||0, setz:setz};
+  return {laenge:laenge||0, tiefe:tiefe||0, setz:setz, wink:wink};
 }
 function epWerksteinstufe(p, system){
   const warn=[], zeilen=[];
@@ -4207,10 +4214,11 @@ function epWerksteinstufe(p, system){
   const kalk=roh*1.20;
   zeilen.push(['Material roh','',roh]);
   zeilen.push(['Material × 1,20','',kalk]);
-  const zeit=ma.setz ? WST_ZEIT_SETZ : WST_ZEIT_STK;
-  const lohn=zeit*LOHN();
+  const zeit = ma.setz ? WST_ZEIT_SETZ : (ma.wink ? WST_ZEIT_WINK : WST_ZEIT_STK);
+  const lohn = zeit*LOHN();
   zeilen.push(['Lohn je Stufe',
-    (ma.setz ? '1 Mann × '+Math.round(WST_ZEIT_SETZ*60)+' min = ' : 'Gesamtzeit ')
+    (ma.setz ? '1 Mann × '+Math.round(WST_ZEIT_SETZ*60)+' min = '
+             : (ma.wink ? '2 Mann × '+Math.round(WST_ZEIT_WINK*30)+' min = ' : 'Gesamtzeit '))
     + zeit.toFixed(2).replace('.',',')+' h × '+fmt(LOHN()), lohn]);
   // Versiegelung und Entkopplung: Festpreise je Meter, also Endpreise. Sie
   // kommen NACH dem Aufschlag dazu, sonst waeren die 20 % doppelt drin.
