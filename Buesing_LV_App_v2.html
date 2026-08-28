@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 98';
+const APP_STAND = '28.08.2026 · 99';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1043,6 +1043,8 @@ const WERTE = [
   ['Werksteinstufe', [
     ['WST_MOERTEL_KG','Mörtelbett','kg/m²',()=>WST_MOERTEL_KG,v=>WST_MOERTEL_KG=v],
     ['WST_ZEIT_STK','Zeit je Stufe (2 Mann)','h',()=>WST_ZEIT_STK,v=>WST_ZEIT_STK=v],
+    ['WST_SILIKON_M','Silikon je Stufe','lfdm',()=>WST_SILIKON_M,v=>WST_SILIKON_M=v],
+    ['WST_RAND_M','Randstreifen je Stufe','lfdm',()=>WST_RAND_M,v=>WST_RAND_M=v],
   ]],
   ['Sockelfliesen', [
     ['SOCKEL_QM_STD','Verbrauch, wenn kein Format im Text','m²/lfdm',()=>SOCKEL_QM_STD,v=>SOCKEL_QM_STD=v],
@@ -4090,6 +4092,14 @@ function epSpiegel(p){
 // Meter Stufenlaenge ab, das LV nach Stueck.
 // Erik am 28.08.2026 zu Moertel und Zeit: "lassen wir so, passt alles" -
 // also dieselben Werte wie beim Fliesen-Treppenbelag.
+// Die Stufentexte fordern ausdruecklich "einschl. schalltechnischer Entkopplung
+// an den Waenden, Verfugung und dauerelastischer Versiegelung". Im Rechner
+// standen bis zum 28.08.2026 nur Stufe, Moertelbett und Lohn. Erik: "was ist
+// mit der dauerelastischen versiegelung? die ist in der vorposition ebenfalls
+// nicht enthalten!!" Beides sind Festpreise je Meter (Endpreise), sie bekommen
+// deshalb KEINEN Materialaufschlag mehr.
+let WST_SILIKON_M  = 1.30;   // lfm Silikon je Stufe (Fuge hinten zur Setzstufe/Wand)
+let WST_RAND_M     = 0.60;   // lfm Randstreifen je Stufe (2 x 30 cm an den Enden)
 let WST_MOERTEL_KG = 31.0;   // kg je m2 Aufstandsflaeche
 let WST_ZEIT_STK   = 100/60; // h je Stufe. Erik am 28.08.2026: "Hier brauchen
                                // 2 Mitarbeiter fuer eine Stufe 50 Minuten (also
@@ -4118,10 +4128,15 @@ function stufeMasseWerkstein(p){
     const e=(m[2]||'cm').toLowerCase();
     return e==='mm' ? v/1000 : (e==='m' ? v : v/100);
   };
+  // Die Texte schreiben dasselbe Mass sehr verschieden: "Laufbreite: ca. 130 cm",
+  // "Laufbreite/Plattenlänge: ca. 130 cm", "Stufenbreite: ca. 25 cm",
+  // "Auftrittbreite: bis ca. 25 cm". Bei 15.03.16 (Winkelstufe) fand der
+  // Rechner deshalb am 28.08.2026 gar kein Mass. Darum mehrere Schreibweisen
+  // und mehr Platz zwischen Wort und Zahl.
   let laenge=(parseFloat(p.stufeLaenge)>0) ? parseFloat(p.stufeLaenge)
-           : lies(/laufbreite[^\d]{0,12}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i);
+           : lies(/(?:laufbreite|plattenl(?:ä|ae)nge|stufenl(?:ä|ae)nge)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i);
   let tiefe =(parseFloat(p.stufeTiefeW)>0) ? parseFloat(p.stufeTiefeW)
-           : lies(/stufenbreite[^\d]{0,12}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i);
+           : lies(/(?:stufenbreite|auftrittbreite|auftritt|stufentiefe)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i);
   if(!laenge) laenge=lies(/(\d+(?:[.,]\d+)?)\s*(m)\b/i);
   return {laenge:laenge||0, tiefe:tiefe||0};
 }
@@ -4167,7 +4182,20 @@ function epWerksteinstufe(p, system){
   zeilen.push(['Material × 1,20','',kalk]);
   const lohn=WST_ZEIT_STK*LOHN();
   zeilen.push(['Lohn je Stufe', '2 Mann × 50 min = '+WST_ZEIT_STK.toFixed(2).replace('.',',')+' h × '+fmt(LOHN()), lohn]);
-  const ep=Math.round((kalk+lohn)*100)/100;
+  // Versiegelung und Entkopplung: Festpreise je Meter, also Endpreise. Sie
+  // kommen NACH dem Aufschlag dazu, sonst waeren die 20 % doppelt drin.
+  let sil=0, rand=0;
+  if(WST_SILIKON_M>0){
+    sil=WST_SILIKON_M*SILIKON.naturstein;
+    zeilen.push(['Dauerelastische Versiegelung',
+      WST_SILIKON_M.toFixed(2).replace('.',',')+' m × '+fmt(SILIKON.naturstein)+' €/m', sil]);
+  }
+  if(WST_RAND_M>0){
+    rand=WST_RAND_M*FESTPREISE.randfuge.ep;
+    zeilen.push(['Randstreifen (schalltechnische Entkopplung)',
+      WST_RAND_M.toFixed(2).replace('.',',')+' m × '+fmt(FESTPREISE.randfuge.ep)+' €/m', rand]);
+  }
+  const ep=Math.round((kalk+lohn+sil+rand)*100)/100;
   return {ep, zeilen, warn};
 }
 function epNaturstein(p, system){
