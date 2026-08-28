@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 126';
+const APP_STAND = '28.08.2026 · 127';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1483,6 +1483,7 @@ async function handleFile(file,typ){
       // nie mehr direkt aus einem Artikel-EK.
       LV.pos=alleRoh.map(importPos);
       wieVorUebernehmen(LV.pos);
+      zwillingeUebernehmen(LV.pos);
       document.getElementById('lv-proc').style.display='none';
       document.getElementById('lv-main').style.display='block';
       const tit=document.getElementById('lv-tit'); if(tit) tit.textContent=LV.titel;
@@ -1568,6 +1569,7 @@ async function kiLV(text,datei){
     // EP kommt aus dem Regelwerk (importPos -> autoEP -> berechneEP).
     LV.pos=roh.map(importPos);
     wieVorUebernehmen(LV.pos);
+    zwillingeUebernehmen(LV.pos);
     document.getElementById('lv-proc').style.display='none';
     document.getElementById('lv-main').style.display='block';
     const tit=document.getElementById('lv-tit'); if(tit) tit.textContent=LV.titel;
@@ -4889,8 +4891,59 @@ function istWieVor(p){
   const kopf=((p.desc||'')+' '+(p.langtext||'')).slice(0,160);
   return WIE_VOR.test(kopf);
 }
+// Alles, was eine Entscheidung an der Position festhaelt. Wird von "wie vor"
+// UND von der Zwillingserkennung geerbt.
+const ERBEN_FELDER = ['behandlungArt','sockelArt','stufeArt','profilArt','abdichtArt','wKlasse',
+  'spachtelModus','spachtelArt','entkopplungArt','entkopplungBandM','rektifiziert','reinigungArt',
+  'grundArt','umfang','oberflaeche','stufe','untergrund','silikonArt','schutzArt',
+  'flieseEk','fabrikat','stufeLaenge','stufeTiefeW','sockelQm','spiegelEk','bieterFelder'];
+// Zwei Positionen sind Zwillinge, wenn Typ und Leistungstext uebereinstimmen.
+// Erik am 28.08.2026: "jetzt fangen sich die Positionen an zu wiederholen.
+// Warum erkennt die app das nicht? Wir haben doch nun schon etliche Preise
+// fuer exakt dieselben positionen definiert." - 15.03.26 und 15.04.13 sind
+// wortgleich, stehen aber in verschiedenen Gruppen; "wie vor" steht in
+// keiner von beiden. Aus dem Text fallen der Bedarfsvermerk, die
+// Einbauortzeile und alle Leerzeichenunterschiede heraus - der Rest muss
+// Zeichen fuer Zeichen gleich sein.
+function zwillingSchluessel(p){
+  if(!p || !p.typ || p.typ==='ueberschrift') return '';
+  let t = String(p.langtext||'');
+  if(t.length < 40) return '';
+  t = t.replace(/^\s*\*+\s*Bedarfspos[^\n]*/i,'')
+       .replace(/Einbauort[^\n]*/gi,'')
+       .replace(/Bereich:[^\n]*/gi,'')
+       .replace(/\s+/g,' ')
+       .toLowerCase().trim();
+  return t.length < 40 ? '' : (p.typ + '|' + t);
+}
+// Was in einer Position entschieden ist, gilt fuer ihre Zwillinge mit.
+// Angefasst wird nur, was dort noch leer ist; gruene Positionen bleiben
+// unberuehrt, die sind ja bewusst festgesetzt.
+function zwillingeUebernehmen(liste){
+  const vorbild = {};
+  let uebernommen = 0, betroffen = [];
+  (liste||[]).forEach(function(p){
+    const k = zwillingSchluessel(p);
+    if(!k) return;
+    if(!vorbild[k]){ vorbild[k] = p; return; }
+    const v = vorbild[k];
+    if(p === v || p.status === 'gruen') return;
+    let geerbt = 0;
+    ERBEN_FELDER.forEach(function(f){
+      const leer = (p[f]===undefined || p[f]==='' || (Array.isArray(p[f]) && !p[f].length));
+      const da   = (v[f]!==undefined && v[f]!=='' && !(Array.isArray(v[f]) && !v[f].length));
+      if(leer && da){ p[f] = Array.isArray(v[f]) ? v[f].slice() : v[f]; geerbt++; }
+    });
+    if(geerbt){
+      autoEP(p, LV.system||'sakret');
+      p.notiz = (p.notiz?p.notiz+' · ':'') + 'gleiche Leistung wie Pos. ' + (v.nr||'?');
+      uebernommen++; betroffen.push(p.nr||'?');
+    }
+  });
+  return {anzahl:uebernommen, nummern:betroffen};
+}
 function wieVorUebernehmen(liste){
-  const erben=['behandlungArt','sockelArt','abdichtArt','wKlasse','spachtelModus','spachtelArt','entkopplungArt','entkopplungBandM','rektifiziert','reinigungArt','grundArt','umfang','oberflaeche','stufe','untergrund','silikonArt','schutzArt'];
+  const erben=ERBEN_FELDER;
   let uebernommen=0;
   for(let i=1;i<liste.length;i++){
     const p=liste[i];
@@ -4927,9 +4980,11 @@ function alleEpNeuBerechnen(){
     if(p.status === 'rot') rot++;
   });
   wieVorUebernehmen(LV.pos);
+  const zwil = zwillingeUebernehmen(LV.pos);
   renderLV();
   doSave(true);
   toast(geaendert + ' Position(en) neu gerechnet'
+        + (zwil.anzahl ? (' · ' + zwil.anzahl + ' gleiche übernommen') : '')
         + (rot ? ' · ' + rot + ' rot (Preis fehlt)' : '')
         + (geschuetzt ? ' · ' + geschuetzt + ' grüne unangetastet' : ''));
 }
@@ -7893,9 +7948,14 @@ async function ladeLV(id){
       document.getElementById('lv-proc').style.display='none';
       document.getElementById('lv-main').style.display='block';
       const tit=document.getElementById('lv-tit'); if(tit) tit.textContent = LV.titel || 'LV-Kalkulation';
+      // Textgleiche Positionen aus derselben Datei uebernehmen, was anderswo
+      // schon entschieden ist - siehe zwillingeUebernehmen.
+      const zw = zwillingeUebernehmen(LV.pos);
       renderLV();
       showTab('lv', document.querySelector('.nb')); // sauber zum LV-Tab wechseln
-      toast('LV geladen ✓');
+      if(zw.anzahl){ doSave(true);
+        toast('LV geladen ✓ · '+zw.anzahl+' gleiche Position(en) übernommen: '+zw.nummern.slice(0,6).join(', ')+(zw.nummern.length>6?' …':'')); }
+      else toast('LV geladen ✓');
     } else {
       toast('LV konnte nicht geladen werden');
     }
