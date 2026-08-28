@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 144';
+const APP_STAND = '28.08.2026 · 145';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5326,6 +5326,15 @@ function renderCalcHTML(i){
               + '</div>';
           }
         }
+      }
+      // Steht direkt darunter ein gefundener Vorschlag, ist das rote
+      // 'nicht in Datenbank - Preis anfragen' falsch und verwirrend. Erik am
+      // 28.08.2026: 'er schlaegt sogar die richtige vor, obwohl [angeblich]
+      // nicht in der Datenbank!' Der EXAKTE Wortlaut des LV-Textes steht
+      // natuerlich nie als Artikelname drin - gefunden wird ueber die
+      // Schluessel (CT61 usw.), und genau das zeigt der Kasten.
+      if(treffer && preisStatus.indexOf('nicht in Datenbank')>-1){
+        preisStatus='<span style="color:#e0a800">🟡 Unter diesem Wortlaut nicht in der Datenbank – passenden Treffer unten prüfen</span>';
       }
       const gwHinweis = gw
         ? '<div style="font-size:11px;color:#0071e3;margin-top:2px">💡 „oder gleichwertig" – Nebenangebot erlaubt (Alternativ-Fliese selbst wählen)</div>'
