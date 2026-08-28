@@ -744,7 +744,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 94';
+const APP_STAND = '28.08.2026 · 95';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5909,9 +5909,17 @@ async function positionsdateiLaden(datei){
   }catch(e){ toast('Datei nicht lesbar: '+(e.message||e)); return; }
   const liste = Array.isArray(d) ? d : (d.positionen || d.pos);
   if(!Array.isArray(liste) || !liste.length){ toast('Keine Positionen in der Datei.'); return; }
-  if(LV.pos && LV.pos.length &&
-     !confirm('Das offene LV ("'+(LV.titel||'ohne Titel')+'", '+LV.pos.length+' Positionen)\n'
-            + 'wird durch den Inhalt der Datei ersetzt ('+liste.length+' Positionen).\n\nFortfahren?')) return;
+  // Ohne geoeffnetes LV wandert der Inhalt in ein NEUES LV - das ist am
+  // 28.08.2026 zweimal passiert (#18 und #19), waehrend Eriks bearbeitetes LV
+  // #14 unberuehrt blieb. Deshalb hier ausdruecklich fragen.
+  if(!(LV.pos && LV.pos.length) || !(LV.id > 0)){
+    if(!confirm('Es ist gerade KEIN gespeichertes LV geöffnet.\n\n'
+              + 'Die Datei würde ein NEUES LV anlegen ('+liste.length+' Positionen).\n'
+              + 'Soll sie in ein bestehendes LV, dann jetzt abbrechen, das LV im\n'
+              + 'Archiv öffnen und die Datei dort einlesen.\n\nTrotzdem neues LV anlegen?')) return;
+  } else if(!confirm('Das offene LV „'+(LV.titel||'ohne Titel')+'" (Nr. '+LV.id+', '
+            + LV.pos.length+' Positionen)\nwird durch den Inhalt der Datei ersetzt ('
+            + liste.length+' Positionen).\n\nFortfahren?')) return;
   const vorherId = LV.id || 0;
   LV.pos = liste.map(function(q){
     const p = Object.assign({}, q);
@@ -5925,7 +5933,8 @@ async function positionsdateiLaden(datei){
   showTab('lv', document.querySelector('.nb'));
   renderLV();
   doSave(true);
-  toast(LV.pos.length+' Positionen eingelesen');
+  toast(LV.pos.length+' Positionen eingelesen'
+    + (vorherId ? (' in LV Nr. '+vorherId) : ' – als NEUES LV angelegt'));
 }
 function exportDatenObjekt(){
   return {
