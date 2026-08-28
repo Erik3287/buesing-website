@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 101';
+const APP_STAND = '28.08.2026 · 102';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4108,11 +4108,12 @@ let WST_ZEIT_SETZ  = 20/60;  // h je Setzstufe, ein Mann
 let WST_SILIKON_M  = 1.30;   // lfm Silikon je Stufe (Fuge hinten zur Setzstufe/Wand)
 let WST_RAND_M     = 0.60;   // lfm Randstreifen je Stufe (2 x 30 cm an den Enden)
 let WST_MOERTEL_KG = 31.0;   // kg je m2 Aufstandsflaeche
-let WST_ZEIT_STK   = 100/60; // h je Stufe. Erik am 28.08.2026: "Hier brauchen
-                               // 2 Mitarbeiter fuer eine Stufe 50 Minuten (also
-                               // insgesamt x2). Das sind ja fertige Platten und
-                               // das schafft nicht ein Mann allein." Also 100
-                               // Mannminuten = 1,67 h.
+let WST_ZEIT_STK   = 1.10;   // h je Trittstufe, Gesamtzeit beider Mann.
+                               // Erik am 28.08.2026 zuerst "2 Mitarbeiter fuer
+                               // eine Stufe 50 Minuten", spaeter korrigiert:
+                               // "2 mann 50 minuten ist zu viel fuer die
+                               // Stufenplatten - aendere das bitte in
+                               // gesamtzeit 1,1 Stunden".
 function werksteinKandidaten(){
   return (PREISE||[]).filter(function(x){
     if(!/trittstufe|setzstufe|winkelstufe|stufe/i.test(x.name||'')) return false;
@@ -4202,7 +4203,7 @@ function epWerksteinstufe(p, system){
   const zeit=ma.setz ? WST_ZEIT_SETZ : WST_ZEIT_STK;
   const lohn=zeit*LOHN();
   zeilen.push(['Lohn je Stufe',
-    (ma.setz ? '1 Mann × '+Math.round(WST_ZEIT_SETZ*60)+' min = ' : '2 Mann × 50 min = ')
+    (ma.setz ? '1 Mann × '+Math.round(WST_ZEIT_SETZ*60)+' min = ' : 'Gesamtzeit ')
     + zeit.toFixed(2).replace('.',',')+' h × '+fmt(LOHN()), lohn]);
   // Versiegelung und Entkopplung: Festpreise je Meter, also Endpreise. Sie
   // kommen NACH dem Aufschlag dazu, sonst waeren die 20 % doppelt drin.
