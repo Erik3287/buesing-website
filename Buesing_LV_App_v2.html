@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 139';
+const APP_STAND = '28.08.2026 · 140';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4996,10 +4996,32 @@ function importPos(roh){
 // Flueessigabdichtung still auf den Standard "Dichtbahn" zurueck.
 // Nicht streng am Zeilenanfang ankern: die KI stellt dem Langtext oft noch die
 // Ueberschrift voran. Deshalb im ERSTEN Stueck des Textes suchen.
-const WIE_VOR = /\b(wie\s+(vor|zuvor|vorstehend|oben|beschrieben)|wie\s+pos(ition)?\.?\s*[0-9])/i;
+// Erik am 28.08.2026: "NATUERLICH muss Bezug auf die Vorposition genommen
+// werden, wenn dies ausdruecklich durch die Leistungsbeschreibung verlangt
+// wird! Es ging um sinnlose Zusammenhaenge, welche unnoetig sind."
+// Also: NUR was der Text ausdruecklich verlangt - aber das vollstaendig.
+// Dazu gehoeren auch "aus den gleichen Material wie die Wandfliesen der
+// Pos. zuvor" (15.06.01.22, im LV mit Tippfehler 'euvor'), "Material und
+// Fuge: wie Bodenbelag" (15.03.23) und "passend zu den Boden und
+// Treppenbelag zuvor" (15.03.21).
+const WIE_VOR = /\b(wie\s+(vor|zuvor|vorstehend|oben|beschrieben)|wie\s+pos(ition)?\.?\s*[0-9]|gleichen?\s+material\s+wie|material\s+(und\s+fuge\s*:?\s*)?wie|wie\s+(die\s+)?(wand|boden)(fliesen?|belag)|(der\s+)?pos\.?\s*zuvor|belag\s+zuvor)/i;
+function wieVorKopf(p){
+  return ((p.desc||'')+' '+(p.langtext||'')).slice(0,220).toLowerCase()
+         .replace(/euvor/g,'zuvor');   // Tippfehler im LV-Original
+}
 function istWieVor(p){
-  const kopf=((p.desc||'')+' '+(p.langtext||'')).slice(0,160);
-  return WIE_VOR.test(kopf);
+  return WIE_VOR.test(wieVorKopf(p));
+}
+// WORAUF zeigt der Bezug? Nennt der Text Wand- oder Bodenfliesen bzw. den
+// Boden-/Treppenbelag, ist die FLIESE jener Position gemeint - auch wenn die
+// eigene Position ein anderer Typ ist (Laibung, Sockel). Dann wird nur die
+// Fliese geerbt, nicht die uebrige Ausfuehrung.
+function wieVorZiel(p){
+  const k = wieVorKopf(p);
+  if(/wandflies|wandbelag|wie\s+(die\s+)?wand\b/.test(k))   return {typ:'wand',   nurFliese:p.typ!=='wand'};
+  if(/bodenflies|bodenbelag|wie\s+(der\s+)?boden\b/.test(k)) return {typ:'boden',  nurFliese:p.typ!=='boden'};
+  if(/treppenbelag/.test(k) && p.typ!=='treppenbelag')          return {typ:'treppenbelag', nurFliese:true};
+  return {typ:p.typ, nurFliese:false};
 }
 // Alles, was eine Entscheidung an der Position festhaelt. Wird von "wie vor"
 // geerbt.
@@ -5091,13 +5113,20 @@ function wieVorUebernehmen(liste){
   for(let i=1;i<liste.length;i++){
     const p=liste[i];
     if(!istWieVor(p)) continue;
-    // Vorbild ist die naechste VORHERIGE Position mit demselben Typ -
-    // nicht zwingend die direkt darueber (dazwischen koennen andere Gewerke stehen).
+    // Vorbild ist die naechste VORHERIGE Position des ZIEL-Typs - bei
+    // "wie die Wandfliesen der Pos. zuvor" die Wand, nicht die vorherige
+    // Laibung. Bevorzugt eine, an der die Fliese schon gewaehlt ist.
+    const ziel = wieVorZiel(p);
     let v=null;
-    for(let j=i-1;j>=0;j--){ if(liste[j].typ===p.typ){ v=liste[j]; break; } }
+    for(let j=i-1;j>=0;j--){
+      if(liste[j].typ!==ziel.typ) continue;
+      if(!v) v=liste[j];
+      if(parseFloat(liste[j].flieseEk)>0){ v=liste[j]; break; }
+    }
     if(!v) continue;
+    const felder = ziel.nurFliese ? ['flieseEk','fabrikat','rektifiziert'] : erben;
     let geerbt=[];
-    erben.forEach(function(f){
+    felder.forEach(function(f){
       if((p[f]===undefined||p[f]==='') && v[f]!==undefined && v[f]!=='' ){ p[f]=v[f]; geerbt.push(f); }
     });
     if(geerbt.length){
@@ -8152,9 +8181,14 @@ async function ladeLV(id){
       document.getElementById('lv-proc').style.display='none';
       document.getElementById('lv-main').style.display='block';
       const tit=document.getElementById('lv-tit'); if(tit) tit.textContent = LV.titel || 'LV-Kalkulation';
+      // Ausdrueckliche "wie vor"-Bezuege aufloesen: die Wandfliese wird oft
+      // erst nach dem Import gewaehlt - beim naechsten Oeffnen zieht die
+      // Laibung sie nach. Fuellt nur leere Felder, ist also gefahrlos.
+      const wv = wieVorUebernehmen(LV.pos);
       renderLV();
       showTab('lv', document.querySelector('.nb')); // sauber zum LV-Tab wechseln
-      toast('LV geladen ✓');
+      if(wv) doSave(true);
+      toast('LV geladen ✓'+(wv?(' · '+wv+'× „wie vor" übernommen'):''));
     } else {
       toast('LV konnte nicht geladen werden');
     }
