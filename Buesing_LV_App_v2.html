@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 117';
+const APP_STAND = '28.08.2026 · 118';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1050,7 +1050,7 @@ const WERTE = [
     ['WST_RAND_EUR','Randstreifen Preis','€/lfdm',()=>WST_RAND_EUR,v=>WST_RAND_EUR=v],
   ]],
   ['Schutz / Abdeckung', [
-    ['SCH_PAPPE_EK','Schutzpappe','€/m²',()=>SCH_PAPPE_EK,v=>SCH_PAPPE_EK=v],
+    ['SCH_PAPPE_EK','Schutzpappe + Band + Entsorgung','€/m²',()=>SCH_PAPPE_EK,v=>SCH_PAPPE_EK=v],
     ['SCH_VLIES_EK','Schutzvlies','€/m²',()=>SCH_VLIES_EK,v=>SCH_VLIES_EK=v],
     ['SCH_HARTF_EK','Hartfaserplatten','€/m²',()=>SCH_HARTF_EK,v=>SCH_HARTF_EK=v],
     ['SCH_ZEIT','Zeit ein- und ausbauen','h/m²',()=>SCH_ZEIT,v=>SCH_ZEIT=v],
@@ -3801,10 +3801,18 @@ function epBaustelle(p){
 // abbauen, entsorgen": also zweimal anfassen, einmal beim Auslegen mit
 // Stoessen verkleben, spaeter abraeumen und entsorgen. Deshalb eine Zeit fuer
 // beides zusammen.
-let SCH_PAPPE_EK = 1.50;   // EUR/m² Schutzpappe einschl. Klebeband
-let SCH_VLIES_EK = 1.90;   // EUR/m² Schutzvlies
-let SCH_HARTF_EK = 4.20;   // EUR/m² Hartfaserplatten
-let SCH_ZEIT     = 4/60;   // h je m²: auslegen, verkleben, abbauen, entsorgen
+// Erik am 28.08.2026 hatte beim Material recht und ich zu knapp gerechnet:
+// Pappe 1,20 + Klebeband 0,45 + Entsorgung 0,30 = 1,95 EUR/m². Die
+// Entsorgung fehlte bei mir ganz. Seinem Ansatz von 8,50 EUR/m² lag dagegen
+// ein Lesefehler zugrunde - "vollflaechiges Fixieren" verlangt das LV nicht,
+// nur "die Stoesse ... mit Klebeband ueberlappend zu ueberdecken und zu
+// verkleben". Die Zeit steigt von 4 auf 4,5 min je m², weil der Text auch
+// das "unterhalten" ueber die Bauzeit verlangt.
+let SCH_PAPPE_EK = 1.95;   // EUR/m² Schutzpappe einschl. Klebeband und Entsorgung
+let SCH_VLIES_EK = 2.35;   // EUR/m² Schutzvlies, ebenso
+let SCH_HARTF_EK = 4.65;   // EUR/m² Hartfaserplatten, ebenso
+let SCH_ZEIT     = 4.5/60; // h je m²: auslegen, Stoesse verkleben, unterhalten,
+                           //          abbauen, entsorgen
 const SCH_LABEL = {pappe:'Schutzpappe', vlies:'Schutzvlies', hartfaser:'Hartfaserplatten'};
 function schutzEk(art){
   return art==='hartfaser' ? SCH_HARTF_EK : (art==='vlies' ? SCH_VLIES_EK : SCH_PAPPE_EK);
@@ -3818,11 +3826,11 @@ function epSchutz(p){
   const art = p.schutzArt || schutzAuto((p.desc||'')+' '+(p.langtext||''));
   const ek  = schutzEk(art);
   const zeilen=[];
-  zeilen.push([SCH_LABEL[art], fmt(ek)+' €/m² einschl. Klebeband', ek]);
+  zeilen.push([SCH_LABEL[art], fmt(ek)+' €/m² einschl. Klebeband und Entsorgung', ek]);
   const kalk=ek*1.20;
   zeilen.push(['Material × 1,20','',kalk]);
   const lohn=SCH_ZEIT*LOHN();
-  zeilen.push(['Auslegen, verkleben, später abbauen und entsorgen',
+  zeilen.push(['Auslegen, Stöße verkleben, unterhalten, abbauen',
                (SCH_ZEIT*60).toFixed(1).replace('.',',')+' min × '+fmt(LOHN())+'/h', lohn]);
   return {ep: Math.round((kalk+lohn)*100)/100, zeilen, warn:[]};
 }
