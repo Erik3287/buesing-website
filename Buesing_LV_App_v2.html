@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 123';
+const APP_STAND = '28.08.2026 · 124';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -3829,8 +3829,12 @@ let SCH_ZEIT     = 4.5/60; // h je m²: auslegen, Stoesse verkleben, unterhalten
 // Reinigung und Impraegnierung.
 //
 // FLAECHE: grosse Platten am Stueck, wenig Zuschnitt.
-//   OSB 1,10 m² je m² Flaeche x 8,00 = 8,80 + Vlies 1,90 + Band 0,80
-//   + Entsorgung 1,20 = 12,70 EUR/m², 8 min/m².
+//   OSB 1,15 m² je m² Flaeche x 8,50 = 9,78 + Vlies 1,90 + Band 0,80
+//   + Entsorgung 1,20 = 13,68 EUR/m², 12 min/m².
+//   Die 12 Minuten auf Eriks Einwand vom 28.08.2026: "aber 8 minuten pro qm
+//   - das wird eng. vor allem in kleineren Raeumen - alles zuschneiden etc."
+//   In einem Bad mit Tuerlaibung, Rohren und Ecken wird fast jede Platte
+//   geschnitten; nur in einer grossen offenen Halle reichen 8 Minuten.
 //
 // TREPPE (15.03.36): Auftritt 32 x 0,25 x 1,30 = 10,40 m², Setzstufe
 //   32 x 0,1719 x 1,30 = 7,13 m² = 17,53 m² echte Oberflaeche bei 19 m²
@@ -3840,9 +3844,9 @@ let SCH_ZEIT     = 4.5/60; // h je m²: auslegen, Stoesse verkleben, unterhalten
 //   Zeit je Stufe 13 min (5 zuschneiden, 5 verlegen und abkleben, 3
 //   ausbauen) = 6,9 h; dazu die eigene Anfahrt fuer den Rueckbau Wochen
 //   spaeter und das Nacharbeiten waehrend der Bauzeit - zusammen 28 min/m².
-let SCH_OSB_EK    = 12.70;  // EUR/m² Material, freie Flaeche
+let SCH_OSB_EK    = 13.68;  // EUR/m² Material, freie Flaeche
 let SCH_OSB_TR_EK = 17.44;  // EUR/m² Material, Treppe
-let SCH_ZEIT_OSB  = 8/60;   // h je m², freie Flaeche
+let SCH_ZEIT_OSB  = 12/60;  // h je m², freie Flaeche
 let SCH_ZEIT_OSBTR= 28/60;  // h je m², Treppe
 const SCH_LABEL = {pappe:'Schutzpappe', vlies:'Schutzvlies',
                    hartfaser:'Hartfaserplatten',
