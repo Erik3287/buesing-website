@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 104';
+const APP_STAND = '28.08.2026 · 105';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1843,21 +1843,6 @@ function istBedarfPos(p){
   if(!p) return false;
   if(p.bedarf===true || p.bedarf===false) return p.bedarf;   // von Hand gesetzt
   return BEDARF_WORTE.test((p.desc||p.titel||'')+' '+(p.langtext||''));
-}
-// Die Leistungsbeschreibung steht standardmaessig zu - bei 192 Positionen
-// scrollt man sich sonst tot. Erik am 28.08.2026: "Können wir die einzelnen
-// Positionen auf die noetigsten Informationen begrenzen und erst wenn man die
-// Position anklickt, oeffnet sich die vollstaendige Leistungsbeschreibung?"
-// Bewusst OHNE Merkmal an der Position: nichts zu speichern, nichts, was beim
-// naechsten Oeffnen wieder aufgeklappt waere.
-function textAufZu(i){
-  const el=document.getElementById('lt-'+i);
-  if(!el) return;
-  // Alles ausser 'block' gilt als zu - sicherer als nur auf 'none' zu pruefen.
-  const zu = (el.style.display!=='block');
-  el.style.display = zu ? 'block' : 'none';
-  const pf=document.getElementById('lt-pfeil-'+i);
-  if(pf) pf.textContent = zu ? '▴' : '▾';
 }
 function bedarfUmschalten(i){
   const p=LV.pos[i];
@@ -5782,18 +5767,7 @@ function renderLV(){
     const bc=p.status==='gruen'?'var(--green)':p.status==='gelb'?'var(--yellow)':'var(--red)';
     return `<tr class="pos-row" data-i="${i}" data-such="${suchtext}">
       <td style="font-weight:700;color:var(--accent);font-size:13px;border-left:6px solid ${bc};padding-left:8px">${p.nr||''}</td>
-      <td>
-        <div onclick="textAufZu(${i})" title="Klicken: Leistungsbeschreibung ein-/ausblenden"
-             style="cursor:pointer;border-radius:8px;padding:5px 9px;font-size:15px;font-weight:700;line-height:1.25;
-                    background:${bedarf?'#dce9fa':'var(--surface2)'};color:${bedarf?'#12386f':'var(--text)'};
-                    font-style:${bedarf?'italic':'normal'}">
-          <span style="float:right;font-size:12px;font-weight:600;opacity:.7;font-style:normal" id="lt-pfeil-${i}">▾</span>
-          ${bedarf?`<div onclick="event.stopPropagation();bedarfUmschalten(${i})" title="Doch keine Bedarfsposition? Hier klicken." style="font-size:12px;font-weight:800;letter-spacing:.3px;cursor:pointer">Bedarfsposition</div>`:''}
-          ${p.desc||''}
-        </div>
-        ${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin:4px 0 0 2px">${p.notiz}</div>`:''}
-        <div id="lt-${i}" style="display:none">${langtextEditHtml(p,i)}</div>
-      </td>
+      <td><div style="font-size:13px;font-weight:600">${p.desc||''}${bedarf?` <span style="color:#0047c7;font-weight:800;font-size:12.5px;letter-spacing:.3px;cursor:pointer" onclick="bedarfUmschalten(${i})" title="Zählt nicht in die Angebotssumme – klicken zum Umstellen">BEDARFSPOSITION</span>`:''}</div>${langtextEditHtml(p,i)}${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${p.notiz}</div>`:''}</td>
       <td><select style="padding:4px 5px;font-size:11px;width:118px" onchange="upd(${i},'typ',this.value)">${typOptions(p.typ)}</select></td>
       <td><input type="number" step="0.01" value="${p.menge||''}" placeholder="0" oninput="upd(${i},'menge',this.value)" style="text-align:right;width:70px;padding:4px 6px"></td>
       <td style="color:var(--muted);font-size:13px">${p.einheit||''}</td>
