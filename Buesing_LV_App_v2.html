@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 140';
+const APP_STAND = '28.08.2026 · 141';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4847,7 +4847,13 @@ function autoEP(p, system){
   // ausser die Fliese ist bauseits gestellt ("nur verlegen").
   const brauchtFliese = ['wand','boden','naturstein','betonwerkstein','treppenbelag','sockel','fensterbank','reservefliesen','laibung'].indexOf(p.typ) > -1
                         && p.umfang !== 'nur_verlegen';
-  const flieseFehlt   = brauchtFliese && !(parseFloat(p.flieseEk) > 0);
+  // Eine gewaehlte fertige Sockelleiste ERSETZT den Fliesenpreis - Erik am
+  // 28.08.2026 zu 15.04.9: bei 'liefern + verlegen' stand die Position rot
+  // auf 'Fliesenpreis fehlt', obwohl die Keramundo-Leiste zu 5,40 EUR/lfm
+  // laengst in der Rechnung stand. Nur bei 'nur verlegen' ging es, weil dort
+  // gar kein Materialpreis verlangt wird.
+  const materialDa    = (p.typ==='sockel' && typeof sockelArtikel==='function' && !!sockelArtikel(p));
+  const flieseFehlt   = brauchtFliese && !(parseFloat(p.flieseEk) > 0) && !materialDa;
 
   p.ep = r.ep || 0;
 
@@ -5220,7 +5226,14 @@ function renderCalcHTML(i){
     // Weitere in diesem Block ist Fliesen-Sache (Fabrikat, Rutschklasse,
     // rektifiziert, Fliesenpreis) - stand es mit drin, hatte 15.03.6 zwei
     // EK-Felder untereinander und ein rotes "Kein Fabrikat/Preis".
-    if(p.umfang!=='nur_verlegen' && p.typ!=='betonwerkstein'){
+    // Mit gewaehlter fertiger Sockelleiste ist der ganze Fliesen-Block
+    // (Fabrikat, Fliesenpreis) gegenstandslos - er meldete rot 'nicht in
+    // Datenbank', weil er die Leiste unter den FLIESEN suchte.
+    const sockelFertig = (p.typ==='sockel' && typeof sockelArtikel==='function' && !!sockelArtikel(p));
+    if(sockelFertig){
+      felder+='<div style="align-self:end;font-size:12px;color:#1a9e4b;padding:6px 0">🟢 Fertige Sockelleiste gewählt – kein Fliesenpreis nötig</div>';
+    }
+    if(!sockelFertig && p.umfang!=='nur_verlegen' && p.typ!=='betonwerkstein'){
       const txtAll=(p.desc||'')+' '+(p.langtext||'');
       const alleFab = fabrikateAusText(txtAll);
       const ausgeschrieben = alleFab.length ? alleFab[0] : null;
