@@ -755,7 +755,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 90';
+const APP_STAND = '28.08.2026 · 91';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5699,7 +5699,8 @@ function renderLV(){
         <option value="gelb" ${p.status==='gelb'?'selected':''}>🟡 Gelb</option>
         <option value="rot" ${p.status==='rot'?'selected':''}>🔴 Rot</option>
       </select></td>
-      <td class="np" style="white-space:nowrap;text-align:center"><button class="bg sm" style="padding:3px 6px" onclick="toggleCalc(${i})" title="EP berechnen">🧮</button>${liefBtnHtml(p,i)}</td>
+      <td class="np" style="white-space:nowrap;text-align:center"><button class="bg sm" style="padding:3px 6px" onclick="toggleCalc(${i})" title="EP berechnen">🧮</button>
+        <div style="margin-top:4px"><button class="bg sm" style="padding:2px 6px;font-size:10.5px;width:100%;${bedarf?'background:#0047c7;border-color:#0047c7;color:#fff;font-weight:700':''}" onclick="bedarfUmschalten(${i})" title="${bedarf?'Ist eine Bedarfsposition – zählt nicht in die Summe. Klicken zum Zurücknehmen.':'Als Bedarfsposition kennzeichnen – zählt dann nicht in die Angebotssumme'}">Bedarf</button></div>${liefBtnHtml(p,i)}</td>
     </tr>
     <tr class="calc-row" data-i="${i}" id="calc-${i}" style="${p._calcOpen?'':'display:none'}"><td colspan="9" style="background:#f7f9fc;padding:0 16px;border-left:6px solid ${bc}">${p._calcOpen?renderCalcHTML(i):''}</td></tr>`;
   }).join('');
