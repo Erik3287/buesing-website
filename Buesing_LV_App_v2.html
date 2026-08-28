@@ -738,7 +738,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 76';
+const APP_STAND = '28.08.2026 · 77';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -3054,11 +3054,30 @@ function epStundenlohn(p){
 // Massgeblich ist die LETZTE Zahl im Namen - sonst faengt "TS-B30/100" die 30
 // und "FEG 60 gebuerstet" gar nichts.
 function profilHoehe(name){
-  const alle=String(name||'').match(/\d{2,3}/g);
-  if(!alle || !alle.length) return 0;
-  const z=parseInt(alle[alle.length-1],10);
-  const mm=z/10;
-  return (mm>=3 && mm<=25) ? mm : 0;
+  const t=String(name||'');
+  // 1. Steht die Hoehe direkt in Millimetern dabei ("... gebürstet 8mm"),
+  //    gilt sie. So schreiben es RAW und Schlueter.
+  let m=t.match(/(\d{1,2})(?:[.,](\d))?\s*mm\b/i);
+  if(m){
+    const mm=parseInt(m[1],10)+(m[2]?parseInt(m[2],10)/10:0);
+    if(mm>=3 && mm<=25) return mm;
+  }
+  // 2. Sonst die Kennzahl der Serie: 80 = 8,0 mm, 125 = 12,5 mm.
+  //    NICHT gezaehlt werden Zahlen, die an einem Buchstaben kleben (das B30
+  //    in TS-B30 ist der Serienname) und Nachkommastellen (die 70 in
+  //    "à 2,70 m" ist die Stangenlaenge). Genau daran las die App bei
+  //    "TS-B30/80 à 2,70 m" eine Hoehe von 7,0 mm (Erik 28.08.2026).
+  const re=/\d{2,3}/g; let tr;
+  while((tr=re.exec(t))!==null){
+    const davor = tr.index>0 ? t.charAt(tr.index-1) : ' ';
+    const danach = t.charAt(tr.index+tr[0].length) || ' ';
+    if(/[A-Za-zÄÖÜäöü]/.test(davor)) continue;   // B30, J80, V2A
+    if(/[,.]/.test(davor)) continue;             // 2,70
+    if(/[,.]\d/.test(danach+t.charAt(tr.index+tr[0].length+1))) continue;
+    const mm=parseInt(tr[0],10)/10;
+    if(mm>=3 && mm<=25) return mm;
+  }
+  return 0;
 }
 function hoeheTxt(mm){
   return (Math.round(mm*10)%10===0) ? String(Math.round(mm)) : String(mm).replace('.',',');
