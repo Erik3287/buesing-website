@@ -429,6 +429,7 @@ tr:hover td{background:#fafafa}
       <span id="werte-kopf" style="font-weight:600"></span>
       <span id="werte-status" style="color:#1a9e4b"></span>
     </div>
+    <div id="gruen-hinweis" style="display:none;margin:10px 0 0;padding:9px 12px;background:#fff8e6;border:1px solid #e8c46a;border-radius:8px;font-size:12.5px"></div>
     <div id="werte-box"></div>
   </div>
   <div class="g2">
@@ -753,7 +754,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 85';
+const APP_STAND = '28.08.2026 · 86';
 // Beim Start die eigenen Kalkulationswerte anwenden, bevor irgendetwas
 // gerechnet wird.
 try{ werteAnwenden(); }catch(e){}
@@ -1187,20 +1188,61 @@ function werteSetzen(key, roh){
 // bewusst festgesetzt.
 function werteInsLVUebernehmen(){
   if(!(LV && LV.pos && LV.pos.length)) return;
-  let geaendert=0, geschuetzt=0;
-  LV.pos.forEach(function(p){
+  let geaendert=0;
+  const gruen=[];
+  LV.pos.forEach(function(p,i){
     if(p.typ==='ueberschrift') return;
-    if(p.status==='gruen'){ geschuetzt++; return; }
+    if(p.status==='gruen'){
+      // Nicht anfassen, aber nachrechnen, ob sich etwas AENDERN wuerde -
+      // dann kann Erik es mit einem Klick uebernehmen.
+      let kopie;
+      try{ kopie=JSON.parse(JSON.stringify(p)); autoEP(kopie, LV.system||'sakret'); }catch(e){ return; }
+      if(Math.abs((parseFloat(kopie.ep)||0)-(parseFloat(p.ep)||0))>0.005)
+        gruen.push({i:i, nr:p.nr, alt:parseFloat(p.ep)||0, neu:parseFloat(kopie.ep)||0});
+      return;
+    }
     const alt=parseFloat(p.ep)||0;
     autoEP(p, LV.system||'sakret');
     if(Math.abs((parseFloat(p.ep)||0)-alt)>0.005) geaendert++;
   });
   renderLV();
   scheduleSave();
-  if(geaendert || geschuetzt){
-    setWerteStatus('· '+geaendert+' Position(en) neu gerechnet'
-      + (geschuetzt?(' · '+geschuetzt+' grüne unangetastet'):''));
-  }
+  setWerteStatus(geaendert ? (geaendert+' Position(en) neu gerechnet') : '');
+  gruenHinweis(gruen);
+}
+// Gruene Positionen sind von Erik festgesetzt - deshalb werden sie nicht
+// stillschweigend ueberschrieben. Erik am 28.08.2026: "ich will doch nicht
+// erst den Punkt auf gelb stellen, damit ich die Preise aendern kann. Dann
+// soll von mir aus ein Hinweis kommen." Also: Hinweis mit einem Knopf, der
+// alle auf einmal nachzieht.
+let GRUEN_OFFEN = [];
+function gruenHinweis(liste){
+  GRUEN_OFFEN = liste || [];
+  const el=document.getElementById('gruen-hinweis');
+  if(!el) return;
+  if(!GRUEN_OFFEN.length){ el.style.display='none'; el.innerHTML=''; return; }
+  const bsp=GRUEN_OFFEN.slice(0,4).map(function(g){
+    return esc(String(g.nr))+' '+fmt(g.alt)+' → '+fmt(g.neu);
+  }).join(' · ');
+  el.style.display='block';
+  el.innerHTML='<b>'+GRUEN_OFFEN.length+' grüne Position(en) würden sich ändern.</b> '
+    +'Grün heißt „von dir festgesetzt" – deshalb stehen sie noch auf dem alten Preis.<br>'
+    +'<span style="color:var(--muted)">'+bsp+(GRUEN_OFFEN.length>4?' …':'')+'</span> '
+    +'<button class="btn sm" style="margin-left:6px;padding:3px 10px" onclick="gruenUebernehmen()">Auch die grünen neu rechnen</button>';
+}
+function gruenUebernehmen(){
+  if(!GRUEN_OFFEN.length) return;
+  let n=0;
+  GRUEN_OFFEN.forEach(function(g){
+    const p=LV.pos[g.i];
+    if(!p || p.status!=='gruen') return;
+    autoEP(p, LV.system||'sakret');
+    p.status='gruen';          // bleibt geprueft - nur der Preis ist neu
+    n++;
+  });
+  gruenHinweis([]);
+  renderLV(); scheduleSave();
+  toast(n+' grüne Position(en) neu gerechnet');
 }
 function werteZuruecksetzen(key){
   const eig=werteEigene(); delete eig[key];
