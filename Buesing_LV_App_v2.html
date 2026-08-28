@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 114';
+const APP_STAND = '28.08.2026 · 115';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1050,9 +1050,11 @@ const WERTE = [
     ['WST_RAND_EUR','Randstreifen Preis','€/lfdm',()=>WST_RAND_EUR,v=>WST_RAND_EUR=v],
   ]],
   ['Reinigung', [
-    ['REIN_UNTERGRUND','Untergrund säubern','€/m²',()=>REIN_UNTERGRUND,v=>REIN_UNTERGRUND=v],
-    ['REIN_FEIN','Feinreinigung Belag','€/m²',()=>REIN_FEIN,v=>REIN_FEIN=v],
-    ['REIN_TREPPE','Feinreinigung Treppe','€/m²',()=>REIN_TREPPE,v=>REIN_TREPPE=v],
+    ['REIN_EK_L','Zementschleierentferner','€/l',()=>REIN_EK_L,v=>REIN_EK_L=v],
+    ['REIN_LITER','Verbrauch Konzentrat','l/m²',()=>REIN_LITER,v=>REIN_LITER=v],
+    ['REIN_ZEIT_UG','Zeit Untergrund säubern','h/m²',()=>REIN_ZEIT_UG,v=>REIN_ZEIT_UG=v],
+    ['REIN_ZEIT_FEIN','Zeit Feinreinigung Belag','h/m²',()=>REIN_ZEIT_FEIN,v=>REIN_ZEIT_FEIN=v],
+    ['REIN_ZEIT_TREPPE','Zeit Feinreinigung Treppe','h/m²',()=>REIN_ZEIT_TREPPE,v=>REIN_ZEIT_TREPPE=v],
   ]],
   ['Imprägnierung / Einpflege', [
     ['BEH_EK_L','Imprägnierung Einkauf','€/l',()=>BEH_EK_L,v=>BEH_EK_L=v],
@@ -3574,24 +3576,50 @@ const FESTPREISE = {
 // Die Treppe kam am 28.08.2026 dazu: 15.03.27 reinigt Treppenstufen
 // einschliesslich Sockelleisten, das ist je m² deutlich mehr Arbeit als eine
 // offene Bodenflaeche.
-let REIN_UNTERGRUND = 1.60;   // Kehren und Absaugen vor dem Verlegen
-let REIN_FEIN       = 10.50;  // Feinreinigung Belag, mit Zementschleierentferner
-let REIN_TREPPE     = 16.00;  // dieselbe Arbeit auf der Treppe
-const REIN_LABEL = {untergrund:'Untergrund säubern (vor dem Verlegen)',
-                    fein:'Feinreinigung Belag (mit Zementschleierentferner)',
+// Auch hier gerechnet statt gegriffen. Erik am 28.08.2026: "ja auch sauber
+// durchrechnen. das sind nur grobe vorschlaege von mir."
+// Untergrund saeubern ist reine Arbeit: kehren, absaugen, kein Material.
+// Die Feinreinigung braucht Zementschleierentferner - saures Konzentrat,
+// 1:5 verduennt, rund 0,10 l Konzentrat je m². Der Literpreis ist ein
+// Mittelwert der ueblichen 5-l-Gebinde und im Kalkulator zu aendern, sobald
+// das Mittel in der Preisdatenbank steht.
+// Zeiten: kehren/absaugen 1,65 min, Feinreinigung 6 min je m² (auftragen,
+// einwirken, schrubben, aufnehmen, neutralisieren), auf der Treppe 10 min -
+// jede Stufe einzeln, Kanten und Sockelleisten von Hand.
+let REIN_EK_L        = 12.00;   // EUR je Liter Zementschleierentferner
+let REIN_LITER       = 0.10;    // Liter Konzentrat je m²
+let REIN_ZEIT_UG     = 1.65/60; // h je m², Untergrund saeubern
+let REIN_ZEIT_FEIN   = 6/60;    // h je m², Feinreinigung Belag
+let REIN_ZEIT_TREPPE = 10/60;   // h je m², Feinreinigung Treppe
+const REIN_LABEL = {untergrund:'Untergrund säubern (kehren, absaugen)',
+                    fein:'Feinreinigung Belag',
                     treppe:'Feinreinigung Treppe (mit Sockelleisten)'};
-function reinPreis(art){
-  return art==='fein' ? REIN_FEIN : (art==='treppe' ? REIN_TREPPE : REIN_UNTERGRUND);
-}
 function istFeinreinigung(txt){ return /feinreinigung|endreinigung|bauendreinigung|beräumt|beraeumt/i.test(txt||''); }
 function reinigungAuto(txt){
   if(!istFeinreinigung(txt)) return 'untergrund';
   return /treppe|stufen|podest/i.test(txt||'') ? 'treppe' : 'fein';
 }
+function reinZeit(art){
+  return art==='fein' ? REIN_ZEIT_FEIN : (art==='treppe' ? REIN_ZEIT_TREPPE : REIN_ZEIT_UG);
+}
+function reinPreis(art){
+  const mat = (art==='untergrund') ? 0 : REIN_LITER*REIN_EK_L*1.20;
+  return Math.round((mat + reinZeit(art)*LOHN())*100)/100;
+}
 function epReinigung(p){
-  const art  = p.reinigungArt || reinigungAuto((p.desc||'')+' '+(p.langtext||''));
-  const ep   = reinPreis(art);
-  return {ep, zeilen:[[REIN_LABEL[art]||REIN_LABEL.untergrund,'Festpreis – kein Aufschlag',ep]], warn:[]};
+  const art = p.reinigungArt || reinigungAuto((p.desc||'')+' '+(p.langtext||''));
+  const zeilen=[];
+  if(art!=='untergrund'){
+    const mat=REIN_LITER*REIN_EK_L;
+    zeilen.push(['Zementschleierentferner '+String(REIN_LITER).replace('.',',')+' l/m²',
+                 fmt(REIN_EK_L)+' €/l × '+String(REIN_LITER).replace('.',','), mat]);
+    zeilen.push(['Material × 1,20','',mat*1.20]);
+  } else {
+    zeilen.push(['Material','kein Material – nur kehren und absaugen',0]);
+  }
+  const lohn=reinZeit(art)*LOHN();
+  zeilen.push([REIN_LABEL[art], (reinZeit(art)*60).toFixed(2).replace('.',',')+' min × '+fmt(LOHN())+'/h', lohn]);
+  return {ep: reinPreis(art), zeilen, warn:[]};
 }
 // Silikon/elastische Fuge: Festpreis je nach Material.
 const SILIKON = {sanitaer:7.90, naturstein:8.90};
