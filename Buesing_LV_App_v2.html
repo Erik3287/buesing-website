@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 136';
+const APP_STAND = '28.08.2026 · 137';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1048,6 +1048,9 @@ const WERTE = [
     ['WST_SILIKON_F','Silikon je Stufe','× Stufenlänge',()=>WST_SILIKON_F,v=>WST_SILIKON_F=v],
     ['WST_RAND_F','Randstreifen je Stufe','× Auftritt',()=>WST_RAND_F,v=>WST_RAND_F=v],
     ['WST_RAND_EUR','Randstreifen Preis','€/lfdm',()=>WST_RAND_EUR,v=>WST_RAND_EUR=v],
+  ]],
+  ['Laibung / Ablage', [
+    ['LAIB_ZUSCHLAG','Zuschlag auf den Wandpreis','€/m²',()=>LAIB_ZUSCHLAG,v=>LAIB_ZUSCHLAG=v],
   ]],
   ['Schutz / Abdeckung', [
     ['SCH_PAPPE_EK','Schutzpappe + Band + Entsorgung','€/m²',()=>SCH_PAPPE_EK,v=>SCH_PAPPE_EK=v],
@@ -1618,7 +1621,7 @@ async function kiPreise(input){
 // POSITIONS-TYP-ERKENNUNG
 // ============================================
 const TYPEN = [
-  ['wand','Wand verlegen'],['boden','Boden verlegen'],['naturstein','Naturstein'],['betonwerkstein','Betonwerkstein'],['treppenbelag','Treppenbelag'],['werksteinstufe','Werksteinstufe (Stk)'],['sockel','Sockelfliesen (lfdm)'],['fensterbank','Fensterbank (lfdm)'],['fb_rundung','Fensterbank Ecke rund'],['fb_kante','Fensterbank Kante schleifen'],['spiegel','Wandspiegel'],['revision','Revisionsunterlagen'],['matte_anarbeiten','Matte einfliesen (lfdm)'],['schraegschnitt','Schrägschnitt (lfdm)'],['ueberschrift','— Überschrift —'],
+  ['wand','Wand verlegen'],['laibung','Fensterlaibung/Ablage (Zulage)'],['boden','Boden verlegen'],['naturstein','Naturstein'],['betonwerkstein','Betonwerkstein'],['treppenbelag','Treppenbelag'],['werksteinstufe','Werksteinstufe (Stk)'],['sockel','Sockelfliesen (lfdm)'],['fensterbank','Fensterbank (lfdm)'],['fb_rundung','Fensterbank Ecke rund'],['fb_kante','Fensterbank Kante schleifen'],['spiegel','Wandspiegel'],['revision','Revisionsunterlagen'],['matte_anarbeiten','Matte einfliesen (lfdm)'],['schraegschnitt','Schrägschnitt (lfdm)'],['ueberschrift','— Überschrift —'],
   ['abdicht_flaeche','Abdichtung Fläche'],['dichtband','Dichtband'],['manschette','Manschette'],['dichtecke','Dichtecke'],
   ['grundierung','Grundierung'],['spachtel','Vorspachtel'],['entkopplung','Entkopplung Boden'],['stundenlohn','Stundenlohn'],
   ['profil','Profil/Schiene'],['reservefliesen','Reservefliesen'],['loch','Loch/Anschnitt'],
@@ -1652,6 +1655,12 @@ const TYP_REGELN = [
   // Betonwerkstein enthalten?" - doch, beide haben einen zu rund 5,50 EUR/lfm.
   ['sockel',        ['sockelfliesen','sockelfliese','sockelleiste','sockelleisten',
                      'sockel,betonwerkstein','sockel, betonwerkstein']],
+  // Laibungen und geflieste Ablagen sind Wandfliesenarbeit auf schmalen
+  // Streifen - oft nach Metern ausgeschrieben. Erik am 28.08.2026: "Oft
+  // werden Ablagen oder Laibungen auch nach meter berechnet - wichtige Info.
+  // als grundlage sollten wir 10 Euro pro qm mehr nehmen."
+  ['laibung',       ['fensterlaibung','fensterleibung','zulage laibung','laibung verfliest',
+                     'leibung verfliest','geflieste ablage','ablage verfliest','ablagen verfliest']],
   // Eng gefasst und nur aus der Ueberschrift: mit dem blossen Wort
   // "fensterbank" fielen auch die Zulage fuers seitliche Schleifen
   // (15.09.5), die Kopfbearbeitung (15.09.4, nach Stueck), die
@@ -1803,7 +1812,7 @@ function pruefeTyp(text){
 // Treppenbelag") - beide wurden dadurch zu Fliesen-Treppenbelag erklaert.
 // Aus der Ueberschrift heraus greift der Typ weiter: alle vier echten
 // Positionen heissen "Treppenfliesen, Auf-/Antritt der Treppenstufen".
-const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge','treppenbelag','werksteinstufe','fensterbank','fb_rundung','fb_kante','behandlung','spiegel','revision','matte_anarbeiten','schraegschnitt','spachtel',
+const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge','treppenbelag','werksteinstufe','fensterbank','fb_rundung','fb_kante','behandlung','spiegel','revision','matte_anarbeiten','schraegschnitt','spachtel','laibung',
   // "Spachtelung mit Gefaelle ZUM BODENABLAUF" ist eine Spachtelung, keine
   // Ablauf-Position. Alle echten Ablauf-Positionen im LV-15 heissen schon in
   // der Ueberschrift "Zulage Bodeneinlauf" (Erik 27.08.2026).
@@ -2525,7 +2534,10 @@ const UMFAENGE = [['liefern_verlegen','liefern + verlegen'],['nur_liefern','nur 
 function erkenneUmfang(desc, langtext){
   const t=((desc||'')+' '+(langtext||'')).toLowerCase();
   const hatLiefern  = /liefer/.test(t);
-  const hatVerlegen = /verleg|einbau|verarbeit|montier/.test(t);
+  // "einsetzen" und "ansetzen" fehlten: 15.06.01.22 sagt "liefern und im
+  // Duennbett einsetzen" und galt deshalb als reine Lieferung - ohne Kleber,
+  // ohne Lohn (28.08.2026).
+  const hatVerlegen = /verleg|einbau|einsetz|ansetz|verarbeit|montier/.test(t);
   const bauseits    = /bauseits|material wird gestellt|beistellung|vom ag gestellt/.test(t);
   if(bauseits) return {u:'nur_verlegen', sicher:true, grund:'Material bauseits erkannt'};
   if(hatLiefern && hatVerlegen) return {u:'liefern_verlegen', sicher:true, grund:'liefern + verlegen erkannt'};
@@ -3564,6 +3576,39 @@ function epProfil(p, system){
   zeilen.push(['Einbau',lohnTxt(0.15),lohn]);
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn, unsicher:(!gewaehlt && !erk.sicher)};
+}
+// ===== FENSTERLAIBUNG / ABLAGE (Zulage) ==================================
+// Wandfliesenarbeit auf schmalen Streifen: gleiche Fliese, gleiches Rezept,
+// nur aufwendiger. Erik am 28.08.2026: "Es handelt sich letztendlich um das
+// Verlegen von Wandfliesen ... als grundlage sollten wir 10 Euro pro qm mehr
+// nehmen (wenn man das auf den Qm rechnet) - also laenge mal breite."
+// Steht die Position nach Metern im LV, rechnet die App den m²-Preis ueber
+// die Laibungsbreite aus dem Text um (Breite ca. 45 cm -> x 0,45).
+let LAIB_ZUSCHLAG = 10.0;   // EUR je m² auf den Wandpreis
+function laibungBreite(p){
+  if(parseFloat(p.laibBreite)>0) return parseFloat(p.laibBreite);
+  const m=((p.desc||'')+' '+(p.langtext||'')).match(/breite[^\d]{0,20}(\d+(?:[.,]\d+)?)\s*(cm|mm|m)\b/i);
+  if(!m) return 0;
+  const v=parseFloat(m[1].replace(',','.'));
+  return m[2].toLowerCase()==='mm' ? v/1000 : (m[2].toLowerCase()==='m' ? v : v/100);
+}
+function epLaibung(p, system){
+  const w = epFliese(Object.assign({}, p, {typ:'wand'}), system);
+  const zeilen = (w.zeilen||[]).slice();
+  const warn   = (w.warn||[]).slice();
+  let ep = (w.ep||0) + LAIB_ZUSCHLAG;
+  zeilen.push(['Zuschlag Laibung/Ablage','schmale Streifen, jede Kante geschnitten', LAIB_ZUSCHLAG]);
+  const eh = String(p.einheit||'').toLowerCase().replace(/\s/g,'');
+  if(eh==='m'||eh==='lfm'||eh==='lfdm'||eh==='mtr'){
+    const b = laibungBreite(p);
+    if(b>0){
+      zeilen.push(['Umrechnung auf den Meter', fmt(ep)+' €/m² × '+b.toFixed(2).replace('.',',')+' m Breite', null]);
+      ep = ep * b;
+    } else {
+      warn.push('EINGABE|Position rechnet je Meter, aber keine Laibungsbreite im Text – Breite (m) im Rechner eintragen');
+    }
+  }
+  return {ep: Math.round(ep*100)/100, zeilen, warn};
 }
 // Festpreis-Zulagen (Endpreise, kein Material-Aufschlag, kein Zuschlag)
 const FESTPREISE = {
@@ -4705,6 +4750,7 @@ function berechneEPKern(p, system){
   const t=p.typ;
   if(t==='ueberschrift') return {ep:0, zeilen:[], warn:[]};
   if(t==='wand'||t==='boden') return epFliese(p, system);
+  if(t==='laibung') return epLaibung(p, system);
   if(t==='abdicht_flaeche') return epAbdichtFlaeche(p, system);
   if(t==='dichtband') return epDichtband(p, system);
   if(t==='manschette'||t==='dichtecke') return epStueckAbdicht(p, system, t);
@@ -4791,7 +4837,7 @@ function autoEP(p, system){
 
   // Fliesen-Typen ohne Fliesenpreis sind NICHT rechenbar -> rot,
   // ausser die Fliese ist bauseits gestellt ("nur verlegen").
-  const brauchtFliese = ['wand','boden','naturstein','betonwerkstein','treppenbelag','sockel','fensterbank','reservefliesen'].indexOf(p.typ) > -1
+  const brauchtFliese = ['wand','boden','naturstein','betonwerkstein','treppenbelag','sockel','fensterbank','reservefliesen','laibung'].indexOf(p.typ) > -1
                         && p.umfang !== 'nur_verlegen';
   const flieseFehlt   = brauchtFliese && !(parseFloat(p.flieseEk) > 0);
 
@@ -4824,6 +4870,15 @@ function autoEP(p, system){
   // Pruef-Hinweise gehen auch bei roten und bestaetigten Positionen nicht verloren
   if(hinweis.length) p.notiz = (p.notiz ? p.notiz + ' · ' : '')
                              + (bestaetigt ? '✓ bestätigt: ' : '') + hinweisTxt;
+  // Ohne Menge ist keine Position fertig. Bei 15.06.01.22 hat der Import
+  // '4 m' als '0 m²' abgelegt und die Position stand trotzdem da wie alle
+  // anderen. Erik am 28.08.2026: "Auf sowas MUSS die App hinweisen und der
+  // Upload MUSS erneut detailliert geprueft werden."
+  if(!(parseFloat(p.menge) > 0)){
+    p.status = 'rot';
+    p.notiz = 'MENGE FEHLT (0) – im LV-Original nachsehen, Einheit mitprüfen'
+            + (p.notiz ? ' · ' + p.notiz : '');
+  }
 
   return p;
 }
