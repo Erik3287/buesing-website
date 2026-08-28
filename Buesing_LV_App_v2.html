@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 122';
+const APP_STAND = '28.08.2026 · 123';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1053,9 +1053,11 @@ const WERTE = [
     ['SCH_PAPPE_EK','Schutzpappe + Band + Entsorgung','€/m²',()=>SCH_PAPPE_EK,v=>SCH_PAPPE_EK=v],
     ['SCH_VLIES_EK','Schutzvlies','€/m²',()=>SCH_VLIES_EK,v=>SCH_VLIES_EK=v],
     ['SCH_HARTF_EK','Hartfaserplatten','€/m²',()=>SCH_HARTF_EK,v=>SCH_HARTF_EK=v],
-    ['SCH_OSB_EK','Vlies + OSB-Platte','€/m²',()=>SCH_OSB_EK,v=>SCH_OSB_EK=v],
+    ['SCH_OSB_EK','Vlies + OSB, freie Fläche','€/m²',()=>SCH_OSB_EK,v=>SCH_OSB_EK=v],
+    ['SCH_OSB_TR_EK','Vlies + OSB, Treppe','€/m²',()=>SCH_OSB_TR_EK,v=>SCH_OSB_TR_EK=v],
     ['SCH_ZEIT','Zeit ein- und ausbauen','h/m²',()=>SCH_ZEIT,v=>SCH_ZEIT=v],
-    ['SCH_ZEIT_OSB','Zeit Vlies + OSB','h/m²',()=>SCH_ZEIT_OSB,v=>SCH_ZEIT_OSB=v],
+    ['SCH_ZEIT_OSB','Zeit OSB freie Fläche','h/m²',()=>SCH_ZEIT_OSB,v=>SCH_ZEIT_OSB=v],
+    ['SCH_ZEIT_OSBTR','Zeit OSB Treppe','h/m²',()=>SCH_ZEIT_OSBTR,v=>SCH_ZEIT_OSBTR=v],
   ]],
   ['Reinigung', [
     ['REIN_EK_L','Zementschleierentferner','€/l',()=>REIN_EK_L,v=>REIN_EK_L=v],
@@ -3820,32 +3822,44 @@ let SCH_ZEIT     = 4.5/60; // h je m²: auslegen, Stoesse verkleben, unterhalten
 // Wandanschluesse staubdicht verklebt", spaeter Ausbau und Entsorgung. Jede
 // Stufe muss einzeln zugeschnitten werden - deshalb eigenes Material und eine
 // eigene Zeit.
-// Die abgerechneten 19 m² sind weniger als die Arbeit: Auftritt
-// 32 x 0,25 x 1,30 = 10,40 m² plus Setzstufe 32 x 0,1719 x 1,30 = 7,13 m²
-// = 17,53 m² echte Oberflaeche, und dafuer braucht man mit Verschnitt rund
-// 22 m² Platte. Umgelegt auf die 19 Abrechnungsquadratmeter:
-//   OSB 15 mm   22 m² x 8,00 = 176 EUR -> 9,26 EUR/m²
-//   Vlies       22 m² x 1,90 =  42 EUR -> 2,20 EUR/m²
-//   Klebeband   (32 Stufen, alle Wandanschluesse) -> 2,50 EUR/m²
-//   Entsorgung  (rund 200 kg Holz)               -> 2,00 EUR/m²
-// Zeit je Stufe: 5 min zuschneiden, 5 min verlegen und abkleben, 3 min
-// ausbauen = 13 min. 32 Stufen = 6,9 h; auf 19 m² sind das 22 min/m².
-// Aufgerundet auf 24, weil "Ausbau nach Anweisung der Bauleitung" auch
-// abschnittsweise heissen kann.
-let SCH_OSB_EK   = 15.95;  // EUR/m² Material, siehe oben
-let SCH_ZEIT_OSB = 24/60;  // h je m²: zuschneiden, verlegen, staubdicht
-                           //          verkleben, ausbauen, entsorgen
+// OSB-Abdeckung gibt es in zwei Groessenordnungen. Erik am 28.08.2026:
+// "legen wir das als feste Pauschalposition (flaechen mit osb schuetzen -
+// das kommt ja oefter vor)". Ein fester Betrag waere falsch - der m²-Preis
+// haengt daran, worauf das OSB liegt. Deshalb zwei Varianten, wie bei
+// Reinigung und Impraegnierung.
+//
+// FLAECHE: grosse Platten am Stueck, wenig Zuschnitt.
+//   OSB 1,10 m² je m² Flaeche x 8,00 = 8,80 + Vlies 1,90 + Band 0,80
+//   + Entsorgung 1,20 = 12,70 EUR/m², 8 min/m².
+//
+// TREPPE (15.03.36): Auftritt 32 x 0,25 x 1,30 = 10,40 m², Setzstufe
+//   32 x 0,1719 x 1,30 = 7,13 m² = 17,53 m² echte Oberflaeche bei 19 m²
+//   Abrechnung. Mit Verschnitt rund 24 m² Platte. Umgelegt auf die 19 m²:
+//   OSB 24 x 8,50 = 204 EUR -> 10,74 | Vlies 2,20 | Band 2,50 (alle
+//   Wandanschluesse staubdicht) | Entsorgung 2,00 = 17,44 EUR/m².
+//   Zeit je Stufe 13 min (5 zuschneiden, 5 verlegen und abkleben, 3
+//   ausbauen) = 6,9 h; dazu die eigene Anfahrt fuer den Rueckbau Wochen
+//   spaeter und das Nacharbeiten waehrend der Bauzeit - zusammen 28 min/m².
+let SCH_OSB_EK    = 12.70;  // EUR/m² Material, freie Flaeche
+let SCH_OSB_TR_EK = 17.44;  // EUR/m² Material, Treppe
+let SCH_ZEIT_OSB  = 8/60;   // h je m², freie Flaeche
+let SCH_ZEIT_OSBTR= 28/60;  // h je m², Treppe
 const SCH_LABEL = {pappe:'Schutzpappe', vlies:'Schutzvlies',
-                   hartfaser:'Hartfaserplatten', osb:'Vlies + OSB-Verlegeplatte'};
+                   hartfaser:'Hartfaserplatten',
+                   osb:'Vlies + OSB, freie Fläche', osb_tr:'Vlies + OSB, Treppe'};
 function schutzEk(art){
-  return art==='osb' ? SCH_OSB_EK
+  return art==='osb_tr' ? SCH_OSB_TR_EK
+       : art==='osb' ? SCH_OSB_EK
        : art==='hartfaser' ? SCH_HARTF_EK
        : art==='vlies' ? SCH_VLIES_EK : SCH_PAPPE_EK;
 }
-function schutzZeit(art){ return art==='osb' ? SCH_ZEIT_OSB : SCH_ZEIT; }
+function schutzZeit(art){
+  return art==='osb_tr' ? SCH_ZEIT_OSBTR : (art==='osb' ? SCH_ZEIT_OSB : SCH_ZEIT);
+}
 function schutzAuto(txt){
   // OSB zuerst - der Text von 15.03.36 nennt Vlies UND OSB.
-  if(/osb|verlegeplatte|holzplatte|spanplatte/i.test(txt||'')) return 'osb';
+  if(/osb|verlegeplatte|holzplatte|spanplatte/i.test(txt||''))
+    return /treppe|stufen|podest/i.test(txt||'') ? 'osb_tr' : 'osb';
   if(/hartfaser|hartfaserplatt/i.test(txt||'')) return 'hartfaser';
   if(/schutzvlies|abdeckvlies|vlies/i.test(txt||'')) return 'vlies';
   return 'pappe';
@@ -3859,8 +3873,8 @@ function epSchutz(p){
   zeilen.push(['Material × 1,20','',kalk]);
   const zeit=schutzZeit(art);
   const lohn=zeit*LOHN();
-  zeilen.push([art==='osb' ? 'Zuschneiden, verlegen, staubdicht verkleben, ausbauen'
-                           : 'Auslegen, Stöße verkleben, unterhalten, abbauen',
+  zeilen.push([(art==='osb'||art==='osb_tr') ? 'Zuschneiden, verlegen, staubdicht verkleben, ausbauen'
+                                             : 'Auslegen, Stöße verkleben, unterhalten, abbauen',
                (zeit*60).toFixed(1).replace('.',',')+' min × '+fmt(LOHN())+'/h', lohn]);
   return {ep: Math.round((kalk+lohn)*100)/100, zeilen, warn:[]};
 }
@@ -5349,7 +5363,7 @@ function renderCalcHTML(i){
       + SCH_LABEL[k]+' – '+fmt(schutzEk(k))+' €/m² Material</option>'; };
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Schutz-Art</div>'
       +'<select onchange="setSchutz('+i+',this.value)" style="width:auto;padding:6px 8px">'
-      + optS('pappe') + optS('vlies') + optS('hartfaser') + optS('osb')
+      + optS('pappe') + optS('vlies') + optS('hartfaser') + optS('osb') + optS('osb_tr')
       +'</select><div style="font-size:11px;margin-top:3px">'
       + (p.schutzArt ? '<span style="color:var(--muted)">von Hand gewählt</span>'
                      : '<span style="color:#1a9e4b">🟢 aus dem Text erkannt</span>')
