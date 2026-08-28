@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 97';
+const APP_STAND = '28.08.2026 · 98';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5707,10 +5707,11 @@ function renderLV(){
       <td>
         <div onclick="textAufZu(${i})" title="Klicken: Leistungsbeschreibung ein-/ausblenden"
              style="cursor:pointer;border-radius:8px;padding:7px 10px;font-size:15px;font-weight:700;line-height:1.3;
-                    background:${bedarf?'#0047c7':'var(--surface2)'};color:${bedarf?'#fff':'var(--text)'}">
-          <span style="float:right;font-size:12px;font-weight:600;opacity:.7" id="lt-pfeil-${i}">▾</span>
+                    background:${bedarf?'#dce9fa':'var(--surface2)'};color:${bedarf?'#12386f':'var(--text)'};
+                    font-style:${bedarf?'italic':'normal'}">
+          <span style="float:right;font-size:12px;font-weight:600;opacity:.7;font-style:normal" id="lt-pfeil-${i}">▾</span>
+          ${bedarf?`<div onclick="event.stopPropagation();bedarfUmschalten(${i})" title="Doch keine Bedarfsposition? Hier klicken." style="font-size:13px;font-weight:800;letter-spacing:.3px;margin-bottom:2px;cursor:pointer">Bedarfsposition · nur EP</div>`:''}
           ${p.desc||''}
-          ${bedarf?`<div style="font-size:11.5px;font-weight:800;letter-spacing:.4px;margin-top:2px">BEDARFSPOSITION · nur EP</div>`:''}
         </div>
         ${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin:4px 0 0 2px">${p.notiz}</div>`:''}
         <div id="lt-${i}" style="display:none">${langtextEditHtml(p,i)}</div>
@@ -5726,7 +5727,7 @@ function renderLV(){
         <option value="rot" ${p.status==='rot'?'selected':''}>🔴 Rot</option>
       </select></td>
       <td class="np" style="white-space:nowrap;text-align:center"><button class="bg sm" style="padding:3px 6px" onclick="toggleCalc(${i})" title="EP berechnen">🧮</button>
-        <div style="margin-top:4px"><button class="bg sm" style="padding:2px 6px;font-size:10.5px;width:100%;${bedarf?'background:#0047c7;border-color:#0047c7;color:#fff;font-weight:700':''}" onclick="bedarfUmschalten(${i})" title="${bedarf?'Ist eine Bedarfsposition – zählt nicht in die Summe. Klicken zum Zurücknehmen.':'Als Bedarfsposition kennzeichnen – zählt dann nicht in die Angebotssumme'}">Bedarf</button></div>${liefBtnHtml(p,i)}</td>
+        ${liefBtnHtml(p,i)}</td>
     </tr>
     <tr class="calc-row" data-i="${i}" id="calc-${i}" style="${p._calcOpen?'':'display:none'}"><td colspan="9" style="background:#f7f9fc;padding:0 16px;border-left:6px solid ${bc}">${p._calcOpen?renderCalcHTML(i):''}</td></tr>`;
   }).join('');
@@ -5948,9 +5949,22 @@ async function positionsdateiLaden(datei){
             + LV.pos.length+' Positionen)\nwird durch den Inhalt der Datei ersetzt ('
             + liste.length+' Positionen).\n\nFortfahren?')) return;
   const vorherId = LV.id || 0;
+  // Vollstaendigkeit geht vor. Beim Einlesen aus dem PDF faellt jedes Mal an
+  // anderer Stelle Text weg - am 28.08.2026 fehlten so in 57 Positionen
+  // insgesamt 6.749 Zeichen Leistungsbeschreibung. Deshalb: hat die Position
+  // mit derselben Nummer im offenen LV den LAENGEREN Langtext, bleibt dieser
+  // stehen. Ein Einlesen kann Text ab jetzt nur noch ergaenzen, nie kuerzen.
+  const alteTexte = {};
+  (LV.pos||[]).forEach(function(p){
+    const nr = (p.nr||'').trim();
+    if(nr && p.langtext) alteTexte[nr] = p.langtext;
+  });
+  let behalten = 0;
   LV.pos = liste.map(function(q){
     const p = Object.assign({}, q);
     p.desc = q.titel || q.desc || '';
+    const alt = alteTexte[(p.nr||'').trim()];
+    if(alt && alt.length > (p.langtext||'').length){ p.langtext = alt; behalten++; }
     delete p._calcOpen;
     return p;
   });
@@ -5961,7 +5975,8 @@ async function positionsdateiLaden(datei){
   renderLV();
   doSave(true);
   toast(LV.pos.length+' Positionen eingelesen'
-    + (vorherId ? (' in LV Nr. '+vorherId) : ' – als NEUES LV angelegt'));
+    + (vorherId ? (' in LV Nr. '+vorherId) : ' – als NEUES LV angelegt')
+    + (behalten ? ' · '+behalten+'× längeren Text behalten' : ''));
 }
 function exportDatenObjekt(){
   return {
