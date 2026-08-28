@@ -263,6 +263,7 @@ tr:hover td{background:#fafafa}
         <div>
           <div class="ct" id="lv-tit">LV-Kalkulation</div>
           <div style="color:var(--muted);font-size:12px">Angebotssumme netto: <span id="lv-sum" style="color:var(--accent);font-weight:700">–</span></div>
+          <div id="lv-bedarf" style="font-size:11.5px;color:var(--muted)"></div>
         </div>
         <div style="display:flex;gap:8px;align-items:center" class="np">
           <span id="save-status" style="font-size:12px;color:var(--muted);margin-right:4px"></span>
@@ -754,7 +755,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 86';
+const APP_STAND = '28.08.2026 · 88';
 // Beim Start die eigenen Kalkulationswerte anwenden, bevor irgendetwas
 // gerechnet wird.
 try{ werteAnwenden(); }catch(e){}
@@ -1818,6 +1819,23 @@ function typenNeuErkennen(){
 // Eine Position mit Menge 0 UND eigenem Text bleibt eine Position -
 // 15.03.11 (Treppenantritt) und 15.03.6 (Betonwerksteinboden) haben im
 // LV-15 die Menge 0 und muessen sichtbar bleiben.
+const BEDARF_WORTE = /bedarfspos|eventualpos|wahlpos|alternativpos|nur\s+ep\b|nur\s+einheitspreis/i;
+// Erik am 28.08.2026: "Die Summen duerfen NICHT in den Endbetrag zaehlen!"
+// Eine Bedarfsposition wird nur abgerufen, wenn sie gebraucht wird; eine Wahl-
+// oder Alternativposition steht neben einer anderen zur Auswahl. Beide gehoeren
+// mit Einheitspreis ins Angebot, aber NICHT in die Summe. Bis hierher zaehlte
+// die App sie mit - im LV-15 waren das 10.890,97 EUR zu viel.
+function istBedarfPos(p){
+  if(!p) return false;
+  if(p.bedarf===true || p.bedarf===false) return p.bedarf;   // von Hand gesetzt
+  return BEDARF_WORTE.test((p.desc||p.titel||'')+' '+(p.langtext||''));
+}
+function bedarfUmschalten(i){
+  const p=LV.pos[i];
+  p.bedarf = !istBedarfPos(p);
+  renderLV(); scheduleSave();
+  toast(p.bedarf ? 'Zählt nicht mehr in die Angebotssumme.' : 'Zählt wieder in die Angebotssumme.');
+}
 function istUeberschriftPos(p, alle){
   if(!p) return false;
   if(parseFloat(p.menge)>0) return false;
@@ -3664,7 +3682,9 @@ const BAUSTELLE_STAFFEL = [
 function baustelleBasis(){
   let s=0;
   ((typeof LV!=='undefined' && LV.pos)||[]).forEach(function(x){
-    if(x.typ!=='baustelle') s+=(parseFloat(x.menge)||0)*(parseFloat(x.ep)||0);
+    // Bedarfspositionen zaehlen auch hier nicht - die Baustelle wird nach der
+    // Auftragssumme gestaffelt, nicht nach dem, was vielleicht abgerufen wird.
+    if(x.typ!=='baustelle' && !istBedarfPos(x)) s+=(parseFloat(x.menge)||0)*(parseFloat(x.ep)||0);
   });
   return s;
 }
@@ -5633,7 +5653,7 @@ function renderLV(){
   const b=document.getElementById('pos-body');
   if(!LV.system) LV.system='sakret';
   const lsSel=document.getElementById('lv-system'); if(lsSel) lsSel.value=LV.system;
-  let g=0,y=0,r=0,tot=0;
+  let g=0,y=0,r=0,tot=0,totBedarf=0,nBedarf=0;
   b.innerHTML=LV.pos.map((p,i)=>{
     // "unbekannt" wird MITGESPEICHERT. Ein LV, das vor einem neuen Rechner
     // angelegt wurde, behielte den Typ sonst fuer immer - 15.03.6 stand als
@@ -5654,12 +5674,13 @@ function renderLV(){
       </tr>`;
     }
     const gp=(parseFloat(p.menge)||0)*(parseFloat(p.ep)||0);
-    tot+=gp;
+    const bedarf=istBedarfPos(p);
+    if(bedarf){ totBedarf+=gp; nBedarf++; } else tot+=gp;
     if(p.status==='gruen')g++;else if(p.status==='gelb')y++;else r++;
     const bc=p.status==='gruen'?'var(--green)':p.status==='gelb'?'var(--yellow)':'var(--red)';
     return `<tr class="pos-row" data-i="${i}" data-such="${suchtext}">
       <td style="font-weight:700;color:var(--accent);font-size:13px;border-left:6px solid ${bc};padding-left:8px">${p.nr||''}</td>
-      <td><div style="font-size:13px;font-weight:600">${p.desc||''}</div>${langtextEditHtml(p,i)}${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${p.notiz}</div>`:''}</td>
+      <td><div style="font-size:13px;font-weight:600">${p.desc||''}${bedarf?` <span style="color:#0047c7;font-weight:800;font-size:12.5px;letter-spacing:.3px;cursor:pointer" onclick="bedarfUmschalten(${i})" title="Zählt nicht in die Angebotssumme – klicken zum Umstellen">BEDARFSPOSITION</span>`:''}</div>${langtextEditHtml(p,i)}${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${p.notiz}</div>`:''}</td>
       <td><select style="padding:4px 5px;font-size:11px;width:118px" onchange="upd(${i},'typ',this.value)">${typOptions(p.typ)}</select></td>
       <td><input type="number" step="0.01" value="${p.menge||''}" placeholder="0" oninput="upd(${i},'menge',this.value)" style="text-align:right;width:70px;padding:4px 6px"></td>
       <td style="color:var(--muted);font-size:13px">${p.einheit||''}</td>
@@ -5679,6 +5700,11 @@ function renderLV(){
   document.getElementById('s-y').textContent=y;
   document.getElementById('s-r').textContent=r;
   document.getElementById('lv-sum').textContent=fmt(tot)+' €';
+  const bedEl=document.getElementById('lv-bedarf');
+  if(bedEl) bedEl.innerHTML = nBedarf
+    ? ('<span style="color:#0047c7;font-weight:800">'+nBedarf+' BEDARFSPOSITION(EN)</span> '
+       +fmt(totBedarf)+' € – <b>nicht</b> in der Angebotssumme')
+    : '';
 
   // Endpreis-Kalkulation berechnen und anzeigen
   const kalkBox=document.getElementById('lv-kalk');
@@ -5726,7 +5752,7 @@ function upd(i,f,v){
     if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
     renderLV(); scheduleSave(); return;
   }
-  let tot=0; LV.pos.forEach(p=>tot+=(p.menge||0)*(p.ep||0));
+  let tot=0; LV.pos.forEach(p=>{ if(!istBedarfPos(p)) tot+=(p.menge||0)*(p.ep||0); });
   document.getElementById('lv-sum').textContent=fmt(tot)+' €';
   const gp=(parseFloat(LV.pos[i].menge)||0)*(parseFloat(LV.pos[i].ep)||0);
   const gpCell=document.getElementById('gp-'+i);
@@ -5770,7 +5796,7 @@ function doSave(silent){
   if(!(LV.pos && LV.pos.length)){ if(silent) setSaveStatus('nichts zu speichern'); return; }
   // Summe berechnen
   let summe=0;
-  (LV.pos||[]).forEach(p=>{ summe += (parseFloat(p.menge)||0)*(parseFloat(p.ep)||0); });
+  (LV.pos||[]).forEach(p=>{ if(!istBedarfPos(p)) summe += (parseFloat(p.menge)||0)*(parseFloat(p.ep)||0); });
   // in Datenbank speichern
   // Ob ein Rechner gerade offen ist, gehoert nicht in die Datenbank. Sonst
   // stehen beim naechsten Oeffnen des LV zwanzig Rechner offen (Erik
@@ -5972,20 +5998,26 @@ function doExportDaten(){
 function doExportPDF(){
   document.getElementById('pr-d').textContent=new Date().toLocaleDateString('de-DE');
   document.getElementById('pr-ti').textContent=LV.titel||'LV-Kalkulation';
-  let tot=0;
+  let tot=0, totBedarf=0, nBedarf=0;
   document.getElementById('pr-b').innerHTML=LV.pos.map(p=>{
-    const gp=(p.menge||0)*(p.ep||0); tot+=gp;
+    const gp=(p.menge||0)*(p.ep||0);
+    // Bedarfs- und Wahlpositionen stehen mit Einheitspreis im Angebot, aber
+    // NICHT in der Summe (Erik 28.08.2026).
+    const bedarf=istBedarfPos(p);
+    if(!bedarf) tot+=gp; else { totBedarf+=gp; nBedarf++; }
     const bg=p.status==='rot'?'#fff3f3':p.status==='gelb'?'#fffef0':'#fff';
     return `<tr style="background:${bg}">
       <td style="padding:6px 8px;border-bottom:1px solid #eee;font-weight:600">${p.nr||''}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #eee"><div style="font-weight:600">${p.desc||''}</div>${p.langtext?`<div style="font-size:11px;color:#444;margin-top:2px;line-height:1.45;white-space:pre-wrap">${langtextPrintHtml(p)}</div>`:''}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee"><div style="font-weight:600">${p.desc||''}${bedarf?` <span style="color:#0047c7;font-weight:800">BEDARFSPOSITION</span>`:''}</div>${p.langtext?`<div style="font-size:11px;color:#444;margin-top:2px;line-height:1.45;white-space:pre-wrap">${langtextPrintHtml(p)}</div>`:''}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${p.menge||'–'}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #eee">${p.einheit||''}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${p.ep?fmt(p.ep)+' €':'–'}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700">${gp>0?fmt(gp)+' €':'–'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700">${bedarf?'<span style="color:#0047c7">nur EP</span>':(gp>0?fmt(gp)+' €':'–')}</td>
     </tr>`;
   }).join('');
-  document.getElementById('pr-s').textContent='Angebotssumme netto: '+fmt(tot)+' €';
+  document.getElementById('pr-s').innerHTML='Angebotssumme netto: '+fmt(tot)+' €'
+    + (nBedarf ? ('<div style="font-size:11px;font-weight:400;color:#0047c7;margin-top:3px">zzgl. '+nBedarf
+                  +' Bedarfsposition(en) '+fmt(totBedarf)+' € – nur Einheitspreis, nicht in der Summe</div>') : '');
   window.print();
 }
 
