@@ -738,7 +738,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 69';
+const APP_STAND = '27.08.2026 · 70';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -3035,29 +3035,53 @@ function epStundenlohn(p){
   else if(t.indexOf('auszubildende')>-1||t.indexOf('azubi')>-1||t.indexOf('helfer')>-1){ satz=KALK.lohn_helfer; rolle='Azubi/Helfer'; }
   return {ep:satz, zeilen:[['Stundensatz ('+rolle+')','',satz]], warn:[]};
 }
+// Profile aus der Preisdatenbank zur Auswahl stellen. Erik am 27.08.2026:
+// "Sobald in dem einen Dropdown 'Profil/Schiene' erkannt ist, koennte in dem
+// gelben Feld ebenfalls ein Dropdownmenue mit den in der Preisdatenbank
+// hinterlegten Schienen aufklappbar sein. Dann waere gleich der richtige
+// Artikel drin und der Preis in der Kalkulation."
+function profilKandidaten(){
+  return (PREISE||[]).filter(function(x){
+    if(x.kat!=='profile') return false;
+    const e=String(x.eu||'').toLowerCase().replace(/^\//,'');
+    return e==='m' || e==='lfm' || e==='mtr';
+  }).sort(function(a,b){
+    const fa=String(a.format||''), fb=String(b.format||'');
+    return fa===fb ? String(a.name).localeCompare(String(b.name),'de') : fa.localeCompare(fb,'de');
+  });
+}
+function profilArtikel(p){
+  if(!p || !p.profilArt) return null;
+  return (PREISE||[]).find(function(x){ return x.name===p.profilArt; }) || null;
+}
 function epProfil(p, system){
   const warn=[], zeilen=[];
   const txt=(p.desc||'')+' '+(p.langtext||'');
   const erk=erkenneOberflaeche(txt);
   if(!p.oberflaeche) p.oberflaeche = erk.of;
   const cfg=PROFILE[p.oberflaeche]||PROFILE.glaenzend;
-  const a=findArtikel(cfg.name);
+  // Von Hand gewaehltes Profil geht immer vor dem Standard aus der
+  // Oberflaechen-Erkennung.
+  const gewaehlt=profilArtikel(p);
+  const a = gewaehlt || findArtikel(cfg.name);
+  const label = gewaehlt ? gewaehlt.name : ('Schiene '+cfg.label);
   let schiene=0;
   if(a){
     schiene=(parseFloat(a.ek)||0)*1.05;
-    zeilen.push(['Schiene '+cfg.label, fmt(a.ek)+' €/m × 1,05', schiene]);
+    zeilen.push([label, fmt(a.ek)+' €/m × 1,05', schiene]);
   } else {
     warn.push('ARTIKEL|'+cfg.name);
-    zeilen.push(['Schiene '+cfg.label, 'fehlt', 0]);
+    zeilen.push([label, 'fehlt', 0]);
   }
-  if(!erk.sicher) warn.push('PRUEFEN|Oberfläche prüfen – '+erk.grund);
-  if(p.oberflaeche==='pulver' && !(p.farbe||'').trim()) warn.push('EINGABE|Farbe eintragen (wird bemustert)');
+  // Die Oberflaechen-Erkennung zaehlt nur, solange kein Profil gewaehlt ist.
+  if(!gewaehlt && !erk.sicher) warn.push('PRUEFEN|Oberfläche prüfen – '+erk.grund);
+  if(!gewaehlt && p.oberflaeche==='pulver' && !(p.farbe||'').trim()) warn.push('EINGABE|Farbe eintragen (wird bemustert)');
   const kalk=schiene*1.20;
   zeilen.push(['Material × 1,20','',kalk]);
   const lohn=0.15*LOHN();
   zeilen.push(['Einbau',lohnTxt(0.15),lohn]);
   const ep=Math.round((kalk+lohn)*100)/100;
-  return {ep, zeilen, warn, unsicher:!erk.sicher};
+  return {ep, zeilen, warn, unsicher:(!gewaehlt && !erk.sicher)};
 }
 // Festpreis-Zulagen (Endpreise, kein Material-Aufschlag, kein Zuschlag)
 const FESTPREISE = {
@@ -4652,6 +4676,30 @@ function renderCalcHTML(i){
     const txt=(p.desc||'')+' '+(p.langtext||'');
     const erk=erkenneOberflaeche(txt);
     if(!p.oberflaeche) p.oberflaeche=erk.of;
+    // Auswahl aus der Preisdatenbank, nach Bauart gruppiert. Damit steht der
+    // richtige Artikel und sein Preis sofort in der Kalkulation, statt dass
+    // der Standard aus der Oberflaechen-Erkennung rechnet.
+    const pk=profilKandidaten();
+    if(pk.length){
+      const gruppen={};
+      pk.forEach(function(x){ (gruppen[x.format||'ohne Angabe']=gruppen[x.format||'ohne Angabe']||[]).push(x); });
+      let inner='<option value="">– Standard aus der Oberfläche ('+esc((PROFILE[p.oberflaeche]||PROFILE.glaenzend).label)+') –</option>';
+      Object.keys(gruppen).sort(function(a,b){ return a.localeCompare(b,'de'); }).forEach(function(g){
+        inner+='<optgroup label="'+esc(g.slice(0,70))+'">'
+          + gruppen[g].map(function(x){
+              const sel=(p.profilArt===x.name)?' selected':'';
+              return '<option value="'+esc(x.name)+'"'+sel+'>'+esc(x.name.replace(/^Rinklake /,''))+' · '+fmt(x.ek)+' €/m</option>';
+            }).join('')
+          + '</optgroup>';
+      });
+      const gew=profilArtikel(p);
+      felder += '<div style="min-width:330px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Profil aus der Preisdatenbank</div>'
+        +'<select onchange="waehleProfil('+i+',this.value)" style="width:100%;padding:6px 8px;font-size:12px">'+inner+'</select>'
+        +'<div style="font-size:11px;margin-top:3px">'
+        + (gew ? '<span style="color:#1a9e4b">🟢 '+esc(gew.name)+' · '+fmt(gew.ek)+' €/m</span>'
+               : '<span style="color:var(--muted)">nichts gewählt – es rechnet der Standard</span>')
+        +'</div></div>';
+    }
     const ampel = erk.sicher ? '<span style="color:#1a9e4b">🟢 '+erk.grund+'</span>' : '<span style="color:#e0a800">🟡 '+erk.grund+' – bitte prüfen</span>';
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Oberfläche</div>'
       +'<select onchange="setOberflaeche('+i+',this.value)" style="width:auto;padding:6px 8px">'
@@ -4908,6 +4956,17 @@ function setStufeMass(i,feld,v){
   const cm=parseFloat(String(v).replace(',','.'));
   LV.pos[i][feld] = (cm>0) ? cm/100 : '';
   calcGeaendertLeise(i);
+}
+// Profil waehlen: Artikel merken und zugleich ins gelbe Bieterfeld schreiben,
+// damit im Ausschreibungstext steht, was angeboten wird.
+function waehleProfil(i, name){
+  const p=LV.pos[i];
+  if(!name){ delete p.profilArt; }
+  else {
+    p.profilArt=name;
+    fabrikatSetzen(p, name);
+  }
+  calcGeaendert(i);
 }
 function setSpiegel(i,v){ LV.pos[i].spiegelEk=parseFloat(v)||''; calcGeaendertLeise(i); }
 function stufeAusLV(i){
