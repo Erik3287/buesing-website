@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 99';
+const APP_STAND = '28.08.2026 · 100';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5703,6 +5703,12 @@ function langtextPrintHtml(p){
 }
 function renderLV(){
   const b=document.getElementById('pos-body');
+  // Die Tabelle wird komplett neu aufgebaut. Der Browser springt dabei nach
+  // oben - Erik am 28.08.2026: "Wenn ich eine Stufenplatte aus dem Dropdown
+  // auswaehle, schliesst sich der Rechner und ich bin ploetzlich an einer
+  // ganz anderen Stelle im LV." Deshalb die Position merken und danach
+  // wiederherstellen.
+  const scrollVorher = (typeof window!=='undefined' && window.scrollY) || 0;
   if(!LV.system) LV.system='sakret';
   const lsSel=document.getElementById('lv-system'); if(lsSel) lsSel.value=LV.system;
   let g=0,y=0,r=0,tot=0,totBedarf=0,nBedarf=0;
@@ -5734,11 +5740,11 @@ function renderLV(){
       <td style="font-weight:700;color:var(--accent);font-size:13px;border-left:6px solid ${bc};padding-left:8px">${p.nr||''}</td>
       <td>
         <div onclick="textAufZu(${i})" title="Klicken: Leistungsbeschreibung ein-/ausblenden"
-             style="cursor:pointer;border-radius:8px;padding:7px 10px;font-size:15px;font-weight:700;line-height:1.3;
+             style="cursor:pointer;border-radius:8px;padding:5px 9px;font-size:15px;font-weight:700;line-height:1.25;
                     background:${bedarf?'#dce9fa':'var(--surface2)'};color:${bedarf?'#12386f':'var(--text)'};
                     font-style:${bedarf?'italic':'normal'}">
           <span style="float:right;font-size:12px;font-weight:600;opacity:.7;font-style:normal" id="lt-pfeil-${i}">▾</span>
-          ${bedarf?`<div onclick="event.stopPropagation();bedarfUmschalten(${i})" title="Doch keine Bedarfsposition? Hier klicken." style="font-size:13px;font-weight:800;letter-spacing:.3px;margin-bottom:2px;cursor:pointer">Bedarfsposition · nur EP</div>`:''}
+          ${bedarf?`<div onclick="event.stopPropagation();bedarfUmschalten(${i})" title="Doch keine Bedarfsposition? Hier klicken." style="font-size:12px;font-weight:800;letter-spacing:.3px;cursor:pointer">Bedarfsposition</div>`:''}
           ${p.desc||''}
         </div>
         ${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin:4px 0 0 2px">${p.notiz}</div>`:''}
@@ -5801,6 +5807,10 @@ function renderLV(){
   // Suchfilter nach jedem Neu-Rendern wieder anwenden, damit er nicht verloren geht
   const sf=document.getElementById('lv-search');
   if(sf && sf.value.trim()) filterLV(sf.value);
+  // Zurueck an die Stelle, an der Erik gerade gearbeitet hat.
+  if(scrollVorher && typeof window!=='undefined' && window.scrollTo){
+    window.scrollTo(0, scrollVorher);
+  }
 }
 
 function upd(i,f,v){
