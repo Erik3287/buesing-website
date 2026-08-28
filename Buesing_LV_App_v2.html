@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 112';
+const APP_STAND = '28.08.2026 · 113';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1053,6 +1053,10 @@ const WERTE = [
     ['REIN_UNTERGRUND','Untergrund säubern','€/m²',()=>REIN_UNTERGRUND,v=>REIN_UNTERGRUND=v],
     ['REIN_FEIN','Feinreinigung Belag','€/m²',()=>REIN_FEIN,v=>REIN_FEIN=v],
     ['REIN_TREPPE','Feinreinigung Treppe','€/m²',()=>REIN_TREPPE,v=>REIN_TREPPE=v],
+  ]],
+  ['Imprägnierung / Einpflege', [
+    ['BEH_BELAG','Erstbehandlung Belag','€/m²',()=>BEH_BELAG,v=>BEH_BELAG=v],
+    ['BEH_TREPPE','Erstbehandlung Treppe','€/m²',()=>BEH_TREPPE,v=>BEH_TREPPE=v],
   ]],
   ['Sockelfliesen', [
     ['SOCKEL_QM_STD','Verbrauch, wenn kein Format im Text','m²/lfdm',()=>SOCKEL_QM_STD,v=>SOCKEL_QM_STD=v],
@@ -3538,7 +3542,7 @@ const FESTPREISE = {
   fliesentausch: {ep:44.50, label:'Fliesentausch (Aus- + Einbau + Fuge)'},
   randfuge:      {ep:4.90,  label:'Randfuge / Randdämmstreifen (vor Estrich)'},
   reinigung:     {ep:1.60,  label:'Untergrund säubern (vor dem Verlegen)'},
-  behandlung:    {ep:14.55, label:'Imprägnierung / Fleckschutz'},
+
   // Fensterbank-Zulagen, Erik am 27.08.2026. Die Kante wird so weit
   // geschliffen und poliert, wie die Bank aus der Wand vorsteht.
   fb_rundung:    {ep:41.50, label:'Fensterbank – Ecke abgerundet (R 15 mm)'},
@@ -3764,6 +3768,26 @@ function epSchutz(p){
   const ep   = SCHUTZ[art] || SCHUTZ.vlies;
   const label= art==='hartfaser' ? 'Schutz mit Hartfaserplatten' : 'Schutz nur Vlies';
   return {ep, zeilen:[[label,'Festpreis – kein Aufschlag',ep]], warn:[]};
+}
+// Imprägnierung: wie bei der Reinigung ist die Treppe die aufwendigere
+// Flaeche - jede Stufe einzeln, Kanten und Sockelleisten von Hand.
+// 15.03.28 (Boden, 78 m²) und 15.03.29 (Treppe, 24 m²) standen beide auf
+// 14,55 EUR/m².
+// Erik am 28.08.2026 nachgerechnet: Impraegnierung ca. 0,10 l/m² zu rund
+// 30 EUR/l = 3,00 EUR Material (x 1,20 = 3,60), Auftragen und Einpflege
+// 6-8 Minuten = 5,80-7,73 EUR Lohn. Macht 9,40-11,33 EUR/m². Sein Ansatz
+// 10,50 EUR/m² liegt genau in der Mitte. Die vorherigen 14,55 waren ein
+// Standardwert ohne Herleitung. Anders als bei der Reinigung ist der Umfang
+// hier klar beschrieben - kein Aufschlag fuer Unwaegbares.
+let BEH_BELAG  = 10.50;
+let BEH_TREPPE = 16.00;
+const BEH_LABEL = {belag:'Erstbehandlung Belag (Imprägnierung, Einpflege)',
+                   treppe:'Erstbehandlung Treppe (Imprägnierung, Einpflege)'};
+function behandlungAuto(txt){ return /treppe|stufen|podest/i.test(txt||'') ? 'treppe' : 'belag'; }
+function epBehandlung(p){
+  const art = p.behandlungArt || behandlungAuto((p.desc||'')+' '+(p.langtext||''));
+  const ep  = art==='treppe' ? BEH_TREPPE : BEH_BELAG;
+  return {ep, zeilen:[[BEH_LABEL[art],'Festpreis – kein Aufschlag',ep]], warn:[]};
 }
 function epFestpreis(p){
   const f=FESTPREISE[p.typ];
@@ -4531,6 +4555,7 @@ function berechneEPKern(p, system){
   if(t==='rohrkasten') return epRohrkasten(p, system);
   if(t==='duschelement') return epDuschelement(p, system);
   if(t==='reinigung') return epReinigung(p);
+  if(t==='behandlung') return epBehandlung(p);
   if(t==='silikon') return epSilikon(p);
   if(t==='schutz') return epSchutz(p);
   if(t==='sauberlaufmatte') return epSauberlaufmatte(p);
@@ -4718,7 +4743,7 @@ function istWieVor(p){
   return WIE_VOR.test(kopf);
 }
 function wieVorUebernehmen(liste){
-  const erben=['sockelArt','abdichtArt','wKlasse','spachtelModus','spachtelArt','entkopplungArt','entkopplungBandM','rektifiziert','reinigungArt','grundArt','umfang','oberflaeche','stufe','untergrund','silikonArt','schutzArt'];
+  const erben=['behandlungArt','sockelArt','abdichtArt','wKlasse','spachtelModus','spachtelArt','entkopplungArt','entkopplungBandM','rektifiziert','reinigungArt','grundArt','umfang','oberflaeche','stufe','untergrund','silikonArt','schutzArt'];
   let uebernommen=0;
   for(let i=1;i<liste.length;i++){
     const p=liste[i];
@@ -5237,6 +5262,17 @@ function renderCalcHTML(i){
       +'<option value="naturstein"'+(p.silikonArt==='naturstein'?' selected':'')+'>Natursteinsilikon – 8,90 €/m</option>'
       +'</select><div style="font-size:11px;margin-top:3px">'+ampelS+'</div></div>';
   }
+  if(p.typ==='behandlung'){
+    const art = p.behandlungArt || behandlungAuto((p.desc||'')+' '+(p.langtext||''));
+    felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Fläche</div>'
+      +'<select onchange="setBehandlung('+i+',this.value)" style="width:auto;padding:6px 8px">'
+      +'<option value="belag"'+(art==='belag'?' selected':'')+'>Belag – '+fmt(BEH_BELAG)+' €/m²</option>'
+      +'<option value="treppe"'+(art==='treppe'?' selected':'')+'>Treppe – '+fmt(BEH_TREPPE)+' €/m²</option>'
+      +'</select><div style="font-size:11px;margin-top:3px">'
+      + (p.behandlungArt ? '<span style="color:var(--muted)">von Hand gewählt</span>'
+                         : '<span style="color:#1a9e4b">🟢 aus der Überschrift erkannt</span>')
+      +'</div></div>';
+  }
   if(p.typ==='reinigung'){
     const art = p.reinigungArt || reinigungAuto((p.desc||'')+' '+(p.langtext||''));
     const opt=function(k,txt){ return '<option value="'+k+'"'+(art===k?' selected':'')+'>'+txt+' – '+fmt(reinPreis(k))+' €/m²</option>'; };
@@ -5584,6 +5620,7 @@ function calcGeaendertLeise(i){
   scheduleSave();
 }
 function setReinigung(i,v){ LV.pos[i].reinigungArt=v; calcGeaendert(i); }
+function setBehandlung(i,v){ LV.pos[i].behandlungArt=v; calcGeaendert(i); }
 function setRektifiziert(i,v){ LV.pos[i].rektifiziert=(v==='1'||v===1||v===true); calcGeaendert(i); }
 function setUmfang(i,v){ LV.pos[i].umfang=v; calcGeaendert(i); }
 function setOberflaeche(i,v){ LV.pos[i].oberflaeche=v; calcGeaendert(i); }
