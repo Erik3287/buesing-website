@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 100';
+const APP_STAND = '28.08.2026 · 101';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1042,7 +1042,8 @@ const WERTE = [
   ]],
   ['Werksteinstufe', [
     ['WST_MOERTEL_KG','Mörtelbett','kg/m²',()=>WST_MOERTEL_KG,v=>WST_MOERTEL_KG=v],
-    ['WST_ZEIT_STK','Zeit je Stufe (2 Mann)','h',()=>WST_ZEIT_STK,v=>WST_ZEIT_STK=v],
+    ['WST_ZEIT_STK','Zeit je Trittstufe (2 Mann)','h',()=>WST_ZEIT_STK,v=>WST_ZEIT_STK=v],
+    ['WST_ZEIT_SETZ','Zeit je Setzstufe (1 Mann)','h',()=>WST_ZEIT_SETZ,v=>WST_ZEIT_SETZ=v],
     ['WST_SILIKON_M','Silikon je Stufe','lfdm',()=>WST_SILIKON_M,v=>WST_SILIKON_M=v],
     ['WST_RAND_M','Randstreifen je Stufe','lfdm',()=>WST_RAND_M,v=>WST_RAND_M=v],
   ]],
@@ -4098,6 +4099,12 @@ function epSpiegel(p){
 // mit der dauerelastischen versiegelung? die ist in der vorposition ebenfalls
 // nicht enthalten!!" Beides sind Festpreise je Meter (Endpreise), sie bekommen
 // deshalb KEINEN Materialaufschlag mehr.
+// Die Setzstufe steht senkrecht VOR der Stufe. Massgeblich ist die
+// Steigungshoehe (17,19 cm), nicht die Auftrittbreite (25 cm) - die App nahm
+// bis zum 28.08.2026 die 25 cm. Ausserdem ist sie nur 2 cm dick, wird im
+// Duennbett geklebt statt ins Moertelbett gelegt und wiegt keine 12 kg.
+// Erik: "1 mann 20 minuten".
+let WST_ZEIT_SETZ  = 20/60;  // h je Setzstufe, ein Mann
 let WST_SILIKON_M  = 1.30;   // lfm Silikon je Stufe (Fuge hinten zur Setzstufe/Wand)
 let WST_RAND_M     = 0.60;   // lfm Randstreifen je Stufe (2 x 30 cm an den Enden)
 let WST_MOERTEL_KG = 31.0;   // kg je m2 Aufstandsflaeche
@@ -4135,10 +4142,13 @@ function stufeMasseWerkstein(p){
   // und mehr Platz zwischen Wort und Zahl.
   let laenge=(parseFloat(p.stufeLaenge)>0) ? parseFloat(p.stufeLaenge)
            : lies(/(?:laufbreite|plattenl(?:ä|ae)nge|stufenl(?:ä|ae)nge)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i);
+  // Bei der Setzstufe zaehlt die Steigungshoehe, nicht der Auftritt.
+  const setz = /setzstufe/i.test(t) && !/trittstufe|winkelstufe/i.test(t);
   let tiefe =(parseFloat(p.stufeTiefeW)>0) ? parseFloat(p.stufeTiefeW)
-           : lies(/(?:stufenbreite|auftrittbreite|auftritt|stufentiefe)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i);
+           : (setz ? lies(/(?:steigungsh(?:ö|oe)he|stufenh(?:ö|oe)he|h(?:ö|oe)he)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i)
+                   : lies(/(?:stufenbreite|auftrittbreite|auftritt|stufentiefe)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i));
   if(!laenge) laenge=lies(/(\d+(?:[.,]\d+)?)\s*(m)\b/i);
-  return {laenge:laenge||0, tiefe:tiefe||0};
+  return {laenge:laenge||0, tiefe:tiefe||0, setz:setz};
 }
 function epWerksteinstufe(p, system){
   const warn=[], zeilen=[];
@@ -4168,8 +4178,17 @@ function epWerksteinstufe(p, system){
     zeilen.push(['Werksteinstufe','—',0]);
   }
   let moertel=0;
-  const kg=WST_MOERTEL_KG*flaeche;
-  if(flaeche){
+  if(flaeche && ma.setz){
+    // Setzstufe: Duennbett, wie beim Betonwerksteinboden
+    const sys=SYSTEME[system]||SYSTEME.sakret, kCfg=sys.kleber_klein;
+    const kA=findArtikel(kCfg.name, kCfg.nicht);
+    const kg=BWS_KLEBER_KG*flaeche;
+    if(kA){ moertel=preisJe(kA,kCfg.gebinde)*kg;
+            zeilen.push(['Dünnbett-Kleber '+kg.toFixed(1).replace('.',',')+' kg',
+                         preisTxt(kA,kCfg.gebinde,'kg')+' × '+BWS_KLEBER_KG.toFixed(1).replace('.',',')+' kg/m²', moertel]); }
+    else  { warn.push('ARTIKEL|'+kCfg.name); zeilen.push(['Dünnbett-Kleber','fehlt',0]); }
+  } else if(flaeche){
+    const kg=WST_MOERTEL_KG*flaeche;
     const mA=findArtikel(FB_MOERTEL.name);
     if(mA){ moertel=preisJe(mA,FB_MOERTEL.gebinde)*kg;
             zeilen.push(['Mörtelbett '+kg.toFixed(1).replace('.',',')+' kg',
@@ -4180,8 +4199,11 @@ function epWerksteinstufe(p, system){
   const kalk=roh*1.20;
   zeilen.push(['Material roh','',roh]);
   zeilen.push(['Material × 1,20','',kalk]);
-  const lohn=WST_ZEIT_STK*LOHN();
-  zeilen.push(['Lohn je Stufe', '2 Mann × 50 min = '+WST_ZEIT_STK.toFixed(2).replace('.',',')+' h × '+fmt(LOHN()), lohn]);
+  const zeit=ma.setz ? WST_ZEIT_SETZ : WST_ZEIT_STK;
+  const lohn=zeit*LOHN();
+  zeilen.push(['Lohn je Stufe',
+    (ma.setz ? '1 Mann × '+Math.round(WST_ZEIT_SETZ*60)+' min = ' : '2 Mann × 50 min = ')
+    + zeit.toFixed(2).replace('.',',')+' h × '+fmt(LOHN()), lohn]);
   // Versiegelung und Entkopplung: Festpreise je Meter, also Endpreise. Sie
   // kommen NACH dem Aufschlag dazu, sonst waeren die 20 % doppelt drin.
   let sil=0, rand=0;
