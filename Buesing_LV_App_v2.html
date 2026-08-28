@@ -738,7 +738,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 73';
+const APP_STAND = '28.08.2026 · 74';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4926,7 +4926,20 @@ function setEntkopplungArt(i,v){ LV.pos[i].entkopplungArt=v; calcGeaendert(i); }
 function setSpachtelArt(i,v){ LV.pos[i].spachtelArt=v; calcGeaendert(i); }
 function toggleCalc(i){
   const p=LV.pos[i];
-  p._calcOpen=!p._calcOpen;
+  const oeffnen = !p._calcOpen;
+  // Nur EIN Rechner auf einmal. Erik am 28.08.2026: "Wenn ich einen Rechner
+  // zu einer Position oeffne, schliesst sich der geoeffnete Rechner aus einer
+  // anderen Position." Bei 192 Positionen sucht man sonst zwischen mehreren
+  // offenen Kaesten.
+  if(oeffnen){
+    (LV.pos||[]).forEach(function(q,k){
+      if(k===i || !q._calcOpen) return;
+      q._calcOpen=false;
+      const r2=document.getElementById('calc-'+k);
+      if(r2){ r2.style.display='none'; const td=r2.querySelector('td'); if(td) td.innerHTML=''; }
+    });
+  }
+  p._calcOpen=oeffnen;
   const row=document.getElementById('calc-'+i);
   if(row){
     if(p._calcOpen){
@@ -5324,6 +5337,21 @@ function scheduleSave(){
   clearTimeout(saveTimer);
   saveTimer=setTimeout(function(){ doSave(true); }, 2500);
 }
+// Sicherheitsnetz: beim Wegklicken, Schliessen oder Wechseln des Fensters
+// sofort speichern, statt die 2,5 Sekunden abzuwarten. Erik am 28.08.2026
+// fragte nach einer Autospeicherung "alle 60 Sekunden" - gespeichert wird
+// laengst nach jeder Aenderung; das hier deckt die letzten Sekunden ab.
+(function(){
+  const sofort=function(){
+    if(!saveTimer) return;
+    clearTimeout(saveTimer); saveTimer=null;
+    try{ doSave(true); }catch(e){}
+  };
+  window.addEventListener('beforeunload', sofort);
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState==='hidden') sofort();
+  });
+})();
 function setSaveStatus(txt){
   const el=document.getElementById('save-status');
   if(!el) return;
