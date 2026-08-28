@@ -376,6 +376,7 @@ tr:hover td{background:#fafafa}
     </div>
   </div>
     <div class="fb" id="pfb"><!-- wird aus alleKats() gezeichnet --></div>
+    <div id="kat-werkzeug" style="display:none;gap:8px;align-items:center;margin:4px 0 8px;font-size:12px;flex-wrap:wrap"></div>
     <div id="bauplatten-import" style="margin:6px 0;padding:8px 12px;background:#eef4fb;border:1px solid #d3e2f2;border-radius:8px;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span>📥 Bauplatten aus dem Krüger-Angebot (KAN 150000645, 10.03.2026) übernehmen.</span>
       <button class="bg sm" style="padding:4px 10px" onclick="importBauplatten()">In Preisdatenbank übernehmen</button>
@@ -737,7 +738,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 66';
+const APP_STAND = '27.08.2026 · 67';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5573,6 +5574,12 @@ function eigeneKats(){
 function eigeneKatsSetzen(o){
   try{ localStorage.setItem('buesing_kats', JSON.stringify(o)); }catch(e){}
 }
+// Geloeschte Gruppen aus der Grundliste merken - sonst kaeme der Knopf beim
+// naechsten Zeichnen zurueck.
+function katVersteckt(setzen){
+  if(setzen){ try{ localStorage.setItem('buesing_kats_weg', JSON.stringify(setzen)); }catch(e){} return setzen; }
+  try{ return JSON.parse(localStorage.getItem('buesing_kats_weg')||'{}'); }catch(e){ return {}; }
+}
 function katSchluessel(name){
   return String(name||'').toLowerCase().trim()
     .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
@@ -5580,8 +5587,13 @@ function katSchluessel(name){
 }
 // Grundliste + eigene + alles, was an Artikeln haengt. "Sonstiges" bleibt unten.
 function alleKats(){
-  const raus=[], gesehen={};
-  const dazu=function(k,l){ if(!k||gesehen[k]) return; gesehen[k]=true; raus.push([k,l||k]); };
+  const raus=[], gesehen={}, weg=katVersteckt();
+  const benutzt={}; (PREISE||[]).forEach(function(a){ if(a.kat) benutzt[a.kat]=true; });
+  const dazu=function(k,l){
+    if(!k||gesehen[k]) return;
+    if(weg[k] && !benutzt[k]) return;      // geloescht und leer -> nicht zeigen
+    gesehen[k]=true; raus.push([k,l||k]);
+  };
   KAT_BASIS.forEach(function(x){ if(x[0]!=='sonstiges') dazu(x[0],x[1]); });
   const eig=eigeneKats();
   Object.keys(eig).forEach(function(k){ dazu(k, eig[k]); });
@@ -5623,6 +5635,10 @@ function katGewaehlt(sel){
 }
 // Die Filterknöpfe kommen aus derselben Liste - sonst fehlt eine neue Gruppe
 // oben in der Leiste.
+// Diese Gruppen brauchen die Rechner unter genau diesem Namen. Wer sie
+// loescht, nimmt der Fliesenauswahl und dem Grundierungsrechner die
+// Grundlage - deshalb sind sie gesperrt.
+const KAT_GESPERRT = ['fliesen','grundierung','sonstiges'];
 function katKnoepfeZeichnen(){
   const box=document.getElementById('pfb');
   if(!box) return;
@@ -5630,10 +5646,65 @@ function katKnoepfeZeichnen(){
   box.innerHTML = '<button class="fb-btn'+(aktiv==='alle'?' active':'')+'" data-kat="alle" onclick="filtP(\'alle\',this)">Alle</button>'
     + alleKats().map(function(x){
         return '<button class="fb-btn'+(aktiv===x[0]?' active':'')+'" data-kat="'+esc(x[0])+'" onclick="filtP(\''+esc(x[0])+'\',this)">'+esc(x[1])+'</button>';
-      }).join('');
+      }).join('')
+    + '<button class="fb-btn" style="border-style:dashed" title="Eine neue Gruppe anlegen" onclick="katNeu()">＋ neue Gruppe</button>';
+  const w=document.getElementById('kat-werkzeug');
+  if(w){
+    if(aktiv==='alle'){ w.style.display='none'; }
+    else {
+      const gesperrt = KAT_GESPERRT.indexOf(aktiv)>-1;
+      w.style.display='flex';
+      w.innerHTML='<span style="color:var(--muted)">Gruppe <b>'+esc(katLabel(aktiv))+'</b></span>'
+        + (gesperrt
+            ? '<span style="color:var(--muted)">· fest eingebaut, die Rechner brauchen sie</span>'
+            : '<button class="bg sm" onclick="katUmbenennen(\''+esc(aktiv)+'\')">✏️ umbenennen</button>'
+              +'<button class="bg sm" style="color:var(--red)" onclick="katLoeschen(\''+esc(aktiv)+'\')">🗑 löschen</button>');
+    }
+  }
   updateKatCounts();
 }
-function filtP(k,b){PF=k;document.querySelectorAll('.fb-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderP();}
+function katNeu(){
+  const name=(prompt('Name der neuen Gruppe:')||'').trim();
+  if(!name) return;
+  const k=katSchluessel(name);
+  if(!k){ toast('Der Name ergibt keine gültige Gruppe.'); return; }
+  if(alleKats().some(function(x){ return x[0]===k; })){ toast('Diese Gruppe gibt es schon.'); filtP(k); return; }
+  const eig=eigeneKats(); eig[k]=name; eigeneKatsSetzen(eig);
+  const weg=katVersteckt(); delete weg[k]; katVersteckt(weg);
+  filtP(k);
+  toast('Gruppe „'+name+'" angelegt. Artikel kommen über „✏️ Bearbeiten" hinein.');
+}
+function katUmbenennen(k){
+  if(KAT_GESPERRT.indexOf(k)>-1){ toast('Diese Gruppe ist fest eingebaut.'); return; }
+  const name=(prompt('Neuer Name für die Gruppe:', katLabel(k))||'').trim();
+  if(!name) return;
+  const eig=eigeneKats(); eig[k]=name; eigeneKatsSetzen(eig);
+  katKnoepfeZeichnen(); renderP();
+  toast('Gruppe heißt jetzt „'+name+'".');
+}
+// Loeschen heisst: die Artikel wandern nach "Sonstiges", der Knopf verschwindet.
+// Kein Artikel geht dabei verloren.
+async function katLoeschen(k){
+  if(KAT_GESPERRT.indexOf(k)>-1){ toast('Diese Gruppe ist fest eingebaut.'); return; }
+  const betroffen=(PREISE||[]).filter(function(a){ return a.kat===k; });
+  const txt = betroffen.length
+    ? ('Gruppe „'+katLabel(k)+'" löschen?\n\n'+betroffen.length+' Artikel wandern nach „Sonstiges". Kein Artikel geht verloren.')
+    : ('Gruppe „'+katLabel(k)+'" löschen? Sie ist leer.');
+  if(!confirm(txt)) return;
+  betroffen.forEach(function(a){ a.kat='sonstiges'; });
+  const eig=eigeneKats(); delete eig[k]; eigeneKatsSetzen(eig);
+  const weg=katVersteckt(); weg[k]=1; katVersteckt(weg);
+  PF='alle';
+  katKnoepfeZeichnen(); renderP();
+  if(betroffen.length) await dbSavePreise();
+  toast('Gruppe gelöscht'+(betroffen.length?(' · '+betroffen.length+' Artikel nach „Sonstiges"'):''));
+}
+function filtP(k,b){
+  PF=k;
+  document.querySelectorAll('.fb-btn').forEach(x=>x.classList.remove('active'));
+  if(b && b.classList) b.classList.add('active');
+  renderP();
+}
 function fuelleLieferantenDropdown(){
   const sel=document.getElementById('np-l');
   if(!sel) return;
