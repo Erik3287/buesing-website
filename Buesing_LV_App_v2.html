@@ -738,7 +738,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 70';
+const APP_STAND = '27.08.2026 · 71';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -3040,6 +3040,59 @@ function epStundenlohn(p){
 // gelben Feld ebenfalls ein Dropdownmenue mit den in der Preisdatenbank
 // hinterlegten Schienen aufklappbar sein. Dann waere gleich der richtige
 // Artikel drin und der Preis in der Kalkulation."
+// Die letzte Zahl im Profilnamen ist die HOEHE in mm - sie muss zur
+// Fliesenstaerke passen. Erik am 27.08.2026: "Schiene = 8mm Hoehe / Fliese
+// 10mm Hoehe = Fliese steht ueber, da sie 2mm dicker ist als das Profil."
+// Die Zahl im Profilnamen sind ZEHNTEL Millimeter: 80 = 8,0 mm, 100 = 10 mm,
+// 125 = 12,5 mm. Erik am 27.08.2026: "Schiene = 8mm Hoehe / Fliese 10mm Hoehe
+// = Fliese steht ueber, da sie 2mm dicker ist als das Profil."
+// Massgeblich ist die LETZTE Zahl im Namen - sonst faengt "TS-B30/100" die 30
+// und "FEG 60 gebuerstet" gar nichts.
+function profilHoehe(name){
+  const alle=String(name||'').match(/\d{2,3}/g);
+  if(!alle || !alle.length) return 0;
+  const z=parseInt(alle[alle.length-1],10);
+  const mm=z/10;
+  return (mm>=3 && mm<=25) ? mm : 0;
+}
+function hoeheTxt(mm){
+  return (Math.round(mm*10)%10===0) ? String(Math.round(mm)) : String(mm).replace('.',',');
+}
+// Fliesenstaerke in mm: erst aus dem eigenen Text, dann aus dem gewaehlten
+// Artikel (Format "30x60x0,8" = 8 mm), zuletzt aus den Fliesenpositionen
+// desselben LV - beim Profil selbst steht sie fast nie dabei.
+function staerkeAusText(txt){
+  const t=String(txt||'').toLowerCase();
+  // "Stärke: 9-10 mm" -> die groessere Zahl, die Fliese muss hineinpassen
+  let m=t.match(/(?:st(?:ä|ae)rke|dicke)\s*:?\s*(?:ca\.?\s*)?(\d{1,2})(?:\s*[-–bis]+\s*(\d{1,2}))?\s*mm/);
+  if(m) return parseInt(m[2]||m[1],10);
+  m=t.match(/(?:st(?:ä|ae)rke|dicke)\s*:?\s*(?:ca\.?\s*)?(\d{1,2})(?:[.,](\d))?\s*cm/);
+  if(m) return Math.round((parseInt(m[1],10)+(m[2]?parseInt(m[2],10)/10:0))*10);
+  return 0;
+}
+function staerkeAusFormat(f){
+  const m=String(f||'').match(/\d+\s*[x×]\s*\d+\s*[x×]\s*(\d+(?:[.,]\d+)?)/);
+  if(!m) return 0;
+  const v=parseFloat(m[1].replace(',','.'));
+  return v<=3 ? Math.round(v*10) : Math.round(v);   // 0,8 cm -> 8 mm | 8 -> 8 mm
+}
+function fliesenstaerke(p){
+  let mm=staerkeAusText((p.desc||'')+' '+(p.langtext||''));
+  if(mm) return {mm:mm, quelle:'aus dem Positionstext'};
+  const eigen=profilArtikel(p) || (p.fabrikat ? findArtikel(p.fabrikat) : null);
+  if(eigen){ mm=staerkeAusFormat(eigen.format); if(mm) return {mm:mm, quelle:'aus dem gewählten Artikel'}; }
+  // im LV umsehen: die Fliesenpositionen nennen die Staerke
+  for(const q of (LV.pos||[])){
+    if(['boden','wand','treppenbelag','sockel'].indexOf(q.typ)<0) continue;
+    mm=staerkeAusText((q.desc||'')+' '+(q.langtext||''));
+    if(mm) return {mm:mm, quelle:'aus Position '+(q.nr||'')};
+    if(q.fabrikat){
+      const a=findArtikel(q.fabrikat);
+      if(a){ mm=staerkeAusFormat(a.format); if(mm) return {mm:mm, quelle:'aus der Fliese von '+(q.nr||'')}; }
+    }
+  }
+  return {mm:0, quelle:''};
+}
 function profilKandidaten(){
   return (PREISE||[]).filter(function(x){
     if(x.kat!=='profile') return false;
@@ -3076,6 +3129,15 @@ function epProfil(p, system){
   // Die Oberflaechen-Erkennung zaehlt nur, solange kein Profil gewaehlt ist.
   if(!gewaehlt && !erk.sicher) warn.push('PRUEFEN|Oberfläche prüfen – '+erk.grund);
   if(!gewaehlt && p.oberflaeche==='pulver' && !(p.farbe||'').trim()) warn.push('EINGABE|Farbe eintragen (wird bemustert)');
+  // Profilhoehe gegen Fliesenstaerke pruefen - ein 8-mm-Profil unter einer
+  // 10-mm-Fliese laesst die Fliese ueberstehen.
+  if(gewaehlt){
+    const stW=fliesenstaerke(p), hW=profilHoehe(gewaehlt.name);
+    if(stW.mm && hW && hW!==stW.mm){
+      warn.push('PRUEFEN|Profilhöhe '+hoeheTxt(hW)+' mm passt nicht zur Fliese ('+hoeheTxt(stW.mm)+' mm '+stW.quelle+') – '
+        + (hW<stW.mm ? 'die Fliese steht über' : 'das Profil steht über'));
+    }
+  }
   const kalk=schiene*1.20;
   zeilen.push(['Material × 1,20','',kalk]);
   const lohn=0.15*LOHN();
@@ -4683,12 +4745,19 @@ function renderCalcHTML(i){
     if(pk.length){
       const gruppen={};
       pk.forEach(function(x){ (gruppen[x.format||'ohne Angabe']=gruppen[x.format||'ohne Angabe']||[]).push(x); });
+      const st=fliesenstaerke(p);
       let inner='<option value="">– Standard aus der Oberfläche ('+esc((PROFILE[p.oberflaeche]||PROFILE.glaenzend).label)+') –</option>';
       Object.keys(gruppen).sort(function(a,b){ return a.localeCompare(b,'de'); }).forEach(function(g){
+        // Passende Hoehe zuerst und gekennzeichnet
+        const sortiert = gruppen[g].slice().sort(function(a,b){
+          const pa=(st.mm && profilHoehe(a.name)===st.mm)?0:1, pb=(st.mm && profilHoehe(b.name)===st.mm)?0:1;
+          return pa-pb || profilHoehe(a.name)-profilHoehe(b.name);
+        });
         inner+='<optgroup label="'+esc(g.slice(0,70))+'">'
-          + gruppen[g].map(function(x){
+          + sortiert.map(function(x){
               const sel=(p.profilArt===x.name)?' selected':'';
-              return '<option value="'+esc(x.name)+'"'+sel+'>'+esc(x.name.replace(/^Rinklake /,''))+' · '+fmt(x.ek)+' €/m</option>';
+              const passt=(st.mm && profilHoehe(x.name)===st.mm) ? '  ← passt zu '+hoeheTxt(st.mm)+' mm' : '';
+              return '<option value="'+esc(x.name)+'"'+sel+'>'+esc(x.name.replace(/^Rinklake /,''))+' · '+fmt(x.ek)+' €/m'+esc(passt)+'</option>';
             }).join('')
           + '</optgroup>';
       });
@@ -4698,6 +4767,17 @@ function renderCalcHTML(i){
         +'<div style="font-size:11px;margin-top:3px">'
         + (gew ? '<span style="color:#1a9e4b">🟢 '+esc(gew.name)+' · '+fmt(gew.ek)+' €/m</span>'
                : '<span style="color:var(--muted)">nichts gewählt – es rechnet der Standard</span>')
+        + (st.mm
+            ? ('<div style="color:var(--muted);margin-top:2px">Fliese '+hoeheTxt(st.mm)+' mm '+esc(st.quelle)
+               +' → '+Math.round(st.mm*10)+'er Profil</div>')
+            : '<div style="color:var(--muted);margin-top:2px">Fliesenstärke nicht gefunden – Höhe selbst prüfen</div>')
+        + (function(){
+            if(!gew || !st.mm) return '';
+            const h=profilHoehe(gew.name);
+            if(!h || h===st.mm) return '';
+            return '<div style="color:var(--red);margin-top:2px">🔴 Profil '+hoeheTxt(h)+' mm, Fliese '+hoeheTxt(st.mm)
+                 +' mm – '+(h<st.mm ? ('die Fliese steht '+hoeheTxt(st.mm-h)+' mm über') : ('das Profil steht '+hoeheTxt(h-st.mm)+' mm über'))+'</div>';
+          })()
         +'</div></div>';
     }
     const ampel = erk.sicher ? '<span style="color:#1a9e4b">🟢 '+erk.grund+'</span>' : '<span style="color:#e0a800">🟡 '+erk.grund+' – bitte prüfen</span>';
