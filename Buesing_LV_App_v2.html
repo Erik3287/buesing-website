@@ -738,7 +738,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 67';
+const APP_STAND = '27.08.2026 · 68';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4135,8 +4135,13 @@ function renderCalcHTML(i){
         let kandidaten = alleFab.map(function(f){ return {fab:f, t:fabTreffer(f, p.typ, p.desc, p.langtext)}; })
                                   .filter(function(x){ return x.t; });
         // Zuerst schauen, ob dieselbe Fliese in diesem LV schon gewaehlt ist.
+        // Solange kein Preis eingetragen ist, wird der Kasten IMMER gezeigt.
+        // Die App traegt das Fabrikat aus dem LV-Text von selbst ein; seit der
+        // Namensvergleich Schreibweisen erkennt ("Villeroy & Boch - Serie Unit
+        // Four - CT62" = "V&B Unit Four 2680-CT62"), galt die Position damit
+        // als erledigt - der Preis fehlte aber weiterhin (27.08.2026).
         const nachbar = flieseAusNachbar(p);
-        if(nachbar && !fabrikatGleich(p.fabrikat, nachbar.name)){
+        if(nachbar && (!(ekJetzt>0) || !fabrikatGleich(p.fabrikat, nachbar.name))){
           treffer = '<div style="margin-top:5px;padding:7px 9px;background:#eef7ee;border:1px solid #1a9e4b;border-radius:6px;font-size:11.5px">'
             + '<b>Wie in Position ' + esc(nachbar.nr) + '?</b><br>'
             + esc(nachbar.name) + ' · <b>' + fmt(nachbar.ek) + ' €/m²</b>'
@@ -4155,7 +4160,7 @@ function renderCalcHTML(i){
           const beste = kandidaten.sort(function(a,b){ return b.t.punkte-a.t.punkte; })[0];
           const a=beste.t.artikel;
           const gleich = fabrikatGleich(p.fabrikat, a.name);
-          if(!gleich){
+          if(!gleich || !(ekJetzt>0)){
             treffer = '<div style="margin-top:5px;padding:7px 9px;background:#eef7ee;border:1px solid #1a9e4b;border-radius:6px;font-size:11.5px">'
               + '<b>Handelt es sich um dieses Produkt?</b><br>'
               + esc(a.name) + ' · <b>' + fmt(a.ek) + ' €' + (a.eu?('/'+String(a.eu).replace(/^\//,'')):'') + '</b>'
@@ -4830,7 +4835,29 @@ function fabrikatGleich(a, b){
   const norm=function(s){ return (s||'').toLowerCase().replace(/[⭐]/g,'').replace(/\b(wand|boden)\b/g,'').replace(/[^a-z0-9äöüß]+/g,' ').trim(); };
   const na=norm(a), nb=norm(b);
   if(!na||!nb) return false;
-  return na===nb || na.indexOf(nb)>-1 || nb.indexOf(na)>-1;
+  if(na===nb || na.indexOf(nb)>-1 || nb.indexOf(na)>-1) return true;
+  // Das LV schreibt "Villeroy & Boch - Serie Unit Four - CT62 / X-Plane", der
+  // Artikel heisst "V&B Unit Four 2680-CT62 I.Sorte R10/B". Dasselbe Produkt,
+  // andere Schreibweise - die App warnte trotzdem "geändert ggü. LV, ACHTUNG:
+  // LV fordert dieses Fabrikat verbindlich" (Erik 27.08.2026). Dieselbe
+  // Wort-Bewertung wie bei der Fabrikatssuche entscheidet jetzt mit: ein
+  // Artikelschluessel wie CT62 wiegt schwer, gemeinsame Woerter zaehlen.
+  const ta=fabToken(a), tb=fabToken(b);
+  if(!ta.length || !tb.length) return false;
+  const zahlA=ta.filter(function(w){ return /\d/.test(w); });
+  const zahlB=tb.filter(function(w){ return /\d/.test(w); });
+  // Tragen BEIDE einen Artikelschluessel (CT62, 2680), muss einer davon
+  // passen. Sonst gaelten "Unit Four CT62" und "Unit Four CT61" als dasselbe -
+  // Marke und Serie allein reichen nicht.
+  if(zahlA.length && zahlB.length){
+    const treffer = zahlA.some(function(w){
+      return zahlB.some(function(x){ return x===w || x.indexOf(w)>-1 || w.indexOf(x)>-1; });
+    });
+    if(!treffer) return false;
+  }
+  let woerter=0;
+  ta.forEach(function(w){ if(!/\d/.test(w) && tb.indexOf(w)>-1) woerter++; });
+  return woerter>=3;
 }
 // Preis eines konkreten DB-Treffers (zum angebotenen Fabrikat) uebernehmen
 function uebernehmePreis(i, ek){
