@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 130';
+const APP_STAND = '28.08.2026 · 132';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1483,7 +1483,6 @@ async function handleFile(file,typ){
       // nie mehr direkt aus einem Artikel-EK.
       LV.pos=alleRoh.map(importPos);
       wieVorUebernehmen(LV.pos);
-      zwillingeUebernehmen(LV.pos);
       document.getElementById('lv-proc').style.display='none';
       document.getElementById('lv-main').style.display='block';
       const tit=document.getElementById('lv-tit'); if(tit) tit.textContent=LV.titel;
@@ -1569,7 +1568,6 @@ async function kiLV(text,datei){
     // EP kommt aus dem Regelwerk (importPos -> autoEP -> berechneEP).
     LV.pos=roh.map(importPos);
     wieVorUebernehmen(LV.pos);
-    zwillingeUebernehmen(LV.pos);
     document.getElementById('lv-proc').style.display='none';
     document.getElementById('lv-main').style.display='block';
     const tit=document.getElementById('lv-tit'); if(tit) tit.textContent=LV.titel;
@@ -4778,10 +4776,20 @@ function autoEP(p, system){
 
   p.ep = r.ep || 0;
 
+  // Erik am 28.08.2026: "Position 'Grundieren' wird erkannt - Frage:
+  // Saugend/nicht saugend - Preis eintragen wenn eindeutig, gruen melden,
+  // fertig - und das mit allen positionen einzeln - OHNE irgendwas zu
+  // kopieren oder was weiss ich."
+  // Also: eine Position, an der nichts mehr offen ist, meldet sich selbst
+  // gruen. Offen ist etwas, wenn ein Artikel fehlt, der Fliesenpreis fehlt,
+  // kein Preis herauskommt oder der Rechner eine Frage stellt (die Hinweise
+  // 'EINGABE|' und 'PRUEFEN|').
+  delete p.gruenAuto;
   if(flieseFehlt)      { p.status='rot'; p.notiz='Fliesenpreis fehlt – Preis anfragen'; }
   else if(fehlend.length){ p.status='rot'; p.notiz='fehlt: ' + fehlend.join(', '); }
   else if(!(p.ep > 0)) { p.status='rot'; p.notiz='kein Preis ermittelbar – bitte prüfen'; }
-  else                 { p.status='gelb'; p.notiz=''; }
+  else if(hinweis.length){ p.status='gelb'; p.notiz=''; }
+  else                 { p.status='gruen'; p.gruenAuto=true; p.notiz=''; }
   // Pruef-Hinweise gehen auch bei roten Positionen nicht verloren
   if(hinweis.length) p.notiz = (p.notiz ? p.notiz + ' · ' : '') + hinweis.join(' · ');
 
@@ -4892,161 +4900,89 @@ function istWieVor(p){
   return WIE_VOR.test(kopf);
 }
 // Alles, was eine Entscheidung an der Position festhaelt. Wird von "wie vor"
-// UND von der Zwillingserkennung geerbt.
+// geerbt.
 const ERBEN_FELDER = ['behandlungArt','sockelArt','stufeArt','profilArt','abdichtArt','wKlasse',
   'spachtelModus','spachtelArt','entkopplungArt','entkopplungBandM','rektifiziert','reinigungArt',
   'grundArt','umfang','oberflaeche','stufe','untergrund','silikonArt','schutzArt',
   'flieseEk','fabrikat','stufeLaenge','stufeTiefeW','sockelQm','spiegelEk','bieterFelder'];
-// Zwei Positionen sind Zwillinge, wenn Typ und Leistungstext uebereinstimmen.
-// Erik am 28.08.2026: "jetzt fangen sich die Positionen an zu wiederholen.
-// Warum erkennt die app das nicht? Wir haben doch nun schon etliche Preise
-// fuer exakt dieselben positionen definiert." - 15.03.26 und 15.04.13 sind
-// wortgleich, stehen aber in verschiedenen Gruppen; "wie vor" steht in
-// keiner von beiden. Aus dem Text fallen der Bedarfsvermerk, die
-// Einbauortzeile und alle Leerzeichenunterschiede heraus - der Rest muss
-// Zeichen fuer Zeichen gleich sein.
-function zwillingSchluessel(p){
-  if(!p || !p.typ || p.typ==='ueberschrift') return '';
-  let t = String(p.langtext||'');
-  if(t.length < 40) return '';
-  // Alles raus, was NUR den Einbauort beschreibt oder den Bedarfsvermerk
-  // wiederholt - 15.03.2 und 15.04.2 sind wortgleich bis auf die Zeile
-  // "Ort: Eingangsbereich ..." gegen "Ort: Verteilerflur ...", und der
-  // Vermerk steht mal als "***Bedarfspos.", mal als "***Bedarfsposition -
-  // Nur EP -", mal als "- Nur EP -" am Ende.
-  t = t.replace(/\*+\s*(bedarfs|eventual|wahl|alternativ)pos[^\n]*/gi,'')
-       .replace(/-+\s*nur\s+ep\s*-+/gi,'')
-       .replace(/^\s*(einbau)?ort\s*:[^\n]*/gim,'')
-       .replace(/^\s*bereich\s*:[^\n]*/gim,'')
-       .replace(/^\s*(raum|räume|raeume|lage|geschoss)\s*:[^\n]*/gim,'')
-       .replace(/\s+/g,' ')
-       .toLowerCase().trim();
-  return t.length < 40 ? '' : (p.typ + '|' + t);
-}
-// Was in einer Position entschieden ist, gilt fuer ihre Zwillinge mit.
-// Angefasst wird nur, was dort noch leer ist; gruene Positionen bleiben
-// unberuehrt, die sind ja bewusst festgesetzt.
-function zwillingeUebernehmen(liste){
-  const vorbild = {};
-  let uebernommen = 0, betroffen = [];
-  (liste||[]).forEach(function(p){
-    const k = zwillingSchluessel(p);
-    if(!k) return;
-    if(!vorbild[k]){ vorbild[k] = p; return; }
-    const v = vorbild[k];
-    if(p === v || p.status === 'gruen') return;
-    let geerbt = 0;
-    ERBEN_FELDER.forEach(function(f){
-      const leer = (p[f]===undefined || p[f]==='' || (Array.isArray(p[f]) && !p[f].length));
-      const da   = (v[f]!==undefined && v[f]!=='' && !(Array.isArray(v[f]) && !v[f].length));
-      if(leer && da){ p[f] = Array.isArray(v[f]) ? v[f].slice() : v[f]; geerbt++; }
+// ===== LEISTUNGSSCHLUESSEL ================================================
+// Erik am 28.08.2026: "Positionen sollen nicht gekoppelt werden. Es muss doch
+// klar sein, wenn man die informationen zusammenfasst, das es um das
+// verlegen einer Bodenfliese auf einer Flaeche (nicht Treppe) geht. als
+// zweite information wird die Fliese/Fliesen erkannt - ENDE. Was muss da
+// noch analysiert werden und mit anderen Positionen verglichen werden?"
+//
+// Genau so. Statt Prosa zu vergleichen wird jede Position auf ihre Fakten
+// eingedampft: WAS wird gemacht (der Typ - Boden, Wand, Treppenbelag,
+// Reinigung ... - die Treppe ist ein eigener Typ, damit ist Flaeche gegen
+// Treppe schon getrennt), WOMIT (Format, Fabrikat, gewaehlter Artikel) und
+// in WELCHER AUSFUEHRUNG (rektifiziert, Wasserklasse, Umfang). Stimmen die
+// Fakten ueberein, ist es dieselbe Leistung - ohne Textvergleich.
+function leistungsMerkmale(p){
+  if(!p || !p.typ || p.typ==='ueberschrift') return null;
+  const txt = (p.desc||'') + ' ' + (p.langtext||'');
+  const m = [];
+  m.push((TYPEN.find(function(t){ return t[0]===p.typ; }) || ['', p.typ])[1]);
+  const f = formatAusText(txt);
+  if(f) m.push(Math.max(f.a,f.b) + '×' + Math.min(f.a,f.b) + ' cm');
+  // Nur der Hersteller zaehlt, nicht die Serienbezeichnung dahinter.
+  // 15.03.4 und 15.04.4 nennen dieselben drei Hersteller; in der einen steht
+  // hinter Lasselsberger zusaetzlich "/ Betonico". Fuer die Frage, WELCHE
+  // Fliese verlegt wird, ist das derselbe Satz Hersteller.
+  const fab = fabrikateAusText(txt);
+  if(fab && fab.length){
+    const her = [];
+    fab.forEach(function(f){
+      const h = String(f).split(/\s+-\s+|,\s|\s\/\s/)[0]
+                 .replace(/[^A-Za-zÄÖÜäöüß&\- ]/g,'').trim().toLowerCase();
+      if(h.length > 2 && her.indexOf(h) < 0) her.push(h);
     });
-    if(geerbt){
-      autoEP(p, LV.system||'sakret');
-      p.notiz = (p.notiz?p.notiz+' · ':'') + 'gleiche Leistung wie Pos. ' + (v.nr||'?');
-      uebernommen++; betroffen.push(p.nr||'?');
-    }
-  });
-  return {anzahl:uebernommen, nummern:betroffen};
+    if(her.length) m.push(her.sort().join(' + '));
+  }
+  // Stufenart: der Typ "Werksteinstufe" allein wirft Tritt-, Setz- und
+  // Winkelstufe in einen Topf.
+  if(p.typ==='werksteinstufe'){
+    const ma = stufeMasseWerkstein(p);
+    m.push(ma.setz ? 'Setzstufe' : (ma.wink ? 'Winkelstufe' : 'Trittstufe'));
+    const dk = stufeDickeAusText(p);
+    if(dk) m.push(String(dk).replace('.',',') + ' cm dick');
+  }
+  // Profile unterscheiden sich in Bauart und Hoehe - "Profil/Schiene" allein
+  // fasste 14 verschiedene Schienen zusammen.
+  if(p.typ==='profil'){
+    const pm = txt.match(/\b(TS-?B|jolly|schiene|winkelprofil|kantenschutz|dehnfug|treppenprofil|abschlussprofil)\b/i);
+    if(pm) m.push(pm[1].toUpperCase());
+    const hm = txt.match(/(\d{1,2}(?:[.,]\d)?)\s*mm\b/);
+    if(hm) m.push(hm[1].replace('.',',') + ' mm');
+  }
+  const zusatz = {
+    reinigung:   p.reinigungArt   || reinigungAuto(txt),
+    behandlung:  p.behandlungArt  || behandlungAuto(txt),
+    schutz:      p.schutzArt      || schutzAuto(txt),
+    silikon:     p.silikonArt,
+    sockel:      p.sockelArt,
+    werksteinstufe: p.stufeArt,
+    profil:      p.profilArt
+  }[p.typ];
+  if(zusatz) m.push(String(zusatz));
+  if(p.wKlasse)  m.push('W' + p.wKlasse);
+  if(p.umfang && p.umfang!=='komplett') m.push(p.umfang);
+  if(p.rektifiziert) m.push('rektifiziert');
+  return m;
 }
-// Fast gleich ist auch gleich. Erik am 28.08.2026 zu 15.04.4: "haben wir auch
-// schon. GENAU DAS GLEICHE" - die beiden Texte unterscheiden sich in einem
-// einzigen Wort ("Serie Extra / Betonico" gegen "Serie Extra"), sind also zu
-// 99,6 % identisch. Zeichengleichheit zu verlangen ist an dieser Stelle
-// zu streng.
-// Gemessen wird ueber gemeinsame Woerter (Dice): doppelte Schnittmenge
-// geteilt durch die Summe beider Wortzahlen. Das ist schnell genug fuer 192
-// Positionen und stolpert nicht ueber eine umgestellte Zeile.
-function textWorte(p){
-  const k = zwillingSchluessel(p);
-  if(!k) return null;
-  // Zahlen zaehlen mit, auch die kurzen: "Plattendicke 2 cm" gegen "4 cm"
-  // ist der ganze Unterschied zwischen Setz- und Trittstufe.
-  const w = k.split('|')[1].split(' ').filter(function(x){
-    return x.length > 2 || /\d/.test(x);
-  });
-  return w.length < 8 ? null : w;
+function leistungsSchluessel(p){
+  const m = leistungsMerkmale(p);
+  // Der blosse Typ reicht nicht. "Profil/Schiene" allein wuerde zehn
+  // verschiedene Schienen zusammenfassen; solche Positionen muessen ueber
+  // den Text verglichen werden.
+  return (m && m.length >= 2) ? m.join(' · ').toLowerCase() : '';
 }
-function textAehnlich(a, b){
-  if(!a || !b) return 0;
-  const za = {};
-  a.forEach(function(w){ za[w] = (za[w]||0) + 1; });
-  let gemeinsam = 0;
-  b.forEach(function(w){ if(za[w] > 0){ za[w]--; gemeinsam++; } });
-  return (2 * gemeinsam) / (a.length + b.length);
-}
-const ZWILLING_SCHWELLE = 0.96;
-// Woerter, an denen sich zwei Positionen grundsaetzlich unterscheiden. Steht
-// eines davon im Unterschied, ist es KEINE gleiche Leistung - egal wie
-// aehnlich der Rest ist. 15.03.14 (Trittstufe) und 15.03.15 (Setzstufe) sind
-// zu 98 % wortgleich und trotzdem zwei verschiedene Bauteile.
-const NIE_GLEICH = /^(trittstufe|trittstufen|setzstufe|setzstufen|winkelstufe|winkelstufen|sockel|sockelleiste|sockelfliesen|wandfliese|wandfliesen|bodenfliese|bodenfliesen|treppe|treppen|boden|wand)$/i;
-function unterschiedIstWesentlich(d){
-  const alle = d.nurHier.concat(d.nurDort);
-  return alle.some(function(w){ return NIE_GLEICH.test(w) || /\d/.test(w); });
-}
-// Welche Woerter stehen nur in einem der beiden Texte? Damit Erik in der
-// Rueckfrage sieht, WORIN sich die Positionen unterscheiden.
-function textUnterschied(a, b){
-  const zb = {};
-  b.forEach(function(w){ zb[w] = (zb[w]||0) + 1; });
-  const nur = [];
-  a.forEach(function(w){ if(zb[w] > 0) zb[w]--; else if(nur.indexOf(w) < 0) nur.push(w); });
-  const nurB = [];
-  const za = {};
-  a.forEach(function(w){ za[w] = (za[w]||0) + 1; });
-  b.forEach(function(w){ if(za[w] > 0) za[w]--; else if(nurB.indexOf(w) < 0) nurB.push(w); });
-  return {nurHier: nur.slice(0,8), nurDort: nurB.slice(0,8)};
-}
-// Eine Position gruen zu setzen heisst: diese Leistung ist geprueft. Steht
-// dieselbe Leistung wortgleich noch anderswo im LV, ist sie dort genauso
-// geprueft. Erik am 28.08.2026: "warum sollen wir mit 15.04.2 weiter machen,
-// wenn 15.03.2 EXAKT die gleiche Position ist? DAS IST DER GRUND WESHALB WIR
-// DAS HIER MACHEN!!!" - also einmal entscheiden, einmal bestaetigen, fertig.
-function zwillingeMitGruen(i){
-  const p = LV.pos[i];
-  const k = zwillingSchluessel(p);
-  if(!k || !(parseFloat(p.ep) > 0)) return;
-  const worte = textWorte(p);
-  const gleich = [], fast = [];
-  LV.pos.forEach(function(q){
-    if(q === p || q.status === 'gruen' || q.typ !== p.typ) return;
-    if(zwillingSchluessel(q) === k){ gleich.push(q); return; }
-    const wq = textWorte(q);
-    const ae = textAehnlich(worte, wq);
-    if(ae < ZWILLING_SCHWELLE) return;
-    const d = textUnterschied(worte, wq);
-    if(unterschiedIstWesentlich(d)) return;   // Maß oder Bauteil unterscheidet sich
-    fast.push({p:q, ae:ae, d:d});
-  });
-  // EINE Rueckfrage, nicht zwei. Erik am 28.08.2026: "ABER 15.03.4 und
-  // 15.04.4 SIND DOCH EXAKT GLEICH!!" - sie standen unter der Ueberschrift
-  // "Fast dieselbe Leistung" und daneben "100 % gleich". Das widersprach
-  // sich. Jetzt stehen alle in einer Liste, jede mit dem Grund.
-  const andere = gleich.concat(fast.map(function(f){ return f.p; }));
-  if(!andere.length) return;
-  const zeilen = gleich.map(function(q){
-    return '   ' + (q.nr||'?') + '   wortgleich';
-  }).concat(fast.map(function(f){
-    const t = f.d.nurHier.concat(f.d.nurDort).join(' ');
-    // Nie 100 % anzeigen, wenn der Text nicht wirklich gleich ist.
-    const pr = Math.min(99, Math.floor(f.ae*100));
-    return '   ' + (f.p.nr||'?') + '   ' + pr + ' % gleich'
-         + (t ? '\n         Unterschied: ' + t : '');
-  }));
-  if(!confirm('Dieselbe Leistung steht noch ' + andere.length + '× im LV:\n\n'
-            + zeilen.join('\n') + '\n\n'
-            + 'Dort ebenfalls ' + fmt(p.ep) + ' € eintragen und auf Grün setzen?')) return;
-  andere.forEach(function(q){
-    ERBEN_FELDER.forEach(function(f){
-      if(p[f] !== undefined && p[f] !== '') q[f] = Array.isArray(p[f]) ? p[f].slice() : p[f];
-    });
-    q.ep = p.ep;
-    q.status = 'gruen';
-    q.notiz = (q.notiz ? q.notiz + ' · ' : '') + 'gleiche Leistung wie Pos. ' + (p.nr || '?');
-  });
-  toast(andere.length + ' gleiche Position(en) mit auf Grün gesetzt');
-}
+
+// Kein Vergleich zwischen Positionen mehr. Erik am 28.08.2026: "Es soll
+// nichts verglichen werden!!!!! ... das mit allen positionen einzeln - OHNE
+// irgendwas zu kopieren oder was weiss ich." Die Vergleichs- und
+// Aehnlichkeitssuche ist deshalb wieder ausgebaut; leistungsMerkmale bleibt,
+// weil es zeigt, WAS die App an einer Position verstanden hat.
 function wieVorUebernehmen(liste){
   const erben=ERBEN_FELDER;
   let uebernommen=0;
@@ -5085,11 +5021,9 @@ function alleEpNeuBerechnen(){
     if(p.status === 'rot') rot++;
   });
   wieVorUebernehmen(LV.pos);
-  const zwil = zwillingeUebernehmen(LV.pos);
   renderLV();
   doSave(true);
   toast(geaendert + ' Position(en) neu gerechnet'
-        + (zwil.anzahl ? (' · ' + zwil.anzahl + ' gleiche übernommen') : '')
         + (rot ? ' · ' + rot + ' rot (Preis fehlt)' : '')
         + (geschuetzt ? ' · ' + geschuetzt + ' grüne unangetastet' : ''));
 }
@@ -5898,6 +5832,9 @@ function setEmcoRahmenDabei(i,v){
 // Preis blieb einfach stehen, ohne Erklaerung. Jetzt sagt die App es.
 function gruenGesperrt(p){
   if(p.status!=='gruen') return false;
+  // Automatisch gruen heisst nur "nichts offen" - das darf sich weiter
+  // mitrechnen. Gesperrt ist nur, was Erik selbst auf Gruen gestellt hat.
+  if(p.gruenAuto) return false;
   toast('Position ist grün (geprüft) – der Preis bleibt stehen. Status auf Gelb setzen, um neu zu rechnen.');
   return true;
 }
@@ -6359,7 +6296,9 @@ function upd(i,f,v){
   // orientierungsstreifen vorn bleibt aber orange". Seit der Scrollstand
   // gehalten wird, kostet der Neuaufbau nichts mehr.
   if(f==='status'){
-    if(v==='gruen') zwillingeMitGruen(i);
+    // Von Hand auf Gruen = von Erik geprueft. Das ist etwas anderes als das
+    // automatische Gruen und bleibt bei Wertaenderungen stehen.
+    if(v==='gruen') delete LV.pos[i].gruenAuto;
     renderLV(); scheduleSave(); return;
   }
   let tot=0; LV.pos.forEach(p=>{ if(!istBedarfPos(p)) tot+=(p.menge||0)*(p.ep||0); });
@@ -8056,14 +7995,9 @@ async function ladeLV(id){
       document.getElementById('lv-proc').style.display='none';
       document.getElementById('lv-main').style.display='block';
       const tit=document.getElementById('lv-tit'); if(tit) tit.textContent = LV.titel || 'LV-Kalkulation';
-      // Textgleiche Positionen aus derselben Datei uebernehmen, was anderswo
-      // schon entschieden ist - siehe zwillingeUebernehmen.
-      const zw = zwillingeUebernehmen(LV.pos);
       renderLV();
       showTab('lv', document.querySelector('.nb')); // sauber zum LV-Tab wechseln
-      if(zw.anzahl){ doSave(true);
-        toast('LV geladen ✓ · '+zw.anzahl+' gleiche Position(en) übernommen: '+zw.nummern.slice(0,6).join(', ')+(zw.nummern.length>6?' …':'')); }
-      else toast('LV geladen ✓');
+      toast('LV geladen ✓');
     } else {
       toast('LV konnte nicht geladen werden');
     }
