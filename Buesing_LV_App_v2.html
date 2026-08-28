@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 127';
+const APP_STAND = '28.08.2026 · 128';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4909,9 +4909,16 @@ function zwillingSchluessel(p){
   if(!p || !p.typ || p.typ==='ueberschrift') return '';
   let t = String(p.langtext||'');
   if(t.length < 40) return '';
-  t = t.replace(/^\s*\*+\s*Bedarfspos[^\n]*/i,'')
-       .replace(/Einbauort[^\n]*/gi,'')
-       .replace(/Bereich:[^\n]*/gi,'')
+  // Alles raus, was NUR den Einbauort beschreibt oder den Bedarfsvermerk
+  // wiederholt - 15.03.2 und 15.04.2 sind wortgleich bis auf die Zeile
+  // "Ort: Eingangsbereich ..." gegen "Ort: Verteilerflur ...", und der
+  // Vermerk steht mal als "***Bedarfspos.", mal als "***Bedarfsposition -
+  // Nur EP -", mal als "- Nur EP -" am Ende.
+  t = t.replace(/\*+\s*(bedarfs|eventual|wahl|alternativ)pos[^\n]*/gi,'')
+       .replace(/-+\s*nur\s+ep\s*-+/gi,'')
+       .replace(/^\s*(einbau)?ort\s*:[^\n]*/gim,'')
+       .replace(/^\s*bereich\s*:[^\n]*/gim,'')
+       .replace(/^\s*(raum|räume|raeume|lage|geschoss)\s*:[^\n]*/gim,'')
        .replace(/\s+/g,' ')
        .toLowerCase().trim();
   return t.length < 40 ? '' : (p.typ + '|' + t);
@@ -4941,6 +4948,33 @@ function zwillingeUebernehmen(liste){
     }
   });
   return {anzahl:uebernommen, nummern:betroffen};
+}
+// Eine Position gruen zu setzen heisst: diese Leistung ist geprueft. Steht
+// dieselbe Leistung wortgleich noch anderswo im LV, ist sie dort genauso
+// geprueft. Erik am 28.08.2026: "warum sollen wir mit 15.04.2 weiter machen,
+// wenn 15.03.2 EXAKT die gleiche Position ist? DAS IST DER GRUND WESHALB WIR
+// DAS HIER MACHEN!!!" - also einmal entscheiden, einmal bestaetigen, fertig.
+function zwillingeMitGruen(i){
+  const p = LV.pos[i];
+  const k = zwillingSchluessel(p);
+  if(!k || !(parseFloat(p.ep) > 0)) return;
+  const andere = LV.pos.filter(function(q){
+    return q !== p && q.status !== 'gruen' && zwillingSchluessel(q) === k;
+  });
+  if(!andere.length) return;
+  const nrn = andere.map(function(q){ return q.nr || '?'; });
+  if(!confirm('Diese Leistung steht wortgleich noch ' + andere.length + '× im LV:\n\n'
+            + nrn.join(', ') + '\n\n'
+            + 'Dort ebenfalls ' + fmt(p.ep) + ' € eintragen und auf Grün setzen?')) return;
+  andere.forEach(function(q){
+    ERBEN_FELDER.forEach(function(f){
+      if(p[f] !== undefined && p[f] !== '') q[f] = Array.isArray(p[f]) ? p[f].slice() : p[f];
+    });
+    q.ep = p.ep;
+    q.status = 'gruen';
+    q.notiz = (q.notiz ? q.notiz + ' · ' : '') + 'gleiche Leistung wie Pos. ' + (p.nr || '?');
+  });
+  toast(andere.length + ' gleiche Position(en) mit auf Grün gesetzt');
 }
 function wieVorUebernehmen(liste){
   const erben=ERBEN_FELDER;
@@ -6253,7 +6287,10 @@ function upd(i,f,v){
   // eingetragen und die Ampel auf gruen gesetzt. der farbliche
   // orientierungsstreifen vorn bleibt aber orange". Seit der Scrollstand
   // gehalten wird, kostet der Neuaufbau nichts mehr.
-  if(f==='status'){ renderLV(); scheduleSave(); return; }
+  if(f==='status'){
+    if(v==='gruen') zwillingeMitGruen(i);
+    renderLV(); scheduleSave(); return;
+  }
   let tot=0; LV.pos.forEach(p=>{ if(!istBedarfPos(p)) tot+=(p.menge||0)*(p.ep||0); });
   document.getElementById('lv-sum').textContent=fmt(tot)+' €';
   const gp=(parseFloat(LV.pos[i].menge)||0)*(parseFloat(LV.pos[i].ep)||0);
