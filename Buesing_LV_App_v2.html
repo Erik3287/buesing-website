@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 106';
+const APP_STAND = '28.08.2026 · 107';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4184,7 +4184,13 @@ function stufeMasseWerkstein(p){
            : (setz ? lies(/(?:steigungsh(?:ö|oe)he|stufenh(?:ö|oe)he|h(?:ö|oe)he)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i)
                    : lies(/(?:stufenbreite|auftrittbreite|auftritt|stufentiefe)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i));
   if(!laenge) laenge=lies(/(\d+(?:[.,]\d+)?)\s*(m)\b/i);
-  return {laenge:laenge||0, tiefe:tiefe||0, setz:setz, wink:wink};
+  // Bei der Winkelstufe liegt zusaetzlich der senkrechte Schenkel im Moertel
+  // und der Randstreifen laeuft an den Stufenenden hoch. Erik am 28.08.2026:
+  // "Das bedeutet mehr gewicht, mehr kleber und mehr randdaemmstreifen,
+  // korrekt?" - ja. Darum bei der Winkelstufe auch die Steigungshoehe lesen.
+  let hoehe = 0;
+  if(wink) hoehe = lies(/(?:steigungsh(?:ä|ö|oe)he|stufenh(?:ö|oe)he)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i);
+  return {laenge:laenge||0, tiefe:tiefe||0, setz:setz, wink:wink, hoehe:hoehe||0};
 }
 function epWerksteinstufe(p, system){
   const warn=[], zeilen=[];
@@ -4193,9 +4199,12 @@ function epWerksteinstufe(p, system){
     warn.push('EINGABE|Stufenlänge nicht im Text gefunden – im Rechner eintragen');
     return {ep:0, zeilen:[['Stufenlänge','fehlt',0]], warn:warn};
   }
-  const flaeche=ma.laenge*(ma.tiefe||0);
+  // Winkelstufe: Auftritt UND Steigung liegen im Moertel.
+  const flaeche=ma.laenge*((ma.tiefe||0)+(ma.wink?(ma.hoehe||0):0));
   zeilen.push(['Stufe', (ma.laenge*100).toFixed(0)+' cm lang'
-    + (ma.tiefe?(' × '+(ma.tiefe*100).toFixed(0)+' cm tief = '+flaeche.toFixed(3).replace('.',',')+' m²'):''), null]);
+    + (ma.tiefe?(' × '+(ma.tiefe*100).toFixed(0)+' cm'
+        + (ma.wink&&ma.hoehe ? (' + '+(ma.hoehe*100).toFixed(0)+' cm Steigung') : ' tief')
+        + ' = '+flaeche.toFixed(3).replace('.',',')+' m²'):''), null]);
 
   const a=werksteinArtikel(p);
   let stufe=0;
@@ -4250,9 +4259,14 @@ function epWerksteinstufe(p, system){
       WST_SILIKON_M.toFixed(2).replace('.',',')+' m × '+fmt(SILIKON.naturstein)+' €/m', sil]);
   }
   if(WST_RAND_M>0){
-    rand=WST_RAND_M*WST_RAND_EUR;
+    // Beim Winkel laeuft der Streifen auch am Setzschenkel hoch:
+    // 2 x (Auftritt + Steigung) statt 2 x Auftritt.
+    const randM = (ma.wink && ma.tiefe && ma.hoehe)
+      ? WST_RAND_M*((ma.tiefe+ma.hoehe)/ma.tiefe)
+      : WST_RAND_M;
+    rand=randM*WST_RAND_EUR;
     zeilen.push(['Randstreifen (schalltechnische Entkopplung)',
-      WST_RAND_M.toFixed(2).replace('.',',')+' m × '+fmt(WST_RAND_EUR)+' €/m', rand]);
+      randM.toFixed(2).replace('.',',')+' m × '+fmt(WST_RAND_EUR)+' €/m', rand]);
   }
   const ep=Math.round((kalk+lohn+sil+rand)*100)/100;
   return {ep, zeilen, warn};
