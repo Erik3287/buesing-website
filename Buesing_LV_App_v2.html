@@ -738,7 +738,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 75';
+const APP_STAND = '28.08.2026 · 76';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1413,10 +1413,11 @@ const TYP_EINHEIT = {
 function einheitKlasse(eh){
   const e=typNorm(eh).replace(/[^a-z0-9²]/g,'');
   if(!e) return null;
-  if(/^(m2|m²|qm)$/.test(e)) return 'flaeche';
-  if(/^(m|lfm|lfdm)$/.test(e)) return 'laenge';
-  if(/^(stk|stueck|st|psch|pausch)$/.test(e)) return e.startsWith('p')?null:'stueck';
-  if(e.startsWith('std')||e==='h') return 'zeit';
+  if(/^(m2|m²|qm|sqm|quadratmeter)$/.test(e)) return 'flaeche';
+  if(/^(m|lfm|lfdm|lm|mtr|meter|laufmeter)$/.test(e)) return 'laenge';
+  // 'Stck' stand in LV-15 einmal und wurde nicht erkannt (Erik 28.08.2026).
+  if(/^(stk|stck|stueck|stuck|st|sk|psch|pausch)$/.test(e)) return e.startsWith('p')?null:'stueck';
+  if(e.startsWith('std')||e==='h'||e==='stunde'||e==='stunden') return 'zeit';
   return null;
 }
 function typKlasse(typ){
