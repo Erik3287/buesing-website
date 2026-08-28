@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 111';
+const APP_STAND = '28.08.2026 · 112';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1048,6 +1048,11 @@ const WERTE = [
     ['WST_SILIKON_M','Silikon je Stufe','lfdm',()=>WST_SILIKON_M,v=>WST_SILIKON_M=v],
     ['WST_RAND_M','Randstreifen je Stufe','lfdm',()=>WST_RAND_M,v=>WST_RAND_M=v],
     ['WST_RAND_EUR','Randstreifen Preis','€/lfdm',()=>WST_RAND_EUR,v=>WST_RAND_EUR=v],
+  ]],
+  ['Reinigung', [
+    ['REIN_UNTERGRUND','Untergrund säubern','€/m²',()=>REIN_UNTERGRUND,v=>REIN_UNTERGRUND=v],
+    ['REIN_FEIN','Feinreinigung Belag','€/m²',()=>REIN_FEIN,v=>REIN_FEIN=v],
+    ['REIN_TREPPE','Feinreinigung Treppe','€/m²',()=>REIN_TREPPE,v=>REIN_TREPPE=v],
   ]],
   ['Sockelfliesen', [
     ['SOCKEL_QM_STD','Verbrauch, wenn kein Format im Text','m²/lfdm',()=>SOCKEL_QM_STD,v=>SOCKEL_QM_STD=v],
@@ -3550,20 +3555,37 @@ const FESTPREISE = {
   // hat. Erik am 27.08.2026: '5,90 Euro pro Meter'.
   schraegschnitt: {ep:5.90, label:'Schrägschnitt der ersten Wandfliesenreihe'},
 };
-// ===== REINIGUNG: zwei verschiedene Arbeiten (Erik 27.08.2026) ============
+// ===== REINIGUNG: drei verschiedene Arbeiten (Erik 27./28.08.2026) ========
 // "Untergrund saeubern" ist der Besen VOR dem Verlegen - 1,60 EUR/m².
 // "Feinreinigung von komplett beraeumten Flaechen" ist die Endreinigung
 // NACH getaner Arbeit und aufwendiger - 2,15 EUR/m².
 // Beide laufen unter dem Typ 'reinigung'; welche gemeint ist, steht in der
 // Ueberschrift und laesst sich im Rechner umschalten.
-const REINIGUNG = {untergrund:1.60, fein:2.15};
+// Drei Arbeiten, drei Preise. Erik am 28.08.2026: "Werden die Variationen im
+// Programm gespeichert, sodass man spaeter zwischen einer normalen Reinigung
+// und Feinreinigung und Belag/Treppe unterscheiden bzw. waehlen kann?" - ja,
+// die Wahl steht als p.reinigungArt an der Position und wird mitgespeichert.
+// Die Treppe kam am 28.08.2026 dazu: 15.03.27 reinigt Treppenstufen
+// einschliesslich Sockelleisten, das ist je m² deutlich mehr Arbeit als eine
+// offene Bodenflaeche.
+let REIN_UNTERGRUND = 1.60;   // Kehren und Absaugen vor dem Verlegen
+let REIN_FEIN       = 10.50;  // Feinreinigung Belag, mit Zementschleierentferner
+let REIN_TREPPE     = 16.00;  // dieselbe Arbeit auf der Treppe
+const REIN_LABEL = {untergrund:'Untergrund säubern (vor dem Verlegen)',
+                    fein:'Feinreinigung Belag (mit Zementschleierentferner)',
+                    treppe:'Feinreinigung Treppe (mit Sockelleisten)'};
+function reinPreis(art){
+  return art==='fein' ? REIN_FEIN : (art==='treppe' ? REIN_TREPPE : REIN_UNTERGRUND);
+}
 function istFeinreinigung(txt){ return /feinreinigung|endreinigung|bauendreinigung|beräumt|beraeumt/i.test(txt||''); }
+function reinigungAuto(txt){
+  if(!istFeinreinigung(txt)) return 'untergrund';
+  return /treppe|stufen|podest/i.test(txt||'') ? 'treppe' : 'fein';
+}
 function epReinigung(p){
-  const auto = istFeinreinigung((p.desc||'')+' '+(p.langtext||'')) ? 'fein' : 'untergrund';
-  const art  = p.reinigungArt || auto;
-  const ep   = REINIGUNG[art] || REINIGUNG.untergrund;
-  const label= art==='fein' ? 'Feinreinigung (Endreinigung)' : 'Untergrund säubern (vor dem Verlegen)';
-  return {ep, zeilen:[[label,'Festpreis – kein Aufschlag',ep]], warn:[]};
+  const art  = p.reinigungArt || reinigungAuto((p.desc||'')+' '+(p.langtext||''));
+  const ep   = reinPreis(art);
+  return {ep, zeilen:[[REIN_LABEL[art]||REIN_LABEL.untergrund,'Festpreis – kein Aufschlag',ep]], warn:[]};
 }
 // Silikon/elastische Fuge: Festpreis je nach Material.
 const SILIKON = {sanitaer:7.90, naturstein:8.90};
@@ -5216,12 +5238,13 @@ function renderCalcHTML(i){
       +'</select><div style="font-size:11px;margin-top:3px">'+ampelS+'</div></div>';
   }
   if(p.typ==='reinigung'){
-    const autoR = istFeinreinigung((p.desc||'')+' '+(p.langtext||'')) ? 'fein' : 'untergrund';
-    const art = p.reinigungArt || autoR;
+    const art = p.reinigungArt || reinigungAuto((p.desc||'')+' '+(p.langtext||''));
+    const opt=function(k,txt){ return '<option value="'+k+'"'+(art===k?' selected':'')+'>'+txt+' – '+fmt(reinPreis(k))+' €/m²</option>'; };
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Art der Reinigung</div>'
       +'<select onchange="setReinigung('+i+',this.value)" style="width:auto;padding:6px 8px">'
-      +'<option value="untergrund"'+(art==='untergrund'?' selected':'')+'>Untergrund säubern – '+fmt(REINIGUNG.untergrund)+' €/m²</option>'
-      +'<option value="fein"'+(art==='fein'?' selected':'')+'>Feinreinigung / Endreinigung – '+fmt(REINIGUNG.fein)+' €/m²</option>'
+      + opt('fein','Feinreinigung Belag')
+      + opt('treppe','Feinreinigung Treppe')
+      + opt('untergrund','Untergrund säubern')
       +'</select><div style="font-size:11px;margin-top:3px">'
       + (p.reinigungArt ? '<span style="color:var(--muted)">von Hand gewählt</span>'
                         : '<span style="color:#1a9e4b">🟢 aus der Überschrift erkannt</span>')
