@@ -5,6 +5,7 @@
 // Zwei Modi:
 //   modus = "lv"      -> LV-Positionen  (Feld "positionen")
 //   modus = "angebot" -> Artikel/Preise (Feld "artikel")
+//   modus = "bedarf"  -> nur Bedarfs-/Wahlpositionen (Feld "positionen")
 // ============================================
 
 // Mehr Zeit und Speicher fuer grosse PDFs erlauben
@@ -126,7 +127,28 @@ if ($textRoh !== '' && strlen($textRoh) > 40000) {
 }
 
 // ---- Anweisung je nach Modus ----
-if ($modus === 'angebot') {
+if ($modus === 'bedarf') {
+    // NUR die Bedarfs-/Wahlpositionen aus einem LV holen - fuer den Nachtrag zu
+    // einem schon eingelesenen LV. Kurze, klare Aufgabe: keine Langtexte, keine
+    // Mengen, nur Positionsnummer und Ja/Nein. Erik am 28.08.2026: "Ich
+    // benoetige eine verlaessliche Erkennung."
+    $anweisung = 'Du bist ein Assistent fuer einen Fliesenleger-Betrieb. '
+        . 'Im beigefuegten Leistungsverzeichnis (LV) sind manche Positionen als Bedarfsposition, '
+        . 'Eventualposition, Wahlposition, Alternativposition oder mit dem Vermerk "nur EP" gekennzeichnet. '
+        . 'Solche Vermerke stehen als eigene Zeile ueber oder unter der Position, oft in Sternchen '
+        . '(z.B. "***Bedarfsposition - Nur EP -"), in Klammern, in Fettdruck, in einer eigenen Spalte '
+        . 'oder als Zusatz hinter der Positionsnummer. Ein Vermerk gehoert immer zu der Position, bei der er steht. '
+        . 'Gehe das LV Position fuer Position durch und gib fuer JEDE Position an, ob sie so gekennzeichnet ist. '
+        . 'Gib das Ergebnis AUSSCHLIESSLICH als JSON-Array zurueck, ohne weiteren Text, ohne Markdown, ohne Backticks. '
+        . 'Jede Position ist ein Objekt mit genau diesen Feldern: '
+        . '"pos" (Positionsnummer als Text, genau wie im LV geschrieben, z.B. "15.03.26"), '
+        . '"bedarf" (true oder false), '
+        . '"vermerk" (der gefundene Vermerk woertlich, leerer String wenn keiner da ist). '
+        . 'Erfinde keine Positionsnummern und lass keine aus. Im Zweifel false. '
+        . 'Beispiel: [{"pos":"15.03.25","bedarf":false,"vermerk":""},'
+        . '{"pos":"15.03.26","bedarf":true,"vermerk":"***Bedarfsposition - Nur EP -"}]';
+    $ergebnisFeld = 'positionen';
+} else if ($modus === 'angebot') {
     // Artikel/Preise aus einem Lieferanten-Angebot oder einer Rechnung herausziehen
     $anweisung = 'Du bist ein Assistent fuer einen Fliesenleger-Betrieb. '
         . 'Analysiere das beigefuegte Lieferanten-Angebot bzw. die Rechnung und extrahiere ALLE Artikel mit ihren Preisen. '
@@ -167,10 +189,19 @@ if ($modus === 'angebot') {
         . '"beschreibung" (der kurze Titel / die Ueberschrift der Position), '
         . '"langtext" (der KOMPLETTE ausfuehrliche Beschreibungstext, Wort fuer Wort, mit allen Details, Massen, Normen, Materialangaben; leerer String wenn es keinen gibt), '
         . '"menge" (Zahl, nur der Wert ohne Einheit), '
-        . '"einheit" (z.B. "m2", "m", "Stk", "psch"). '
+        . '"einheit" (z.B. "m2", "m", "Stk", "psch"), '
+        . '"bedarf" (true oder false). '
+        . 'ZU "bedarf": true, wenn die Position eine Bedarfsposition, Eventualposition, Wahlposition, '
+        . 'Alternativposition oder eine Position mit dem Vermerk "nur EP" ist. Solche Vermerke stehen '
+        . 'im LV oft als eigene Zeile ueber oder unter der Position, in Sternchen eingefasst '
+        . '(z.B. "***Bedarfsposition - Nur EP -"), in Klammern, in Fettdruck, in einer eigenen Spalte '
+        . 'oder als Zusatz hinter der Positionsnummer. Sie gehoeren zu der Position, bei der sie stehen. '
+        . 'Pruefe das bei JEDER Position ausdruecklich und uebernimm den Vermerk ZUSAETZLICH woertlich '
+        . 'in den Langtext - er darf nicht verloren gehen. Im Zweifel false. '
         . 'Wenn ein Wert fehlt, nimm bei menge 0 und bei den Texten einen leeren String. '
         . 'Beispiel des erwarteten Formats: '
-        . '[{"pos":"01.001","beschreibung":"Bodenfliesen 30x60 verlegen","langtext":"Liefern und Verlegen von Bodenfliesen im Format 30x60 cm, Farbe nach Wahl des AG, im Duennbettverfahren auf vorbereitetem Untergrund, inkl. Verfugung...","menge":45.5,"einheit":"m2"}]';
+        . '[{"pos":"01.001","beschreibung":"Bodenfliesen 30x60 verlegen","langtext":"Liefern und Verlegen von Bodenfliesen im Format 30x60 cm, Farbe nach Wahl des AG, im Duennbettverfahren auf vorbereitetem Untergrund, inkl. Verfugung...","menge":45.5,"einheit":"m2","bedarf":false},'
+        . '{"pos":"01.002","beschreibung":"Sockelfliesen","langtext":"***Bedarfsposition - Nur EP -  Sockelfliesen liefern und einbauen, Hoehe ca. 60 mm...","menge":97,"einheit":"m","bedarf":true}]';
     $ergebnisFeld = 'positionen';
 }
 

@@ -271,6 +271,8 @@ tr:hover td{background:#fafafa}
           <button class="bg sm" onclick="doExportPDF()">📄 PDF-Angebot</button>
           <button class="bg sm" onclick="doExportDaten()" title="Alle Positionen als Datei sichern – zum Weitergeben oder Nachschauen">💾 Positionen als Datei</button>
           <button class="bg sm" onclick="typenNeuErkennen()" title="Alle Positions-Typen neu bestimmen">🔄 Typen neu erkennen</button>
+          <button class="bg sm" onclick="document.getElementById('bedarf-datei').click()" title="Das Original-LV als PDF lesen und alle Bedarfs-/Wahlpositionen kennzeichnen">🔎 Bedarfspositionen aus dem LV-PDF</button>
+          <input type="file" id="bedarf-datei" accept=".pdf" style="display:none" onchange="bedarfAusPDF(this.files[0]); this.value='';">
           <button class="bg sm" onclick="alleEpNeuBerechnen()" title="Alle EP über das Regelwerk neu rechnen – geprüfte (grüne) Positionen bleiben unangetastet">🧮 Alle EP neu berechnen</button>
           <button class="btn sm" onclick="doSave()">💾 Speichern</button>
         </div>
@@ -755,7 +757,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 91';
+const APP_STAND = '28.08.2026 · 92';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1837,6 +1839,69 @@ function istBedarfPos(p){
   if(!p) return false;
   if(p.bedarf===true || p.bedarf===false) return p.bedarf;   // von Hand gesetzt
   return BEDARF_WORTE.test((p.desc||p.titel||'')+' '+(p.langtext||''));
+}
+// Das Original-LV noch einmal lesen - aber nur nach den Bedarfsvermerken.
+// Der normale Import wirft sie oft weg, weil sie als eigene Zeile neben der
+// Position stehen. Erik am 28.08.2026: "Ich benoetige eine verlaessliche
+// Erkennung. Bestimmt werde ich nicht jede einzelne von diesen 200 Positionen
+// gegenchecken." Also: PDF waehlen, Rest macht die App.
+async function bedarfAusPDF(datei){
+  if(!datei) return;
+  if(!(LV.pos && LV.pos.length)){ toast('Erst ein LV öffnen.'); return; }
+  const stand=document.getElementById('save-status');
+  const sagen=function(t){ if(stand) stand.textContent=t; };
+  try{
+    sagen('LV wird gelesen…');
+    const puffer = await datei.arrayBuffer();
+    const quelle = await PDFLib.PDFDocument.load(puffer);
+    const seiten = quelle.getPageCount();
+    const proTeil = 6;
+    const teile = Math.ceil(seiten/proTeil);
+    let gefunden = [];
+    for(let t=0; t<teile; t++){
+      const von=t*proTeil, bis=Math.min(von+proTeil, seiten);
+      sagen('LV wird gelesen… Seite '+(von+1)+'–'+bis+' von '+seiten);
+      const teilPdf = await PDFLib.PDFDocument.create();
+      const kopien = await teilPdf.copyPages(quelle, Array.from({length:bis-von},(_,k)=>von+k));
+      kopien.forEach(function(sp){ teilPdf.addPage(sp); });
+      const b64 = await teilPdf.saveAsBase64();
+      let ok=false;
+      for(let versuch=1; versuch<=3 && !ok; versuch++){
+        try{
+          const res = await fetch('lv_lesen.php', {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({pdf:b64, modus:'bedarf'})});
+          const d = await res.json();
+          if(d && d.ok){ gefunden = gefunden.concat(d.positionen||[]); ok=true; }
+        }catch(e){}
+        if(!ok) await new Promise(r=>setTimeout(r, 2000*versuch));
+      }
+      if(!ok) sagen('Seite '+(von+1)+'–'+bis+' konnte nicht gelesen werden');
+    }
+    // Positionsnummern zusammenfuehren und auf die eigenen Positionen legen
+    const karte={};
+    gefunden.forEach(function(g){
+      const nr=String(g.pos||'').trim();
+      if(!nr) return;
+      if(g.bedarf===true) karte[nr]=true;
+      else if(karte[nr]===undefined) karte[nr]=false;
+    });
+    let gesetzt=0, geloest=0, unbekannt=0;
+    LV.pos.forEach(function(p){
+      const nr=String(p.nr||'').trim();
+      if(!(nr in karte)){ unbekannt++; return; }
+      const soll=karte[nr]===true;
+      if(istBedarfPos(p)!==soll){ p.bedarf=soll; soll?gesetzt++:geloest++; }
+      else p.bedarf=soll;
+    });
+    renderLV(); doSave(true);
+    sagen('');
+    toast(gesetzt+' als Bedarfsposition gesetzt'
+      + (geloest?(' · '+geloest+' zurückgenommen'):'')
+      + (unbekannt?(' · '+unbekannt+' im PDF nicht gefunden'):''));
+  }catch(e){
+    sagen('');
+    toast('PDF konnte nicht gelesen werden: '+(e.message||e));
+  }
 }
 function bedarfUmschalten(i){
   const p=LV.pos[i];
@@ -4499,6 +4564,12 @@ function importPos(roh){
     einheit:  roh.einheit || 'm²',
     ep: 0, status: 'rot', notiz: ''
   };
+  // Bedarfs-/Wahlposition: was die KI beim Lesen gefunden hat, gilt. Fehlt die
+  // Angabe, entscheiden die Stichworte im Text. Erik am 28.08.2026: "Ich
+  // benoetige eine verlaessliche Erkennung" - beim Lesen des PDF ist der
+  // Vermerk noch da, im gekuerzten Langtext spaeter oft nicht mehr.
+  if(roh.bedarf===true || roh.bedarf===false) p.bedarf = roh.bedarf;
+  else if(BEDARF_WORTE.test((p.desc||'')+' '+(p.langtext||''))) p.bedarf = true;
   p.typ = erkenneTyp(p.desc, p.langtext, p.einheit);
 
   // Abdichtung: erkannte Werte festhalten, damit "wie vor" sie weitergeben kann
