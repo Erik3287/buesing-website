@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 143';
+const APP_STAND = '28.08.2026 · 144';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -2142,7 +2142,11 @@ function erkenneRutsch(text){
 function normFormat(f){ return (f||'').replace(/\s/g,'').replace(/,/g,'.').replace(/[×xX]/g,'x'); }
 function rKlasseAus(t){ const m=(t||'').match(/\br\s*(9|1[0-3])\b/i); return m?parseInt(m[1]):null; }
 function istGlaenzend(n){ return /glänzend|glaenzend|poliert|hochglanz|blank/i.test(n||''); }
-function istGleichwertig(t){ return /oder\s+(gleichwertig|ähnlich|vergleichbar)/i.test(t||''); }
+// Eine einzige Pruefung fuer alle Schreibweisen. Die Kurzform 'gleichw.'
+// fehlte hier (nur in istGleichwertigTxt nachgeruestet) - dadurch zeigte
+// 15.07.01.21 'V & B CT 61 / RAKO Extra oder gleichw. Art' als VERBINDLICH
+// an, obwohl Gleichwertiges ausdruecklich erlaubt ist (28.08.2026).
+function istGleichwertig(t){ return istGleichwertigTxt(t); }
 // Alle im LV genannten Fabrikate. LV-Texte listen oft mehrere Alternativen,
 // getrennt durch "o.glw. Art":
 //   "Fabrk.: Villeroy & Boch - Serie Unit Four ... o.glw. Art
@@ -8212,6 +8216,18 @@ async function ladeLV(id){
       document.getElementById('lv-proc').style.display='none';
       document.getElementById('lv-main').style.display='block';
       const tit=document.getElementById('lv-tit'); if(tit) tit.textContent = LV.titel || 'LV-Kalkulation';
+      // Beim Oeffnen werden ALLE Positionen neu geprueft, die Erik nicht
+      // selbst auf Gruen gestellt hat. Ohne das blieben gespeicherte
+      // Automatik-Gruens einfach stehen - die neun nie gewaehlten
+      // 'Kermos Concept'-Positionen standen trotz eingebauter Heilung
+      // weiter gruen da (Erik am 28.08.2026: 'meine guete - fangen wir
+      // jetzt wieder von vorne an?'). Von Hand gesetztes Gruen bleibt
+      // unangetastet.
+      LV.pos.forEach(function(q){
+        if(q.typ==='ueberschrift') return;
+        if(q.status==='gruen' && !q.gruenAuto) return;   // Eriks Gruen ist gesperrt
+        try{ autoEP(q, LV.system||'sakret'); }catch(e){}
+      });
       // Ausdrueckliche "wie vor"-Bezuege aufloesen: die Wandfliese wird oft
       // erst nach dem Import gewaehlt - beim naechsten Oeffnen zieht die
       // Laibung sie nach. Fuellt nur leere Felder, ist also gefahrlos.
