@@ -738,7 +738,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 79';
+const APP_STAND = '28.08.2026 · 80';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -3746,7 +3746,11 @@ function epSpiegel(p){
 // Erik am 28.08.2026 zu Moertel und Zeit: "lassen wir so, passt alles" -
 // also dieselben Werte wie beim Fliesen-Treppenbelag.
 const WST_MOERTEL_KG = 31.0;   // kg je m2 Aufstandsflaeche
-const WST_ZEIT_STK   = 1.20;   // h je Stufe
+const WST_ZEIT_STK   = 100/60; // h je Stufe. Erik am 28.08.2026: "Hier brauchen
+                               // 2 Mitarbeiter fuer eine Stufe 50 Minuten (also
+                               // insgesamt x2). Das sind ja fertige Platten und
+                               // das schafft nicht ein Mann allein." Also 100
+                               // Mannminuten = 1,67 h.
 function werksteinKandidaten(){
   return (PREISE||[]).filter(function(x){
     if(!/trittstufe|setzstufe|winkelstufe|stufe/i.test(x.name||'')) return false;
@@ -3817,7 +3821,7 @@ function epWerksteinstufe(p, system){
   zeilen.push(['Material roh','',roh]);
   zeilen.push(['Material × 1,20','',kalk]);
   const lohn=WST_ZEIT_STK*LOHN();
-  zeilen.push(['Lohn je Stufe', WST_ZEIT_STK.toFixed(2).replace('.',',')+' h × '+fmt(LOHN()), lohn]);
+  zeilen.push(['Lohn je Stufe', '2 Mann × 50 min = '+WST_ZEIT_STK.toFixed(2).replace('.',',')+' h × '+fmt(LOHN()), lohn]);
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn};
 }
