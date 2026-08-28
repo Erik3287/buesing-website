@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 113';
+const APP_STAND = '28.08.2026 · 114';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1055,8 +1055,10 @@ const WERTE = [
     ['REIN_TREPPE','Feinreinigung Treppe','€/m²',()=>REIN_TREPPE,v=>REIN_TREPPE=v],
   ]],
   ['Imprägnierung / Einpflege', [
-    ['BEH_BELAG','Erstbehandlung Belag','€/m²',()=>BEH_BELAG,v=>BEH_BELAG=v],
-    ['BEH_TREPPE','Erstbehandlung Treppe','€/m²',()=>BEH_TREPPE,v=>BEH_TREPPE=v],
+    ['BEH_EK_L','Imprägnierung Einkauf','€/l',()=>BEH_EK_L,v=>BEH_EK_L=v],
+    ['BEH_LITER','Verbrauch','l/m²',()=>BEH_LITER,v=>BEH_LITER=v],
+    ['BEH_ZEIT','Zeit Belag','h/m²',()=>BEH_ZEIT,v=>BEH_ZEIT=v],
+    ['BEH_ZEIT_TR','Zeit Treppe','h/m²',()=>BEH_ZEIT_TR,v=>BEH_ZEIT_TR=v],
   ]],
   ['Sockelfliesen', [
     ['SOCKEL_QM_STD','Verbrauch, wenn kein Format im Text','m²/lfdm',()=>SOCKEL_QM_STD,v=>SOCKEL_QM_STD=v],
@@ -3773,21 +3775,32 @@ function epSchutz(p){
 // Flaeche - jede Stufe einzeln, Kanten und Sockelleisten von Hand.
 // 15.03.28 (Boden, 78 m²) und 15.03.29 (Treppe, 24 m²) standen beide auf
 // 14,55 EUR/m².
-// Erik am 28.08.2026 nachgerechnet: Impraegnierung ca. 0,10 l/m² zu rund
-// 30 EUR/l = 3,00 EUR Material (x 1,20 = 3,60), Auftragen und Einpflege
-// 6-8 Minuten = 5,80-7,73 EUR Lohn. Macht 9,40-11,33 EUR/m². Sein Ansatz
-// 10,50 EUR/m² liegt genau in der Mitte. Die vorherigen 14,55 waren ein
-// Standardwert ohne Herleitung. Anders als bei der Reinigung ist der Umfang
-// hier klar beschrieben - kein Aufschlag fuer Unwaegbares.
-let BEH_BELAG  = 10.50;
-let BEH_TREPPE = 16.00;
-const BEH_LABEL = {belag:'Erstbehandlung Belag (Imprägnierung, Einpflege)',
-                   treppe:'Erstbehandlung Treppe (Imprägnierung, Einpflege)'};
+// Impraegnierung, sauber gerechnet statt pauschal. Erik am 28.08.2026:
+// "mache das ruhig niedriger - so das es sauber kalkuliert ist."
+// Material: FILA Hydrorep Eco, 5-l-Kanister zu 92,62 EUR = 18,52 EUR/l.
+// Auf dem Gebinde steht "5 L = bis 100 m²"; Betonwerkstein saugt, deshalb
+// wird mit 80 m² je Kanister gerechnet = 0,0625 l/m².
+// Arbeit: Erstbehandlung und Einpflege sind zwei Gaenge - 7 Minuten je m²
+// auf der Flaeche, auf der Treppe das Anderthalbfache.
+let BEH_EK_L    = 18.52;   // EUR je Liter Impraegnierung
+let BEH_LITER   = 0.0625;  // Liter je m² (5 l reichen fuer 80 m²)
+let BEH_ZEIT    = 7/60;    // h je m², Belag
+let BEH_ZEIT_TR = 10.5/60; // h je m², Treppe
+const BEH_LABEL = {belag:'Belag', treppe:'Treppe'};
 function behandlungAuto(txt){ return /treppe|stufen|podest/i.test(txt||'') ? 'treppe' : 'belag'; }
 function epBehandlung(p){
-  const art = p.behandlungArt || behandlungAuto((p.desc||'')+' '+(p.langtext||''));
-  const ep  = art==='treppe' ? BEH_TREPPE : BEH_BELAG;
-  return {ep, zeilen:[[BEH_LABEL[art],'Festpreis – kein Aufschlag',ep]], warn:[]};
+  const art  = p.behandlungArt || behandlungAuto((p.desc||'')+' '+(p.langtext||''));
+  const zeit = art==='treppe' ? BEH_ZEIT_TR : BEH_ZEIT;
+  const zeilen=[];
+  const mat  = BEH_LITER*BEH_EK_L;
+  zeilen.push(['Imprägnierung '+String(BEH_LITER).replace('.',',')+' l/m²',
+               fmt(BEH_EK_L)+' €/l × '+String(BEH_LITER).replace('.',','), mat]);
+  const kalk = mat*1.20;
+  zeilen.push(['Material × 1,20','',kalk]);
+  const lohn = zeit*LOHN();
+  zeilen.push(['Erstbehandlung + Einpflege ('+BEH_LABEL[art]+')',
+               (zeit*60).toFixed(1).replace('.',',')+' min × '+fmt(LOHN())+'/h', lohn]);
+  return {ep: Math.round((kalk+lohn)*100)/100, zeilen, warn:[]};
 }
 function epFestpreis(p){
   const f=FESTPREISE[p.typ];
@@ -5266,8 +5279,8 @@ function renderCalcHTML(i){
     const art = p.behandlungArt || behandlungAuto((p.desc||'')+' '+(p.langtext||''));
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Fläche</div>'
       +'<select onchange="setBehandlung('+i+',this.value)" style="width:auto;padding:6px 8px">'
-      +'<option value="belag"'+(art==='belag'?' selected':'')+'>Belag – '+fmt(BEH_BELAG)+' €/m²</option>'
-      +'<option value="treppe"'+(art==='treppe'?' selected':'')+'>Treppe – '+fmt(BEH_TREPPE)+' €/m²</option>'
+      +'<option value="belag"'+(art==='belag'?' selected':'')+'>Belag – '+(BEH_ZEIT*60).toFixed(0)+' min/m²</option>'
+      +'<option value="treppe"'+(art==='treppe'?' selected':'')+'>Treppe – '+(BEH_ZEIT_TR*60).toFixed(0)+' min/m²</option>'
       +'</select><div style="font-size:11px;margin-top:3px">'
       + (p.behandlungArt ? '<span style="color:var(--muted)">von Hand gewählt</span>'
                          : '<span style="color:#1a9e4b">🟢 aus der Überschrift erkannt</span>')
