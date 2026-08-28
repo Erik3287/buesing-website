@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 135';
+const APP_STAND = '28.08.2026 · 136';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -2952,7 +2952,12 @@ function erkenneWKlasse(text){
 function erkenneAbdichtArt(text){
   const t=typNorm(text);
   if(/dichtbahn|dichtungsfolie|abdichtungsbahn|dichtmatte|verbundmatte/.test(t)) return 'bahn';
-  if(/flüssige?\s+(flächen)?abdichtung|streichen oder spachteln|im zweimaligen|deckenden auftrag|dichtungsschlämme|reaktionsharz|flüssigfolie/.test(t)) return 'fluessig';
+  // "Fluessige Dichtfolie ... in 2 Schichten" (15.06.01.11) fehlte - die
+  // Position waere stillschweigend mit der Dichtbahn gerechnet worden, ohne
+  // Hinweis. Ebenso die Produktnamen: PCI Seccoral ist eine flexible
+  // Dichtschlaemme, kein Bahnenmaterial. Erik am 28.08.2026: "hier muss klar
+  // werden, dass es sich um eine flexible Dichtschlaemme handelt".
+  if(/flüssige?\s+(flächen)?abdichtung|flüssige?\s+dicht(folie|ung)|dichtfolie|streichen oder spachteln|im zweimaligen|deckenden auftrag|dicht(ungs)?schlämme|reaktionsharz|flüssigfolie|in\s*2\s*schichten|in\s*zwei\s*schichten|seccoral|aquafin|lastogum|sopro\s*turbo|dichtschlaemme/.test(t)) return 'fluessig';
   return null;
 }
 
@@ -4801,13 +4806,24 @@ function autoEP(p, system){
   // kein Preis herauskommt oder der Rechner eine Frage stellt (die Hinweise
   // 'EINGABE|' und 'PRUEFEN|').
   delete p.gruenAuto;
+  // Ein Hinweis, den Erik mit "OK" bestaetigt hat, haelt die Position nicht
+  // mehr auf. Erik am 28.08.2026: "Ein hinweis (z.B. mit Ampel orange) kommt,
+  // dass das LV Dichtschlaemme verlangt, aber die Dichtbahn eingesetzt wurde.
+  // Ich bestaetige das durch einen OK button in der jeweiligen position -
+  // Ampel springt auf gruen - FERTIG!!!" Gemerkt wird der Wortlaut: aendert
+  // sich der Hinweis spaeter, meldet sich die Position wieder.
+  const hinweisTxt = hinweis.join(' · ');
+  const bestaetigt = hinweis.length > 0 && p.hinweisOk === hinweisTxt;
+  if(hinweis.length && !bestaetigt) delete p.hinweisOk;
+
   if(flieseFehlt)      { p.status='rot'; p.notiz='Fliesenpreis fehlt – Preis anfragen'; }
   else if(fehlend.length){ p.status='rot'; p.notiz='fehlt: ' + fehlend.join(', '); }
   else if(!(p.ep > 0)) { p.status='rot'; p.notiz='kein Preis ermittelbar – bitte prüfen'; }
-  else if(hinweis.length){ p.status='gelb'; p.notiz=''; }
+  else if(hinweis.length && !bestaetigt){ p.status='gelb'; p.notiz=''; }
   else                 { p.status='gruen'; p.gruenAuto=true; p.notiz=''; }
-  // Pruef-Hinweise gehen auch bei roten Positionen nicht verloren
-  if(hinweis.length) p.notiz = (p.notiz ? p.notiz + ' · ' : '') + hinweis.join(' · ');
+  // Pruef-Hinweise gehen auch bei roten und bestaetigten Positionen nicht verloren
+  if(hinweis.length) p.notiz = (p.notiz ? p.notiz + ' · ' : '')
+                             + (bestaetigt ? '✓ bestätigt: ' : '') + hinweisTxt;
 
   return p;
 }
@@ -5879,6 +5895,17 @@ function calcGeaendertLeise(i){
   if(out) out.innerHTML=renderCalcOut(i);
   scheduleSave();
 }
+// "OK" an einer gelben Position: den Hinweis zur Kenntnis genommen, weiter.
+function hinweisBestaetigen(i){
+  const p=LV.pos[i];
+  const r=berechneEP(p, LV.system||'sakret');
+  const hinweis=(r.warn||[]).filter(function(w){ return String(w).indexOf('ARTIKEL|')!==0; })
+                            .map(function(w){ const t=String(w), k=t.indexOf('|'); return k>-1?t.slice(k+1):t; });
+  p.hinweisOk = hinweis.join(' · ');
+  autoEP(p, LV.system||'sakret');
+  renderLV(); scheduleSave();
+  toast('Hinweis bestätigt – Position steht auf Grün');
+}
 function setReinigung(i,v){ LV.pos[i].reinigungArt=v; calcGeaendert(i); }
 function setBehandlung(i,v){ LV.pos[i].behandlungArt=v; calcGeaendert(i); }
 function setRektifiziert(i,v){ LV.pos[i].rektifiziert=(v==='1'||v===1||v===true); calcGeaendert(i); }
@@ -6251,7 +6278,7 @@ function renderLV(){
     const bc=p.status==='gruen'?'var(--green)':p.status==='gelb'?'var(--yellow)':'var(--red)';
     return `<tr class="pos-row" data-i="${i}" data-such="${suchtext}">
       <td style="font-weight:700;color:var(--accent);font-size:13px;border-left:6px solid ${bc};padding-left:8px">${p.nr||''}</td>
-      <td><div style="font-size:13px;font-weight:600">${p.desc||''}${bedarf?` <span style="color:#0047c7;font-weight:800;font-size:12.5px;letter-spacing:.3px;cursor:pointer" onclick="bedarfUmschalten(${i})" title="Zählt nicht in die Angebotssumme – klicken zum Umstellen">BEDARFSPOSITION</span>`:''}</div>${langtextBlock(p,i)}${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${p.notiz}</div>`:''}</td>
+      <td><div style="font-size:13px;font-weight:600">${p.desc||''}${bedarf?` <span style="color:#0047c7;font-weight:800;font-size:12.5px;letter-spacing:.3px;cursor:pointer" onclick="bedarfUmschalten(${i})" title="Zählt nicht in die Angebotssumme – klicken zum Umstellen">BEDARFSPOSITION</span>`:''}</div>${langtextBlock(p,i)}${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${p.notiz}${p.status==='gelb'?` <button class="bg sm" style="padding:1px 9px;font-size:11px;font-weight:700;margin-left:6px" onclick="hinweisBestaetigen(${i})" title="Hinweis gelesen – Position auf Grün setzen">OK</button>`:''}</div>`:''}</td>
       <td><select style="padding:4px 5px;font-size:11px;width:118px" onchange="upd(${i},'typ',this.value)">${typOptions(p.typ)}</select></td>
       <td><input type="number" step="0.01" value="${p.menge||''}" placeholder="0" oninput="upd(${i},'menge',this.value)" style="text-align:right;width:70px;padding:4px 6px"></td>
       <td style="color:var(--muted);font-size:13px">${p.einheit||''}</td>
