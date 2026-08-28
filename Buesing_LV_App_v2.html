@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 118';
+const APP_STAND = '28.08.2026 · 119';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5938,6 +5938,40 @@ function setBieter(i,k,v){
   scheduleSave();
 }
 // Interaktive Darstellung: Punktlinien -> Eingabefelder
+// Fertige Positionen brauchen ihren vollen Text nicht mehr. Erik am
+// 28.08.2026: "Sobald ein Artikel bearbeitet wurde und via Ampel als gruen
+// erkannt wird, klappt das Feld etwas ein, sodass nur noch die Ueberschrift
+// zu sehen ist und ein kleiner Einleitungsteil des LV-Textes. Die noch nicht
+// bearbeiteten Texte bleiben im Langtext stehen." Alles andere - Kategorie,
+// Menge, Einheit, Preis - bleibt in jedem Fall stehen; nur der Langtext
+// verkuerzt sich. Der volle Text steht daneben und ist nur versteckt, damit
+// die gelben Bieterfelder beim Aufklappen sofort wieder da sind.
+const LANG_KURZ = 130;   // Zeichen der Leseprobe
+function langtextAnfang(lt){
+  // Den Bedarfsvermerk in der ersten Zeile ueberspringen - er steht schon
+  // als BEDARFSPOSITION in der Ueberschrift.
+  let t = String(lt||'').replace(/^\s*\*+\s*Bedarfspos[^\n]*\n?/i,'').trim();
+  t = t.replace(/\s+/g,' ');
+  return t.length > LANG_KURZ ? (t.slice(0, LANG_KURZ).replace(/\S*$/,'') + ' …') : t;
+}
+function langtextBlock(p, i){
+  const lt = p.langtext || '';
+  if(!lt || p.status !== 'gruen') return langtextEditHtml(p, i);
+  return '<div id="lt-kurz-'+i+'" onclick="langAufZu('+i+')" title="Ganzen Text zeigen"'
+       + ' style="font-size:12px;color:var(--muted);line-height:1.5;margin-top:3px;cursor:pointer">'
+       + '<span style="font-weight:700;margin-right:5px" id="lt-pfeil-'+i+'">▸</span>'
+       + esc(langtextAnfang(lt)) + '</div>'
+       + '<div id="lt-'+i+'" style="display:none">' + langtextEditHtml(p, i)
+       + '<div onclick="langAufZu('+i+')" style="font-size:11px;color:var(--muted);cursor:pointer;margin-top:3px">▴ zuklappen</div>'
+       + '</div>';
+}
+function langAufZu(i){
+  const voll=document.getElementById('lt-'+i), kurz=document.getElementById('lt-kurz-'+i);
+  if(!voll || !kurz) return;
+  const auf = (voll.style.display !== 'block');
+  voll.style.display = auf ? 'block' : 'none';
+  kurz.style.display = auf ? 'none'  : 'block';
+}
 function langtextEditHtml(p, i){
   const lt=p.langtext||''; if(!lt) return '';
   const style='font-size:12px;color:var(--text);margin-top:3px;line-height:1.7;white-space:pre-wrap';
@@ -6011,7 +6045,7 @@ function renderLV(){
     const bc=p.status==='gruen'?'var(--green)':p.status==='gelb'?'var(--yellow)':'var(--red)';
     return `<tr class="pos-row" data-i="${i}" data-such="${suchtext}">
       <td style="font-weight:700;color:var(--accent);font-size:13px;border-left:6px solid ${bc};padding-left:8px">${p.nr||''}</td>
-      <td><div style="font-size:13px;font-weight:600">${p.desc||''}${bedarf?` <span style="color:#0047c7;font-weight:800;font-size:12.5px;letter-spacing:.3px;cursor:pointer" onclick="bedarfUmschalten(${i})" title="Zählt nicht in die Angebotssumme – klicken zum Umstellen">BEDARFSPOSITION</span>`:''}</div>${langtextEditHtml(p,i)}${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${p.notiz}</div>`:''}</td>
+      <td><div style="font-size:13px;font-weight:600">${p.desc||''}${bedarf?` <span style="color:#0047c7;font-weight:800;font-size:12.5px;letter-spacing:.3px;cursor:pointer" onclick="bedarfUmschalten(${i})" title="Zählt nicht in die Angebotssumme – klicken zum Umstellen">BEDARFSPOSITION</span>`:''}</div>${langtextBlock(p,i)}${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${p.notiz}</div>`:''}</td>
       <td><select style="padding:4px 5px;font-size:11px;width:118px" onchange="upd(${i},'typ',this.value)">${typOptions(p.typ)}</select></td>
       <td><input type="number" step="0.01" value="${p.menge||''}" placeholder="0" oninput="upd(${i},'menge',this.value)" style="text-align:right;width:70px;padding:4px 6px"></td>
       <td style="color:var(--muted);font-size:13px">${p.einheit||''}</td>
