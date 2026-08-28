@@ -358,13 +358,7 @@ tr:hover td{background:#fafafa}
     <div class="g3">
       <div class="f"><label>Artikelname *</label><input id="np-n" placeholder="z.B. Sakret Flex OK"></div>
       <div class="f"><label>Kategorie</label>
-        <select id="np-k">
-          <option value="fliesen">Fliesen</option><option value="kleber">Kleber</option>
-          <option value="fuge">Fuge & Silikon</option><option value="grundierung">Grundierung</option>
-          <option value="abdichtung">Abdichtung</option><option value="profile">Profile</option>
-          <option value="emco">EMCO</option><option value="bauplatten">Bauplatten</option>
-          <option value="duschelement">Duschelemente</option><option value="sonstiges">Sonstiges</option>
-        </select>
+        <select id="np-k" onchange="katGewaehlt(this)"></select>
       </div>
       <div class="f"><label>Lieferant</label><select id="np-l"><option value="">– wählen –</option></select></div>
     </div>
@@ -381,19 +375,7 @@ tr:hover td{background:#fafafa}
       <button class="bg" onclick="document.getElementById('add-p').style.display='none'">Abbrechen</button>
     </div>
   </div>
-    <div class="fb" id="pfb">
-      <button class="fb-btn active" data-kat="alle" onclick="filtP('alle',this)">Alle</button>
-      <button class="fb-btn" data-kat="fliesen" onclick="filtP('fliesen',this)">Fliesen</button>
-      <button class="fb-btn" data-kat="kleber" onclick="filtP('kleber',this)">Kleber</button>
-      <button class="fb-btn" data-kat="fuge" onclick="filtP('fuge',this)">Fuge &amp; Silikon</button>
-      <button class="fb-btn" data-kat="grundierung" onclick="filtP('grundierung',this)">Grundierung</button>
-      <button class="fb-btn" data-kat="abdichtung" onclick="filtP('abdichtung',this)">Abdichtung</button>
-      <button class="fb-btn" data-kat="profile" onclick="filtP('profile',this)">Profile</button>
-      <button class="fb-btn" data-kat="emco" onclick="filtP('emco',this)">EMCO</button>
-      <button class="fb-btn" data-kat="bauplatten" onclick="filtP('bauplatten',this)">Bauplatten</button>
-      <button class="fb-btn" data-kat="duschelement" onclick="filtP('duschelement',this)">Duschelemente</button>
-      <button class="fb-btn" data-kat="sonstiges" onclick="filtP('sonstiges',this)">Sonstiges</button>
-    </div>
+    <div class="fb" id="pfb"><!-- wird aus alleKats() gezeichnet --></div>
     <div id="bauplatten-import" style="margin:6px 0;padding:8px 12px;background:#eef4fb;border:1px solid #d3e2f2;border-radius:8px;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span>📥 Bauplatten aus dem Krüger-Angebot (KAN 150000645, 10.03.2026) übernehmen.</span>
       <button class="bg sm" style="padding:4px 10px" onclick="importBauplatten()">In Preisdatenbank übernehmen</button>
@@ -416,7 +398,7 @@ tr:hover td{background:#fafafa}
         <thead><tr>
           <th style="width:1%"></th>
           <th onclick="sortP('name')" style="cursor:pointer">Artikel <span id="sort-name"></span></th>
-          <th onclick="sortP('format')" style="cursor:pointer">Format <span id="sort-format"></span></th>
+          <th onclick="sortP('kat')" style="cursor:pointer">Gruppe / Format <span id="sort-kat"></span></th>
           <th onclick="sortP('lief')" style="cursor:pointer">Lieferant <span id="sort-lief"></span></th>
           <th onclick="sortP('ek')" style="text-align:right;cursor:pointer">EK-Preis <span id="sort-ek"></span></th>
           <th style="text-align:right">VK (+20%)</th>
@@ -755,7 +737,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 65';
+const APP_STAND = '27.08.2026 · 66';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5464,7 +5446,9 @@ function produktBild(a){
   return b ? ('data:image/jpeg;base64,'+b) : '';
 }
 function renderP(){
-  updateKatCounts();
+  katKnoepfeZeichnen();
+  const npk=document.getElementById('np-k');
+  if(npk && !npk.options.length) npk.innerHTML=katOptions('sonstiges');
   hinweiseWiederherstellen();
   const s=(document.getElementById('ps3')?.value||'').toLowerCase();
   let liste=PREISE.filter(p=>{
@@ -5498,7 +5482,7 @@ function renderP(){
     return `<tr id="row-${p.id}">
       <td style="padding:4px 6px">${bild?`<img src="${bild}" alt="" title="Zeichnung aus dem Preisblatt" style="height:34px;width:auto;max-width:70px;border-radius:4px;display:block">`:''}</td>
       <td><b>${p.name}</b>${w?` <span class="bdg bw" title="Preis ${esc(al.grund)} – bitte aktualisieren">${wtxt}</span>`:''}${p.artnr?`<div style="color:var(--muted);font-size:11px">Art.-Nr. ${p.artnr}</div>`:''}</td>
-      <td style="color:var(--muted);font-size:12px">${p.format||'–'}</td>
+      <td style="color:var(--muted);font-size:12px">${katLabel(p.kat)}${p.format?`<div style="font-size:11px">${p.format}</div>`:''}</td>
       <td style="font-size:12px"><span style="display:flex;align-items:center">${liefLogo(p.lief)}${p.lief||'–'}</span></td>
       <td style="text-align:right;font-weight:600">${fmt(p.ek)} €${p.eu}${stkZeile(p,p.ek)}</td>
       <td style="text-align:right;color:var(--accent);font-weight:700">${vk} €${p.eu}${stkZeile(p,p.ek*1.2)}</td>
@@ -5525,18 +5509,7 @@ function renderP(){
           <div><label>Format</label><input id="ef-${p.id}" value="${(p.format||'').replace(/"/g,'&quot;')}"></div>
           <div><label>Artikel-Nr.</label><input id="ea-${p.id}" value="${(p.artnr||'').replace(/"/g,'&quot;')}"></div>
           <div><label>Kategorie</label>
-            <select id="ek2-${p.id}">
-              <option value="fliesen" ${p.kat==='fliesen'?'selected':''}>Fliesen</option>
-              <option value="kleber" ${p.kat==='kleber'?'selected':''}>Kleber</option>
-              <option value="fuge" ${p.kat==='fuge'?'selected':''}>Fuge & Silikon</option>
-              <option value="grundierung" ${p.kat==='grundierung'?'selected':''}>Grundierung</option>
-              <option value="abdichtung" ${p.kat==='abdichtung'?'selected':''}>Abdichtung</option>
-              <option value="profile" ${p.kat==='profile'?'selected':''}>Profile</option>
-              <option value="emco" ${p.kat==='emco'?'selected':''}>EMCO</option>
-              <option value="bauplatten" ${p.kat==='bauplatten'?'selected':''}>Bauplatten</option>
-              <option value="duschelement" ${p.kat==='duschelement'?'selected':''}>Duschelemente</option>
-              <option value="sonstiges" ${p.kat==='sonstiges'?'selected':''}>Sonstiges</option>
-            </select>
+            <select id="ek2-${p.id}" onchange="katGewaehlt(this)">${katOptions(p.kat)}</select>
           </div>
         </div>
       </td>
@@ -5579,6 +5552,86 @@ function delPreis(id){
   renderP();
   dbSavePreise();
   toast('Artikel gelöscht');
+}
+// ===== GRUPPEN DER PREISDATENBANK ========================================
+// Erik am 27.08.2026: "Ich muss die Moeglichkeit haben, in der
+// Preisdatenbank Untergruppen hinzuzufuegen. In der Gruppe Sonstiges sind
+// viele Artikel, welche in eine separate Untergruppe gehoeren."
+// Die Gruppen standen fest im Code, an drei Stellen. Jetzt sind sie Daten:
+// eine Grundliste plus alles, was Erik anlegt. Eine selbst angelegte Gruppe
+// lebt, sobald ein Artikel sie benutzt; damit sie auch vorher schon in der
+// Auswahl steht, merkt sie sich der Browser.
+const KAT_BASIS = [
+  ['fliesen','Fliesen'], ['kleber','Kleber'], ['fuge','Fuge & Silikon'],
+  ['grundierung','Grundierung'], ['abdichtung','Abdichtung'], ['profile','Profile'],
+  ['emco','EMCO'], ['bauplatten','Bauplatten'], ['duschelement','Duschelemente'],
+  ['sonstiges','Sonstiges'],
+];
+function eigeneKats(){
+  try{ return JSON.parse(localStorage.getItem('buesing_kats')||'{}'); }catch(e){ return {}; }
+}
+function eigeneKatsSetzen(o){
+  try{ localStorage.setItem('buesing_kats', JSON.stringify(o)); }catch(e){}
+}
+function katSchluessel(name){
+  return String(name||'').toLowerCase().trim()
+    .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
+    .replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,32);
+}
+// Grundliste + eigene + alles, was an Artikeln haengt. "Sonstiges" bleibt unten.
+function alleKats(){
+  const raus=[], gesehen={};
+  const dazu=function(k,l){ if(!k||gesehen[k]) return; gesehen[k]=true; raus.push([k,l||k]); };
+  KAT_BASIS.forEach(function(x){ if(x[0]!=='sonstiges') dazu(x[0],x[1]); });
+  const eig=eigeneKats();
+  Object.keys(eig).forEach(function(k){ dazu(k, eig[k]); });
+  (PREISE||[]).forEach(function(a){
+    const k=a.kat;
+    if(!k || k==='sonstiges' || gesehen[k]) return;
+    // Ohne gemerkte Beschriftung aus dem Schluessel eine lesbare machen:
+    // "naturstein_werkstein" -> "Naturstein Werkstein". Das greift, wenn ein
+    // Artikel mit dieser Gruppe an einem anderen Rechner geoeffnet wird.
+    dazu(k, eig[k] || k.split('_').filter(Boolean)
+              .map(function(w){ return w.charAt(0).toUpperCase()+w.slice(1); }).join(' '));
+  });
+  dazu('sonstiges','Sonstiges');
+  return raus;
+}
+function katLabel(k){
+  const t=alleKats().find(function(x){ return x[0]===k; });
+  return t ? t[1] : (k||'–');
+}
+function katOptions(sel){
+  return alleKats().map(function(x){
+    return '<option value="'+esc(x[0])+'"'+(x[0]===sel?' selected':'')+'>'+esc(x[1])+'</option>';
+  }).join('') + '<option value="__neu__">＋ neue Gruppe anlegen …</option>';
+}
+// Wird an beiden Auswahlfeldern aufgerufen. Legt die Gruppe an und stellt sie ein.
+function katGewaehlt(sel){
+  if(!sel || sel.value!=='__neu__') return;
+  const name=(prompt('Name der neuen Gruppe:')||'').trim();
+  if(!name){ sel.value='sonstiges'; return; }
+  const k=katSchluessel(name);
+  if(!k){ toast('Der Name ergibt keine gültige Gruppe.'); sel.value='sonstiges'; return; }
+  const eig=eigeneKats(); eig[k]=name; eigeneKatsSetzen(eig);
+  const alt=sel.value;
+  sel.innerHTML=katOptions(k);
+  sel.value=k;
+  if(sel.value!==k) sel.value=alt;
+  katKnoepfeZeichnen();
+  toast('Gruppe „'+name+'" angelegt.');
+}
+// Die Filterknöpfe kommen aus derselben Liste - sonst fehlt eine neue Gruppe
+// oben in der Leiste.
+function katKnoepfeZeichnen(){
+  const box=document.getElementById('pfb');
+  if(!box) return;
+  const aktiv=PF||'alle';
+  box.innerHTML = '<button class="fb-btn'+(aktiv==='alle'?' active':'')+'" data-kat="alle" onclick="filtP(\'alle\',this)">Alle</button>'
+    + alleKats().map(function(x){
+        return '<button class="fb-btn'+(aktiv===x[0]?' active':'')+'" data-kat="'+esc(x[0])+'" onclick="filtP(\''+esc(x[0])+'\',this)">'+esc(x[1])+'</button>';
+      }).join('');
+  updateKatCounts();
 }
 function filtP(k,b){PF=k;document.querySelectorAll('.fb-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderP();}
 function fuelleLieferantenDropdown(){
