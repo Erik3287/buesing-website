@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 142';
+const APP_STAND = '28.08.2026 · 143';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4872,6 +4872,17 @@ function autoEP(p, system){
   // Ich bestaetige das durch einen OK button in der jeweiligen position -
   // Ampel springt auf gruen - FERTIG!!!" Gemerkt wird der Wortlaut: aendert
   // sich der Hinweis spaeter, meldet sich die Position wieder.
+  // Ein Fabrikat, das weder im LV-Text steht noch von Erik angefasst wurde,
+  // stammt aus einer Automatik - fruehere Importe haben Datenbank-Vorschlaege
+  // direkt eingesetzt (die 'Kermos Concept' in neun Wandpositionen,
+  // 28.08.2026). Es laeuft als normaler Pruef-Hinweis mit: Position gelb,
+  // OK bestaetigt, oder Erik aendert die Fliese. Heilt auch Gespeichertes.
+  if(FLIESE_TYPEN.concat(['laibung']).indexOf(p.typ) > -1
+     && p.fabrikat && !p._fabTouched && !p._wieVor){
+    const imText = fabrikateAusText((p.desc||'')+' '+(p.langtext||''))
+                    .some(function(f){ return fabrikatGleich(p.fabrikat, f); });
+    if(!imText) hinweis.push('Fabrikat „'+p.fabrikat+'" steht NICHT im LV-Text und wurde nicht von Hand gewählt – bestätigen oder Fliese ändern');
+  }
   // Fehlende EINGABEN (ein Preis, eine Wahl) kann man nicht "zur Kenntnis
   // nehmen" - die Position bleibt gelb, bis die Eingabe da ist. Nur echte
   // Pruef-Hinweise sind per OK bestaetigbar.
@@ -4879,6 +4890,7 @@ function autoEP(p, system){
     return warn.some(function(w){ return String(w)==='EINGABE|'+h; });
   });
   const hinweisTxt = hinweis.join(' · ');
+  p._hinweisTxt = hinweisTxt;   // fuer den OK-Knopf: exakt DIESER Wortlaut wird bestaetigt
   const bestaetigt = hinweis.length > 0 && !eingaben.length && p.hinweisOk === hinweisTxt;
   if(hinweis.length && !bestaetigt) delete p.hinweisOk;
   p._okZeigen = hinweis.length > 0 && !eingaben.length;
@@ -4976,19 +4988,15 @@ function importPos(roh){
     p._lvVerlangt = erkenneAbdichtArt(t) || '';
   }
 
-  // Fliesen-Vorschlag aus der Preisdatenbank – nur als Materialpreis,
-  // NIE direkt als EP. fliesenVorschlag() haelt sich an Eriks Fachregeln
-  // (Boden nie glaenzend, R-Klasse muss passen, Wand/Boden nicht vertauschen).
-  if(['wand','boden','naturstein','reservefliesen'].indexOf(p.typ) > -1){
-    try{
-      const v = fliesenVorschlag(p.typ, p.desc, p.langtext);
-      if(v && v.artikel && parseFloat(v.artikel.ek) > 0){
-        p.flieseEk = parseFloat(v.artikel.ek);
-        p.fabrikat = v.fabrikat || '';
-        p._vorschlag = v.artikel.name + ' (' + (v.grund||'') + ')';
-      }
-    }catch(e){ /* Vorschlag ist Kuer, kein Muss */ }
-  }
+  // KEIN automatisches Einsetzen einer Fliese mehr. Der Import hatte hier
+  // einen Datenbank-Vorschlag direkt als Fabrikat + Preis in die Position
+  // geschrieben; zusammen mit dem Selbst-Gruen standen dadurch neun
+  // Wandpositionen mit einer nie gewaehlten 'Kermos Concept weiss matt'
+  // GRUEN im LV. Erik am 28.08.2026: 'ABSOLUT NIRGENDS steht irgendwas von
+  // der Kermos Concept und trotzdem ist sie eingetragen und mit gruen
+  // markiert??? ABER DAS DARF NICHT SO SEIN!!!' - die Fliesenwahl ist SEINE
+  // Entscheidung. Vorschlaege gibt es weiterhin, aber nur als Kasten im
+  // Rechner zum Anklicken, nie als Eintrag.
 
   autoEP(p, LV.system || 'sakret');
   if(p._vorschlag && p.status === 'gelb'){
@@ -6019,10 +6027,11 @@ function calcGeaendertLeise(i){
 // "OK" an einer gelben Position: den Hinweis zur Kenntnis genommen, weiter.
 function hinweisBestaetigen(i){
   const p=LV.pos[i];
-  const r=berechneEP(p, LV.system||'sakret');
-  const hinweis=(r.warn||[]).filter(function(w){ return String(w).indexOf('ARTIKEL|')!==0; })
-                            .map(function(w){ const t=String(w), k=t.indexOf('|'); return k>-1?t.slice(k+1):t; });
-  p.hinweisOk = hinweis.join(' · ');
+  // Erst frisch rechnen, dann exakt den aktuellen Wortlaut bestaetigen.
+  // Der Text kommt aus autoEP (dort stehen auch Hinweise, die berechneEP
+  // nicht kennt, z.B. das nicht von Hand gewaehlte Fabrikat).
+  autoEP(p, LV.system||'sakret');
+  p.hinweisOk = p._hinweisTxt || '';
   autoEP(p, LV.system||'sakret');
   renderLV(); scheduleSave();
   toast('Hinweis bestätigt – Position steht auf Grün');
