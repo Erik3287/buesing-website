@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 107';
+const APP_STAND = '28.08.2026 · 108';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5895,6 +5895,12 @@ function upd(i,f,v){
     if(p.status!=='gruen') autoEP(p, LV.system||'sakret');
     renderLV(); scheduleSave(); return;
   }
+  // Der Farbstreifen links und die Zaehler oben (gruen/gelb/rot) entstehen nur
+  // beim Neuaufbau der Liste. Erik am 28.08.2026: "ich habe die 127,15
+  // eingetragen und die Ampel auf gruen gesetzt. der farbliche
+  // orientierungsstreifen vorn bleibt aber orange". Seit der Scrollstand
+  // gehalten wird, kostet der Neuaufbau nichts mehr.
+  if(f==='status'){ renderLV(); scheduleSave(); return; }
   let tot=0; LV.pos.forEach(p=>{ if(!istBedarfPos(p)) tot+=(p.menge||0)*(p.ep||0); });
   document.getElementById('lv-sum').textContent=fmt(tot)+' €';
   const gp=(parseFloat(LV.pos[i].menge)||0)*(parseFloat(LV.pos[i].ep)||0);
