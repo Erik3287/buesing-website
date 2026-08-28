@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 108';
+const APP_STAND = '28.08.2026 · 109';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1452,6 +1452,7 @@ async function handleFile(file,typ){
       // zuletzt geoeffneten. Ohne diese Zeile schrieb der Import seinen Inhalt
       // ueber das LV, das gerade noch offen war.
       LV.id = 0;
+      LV.neu = true;   // ausdruecklich neu - siehe doSave
       LV.titel=file.name.replace(/\.[^.]+$/,'');
       // EP kommt aus dem Regelwerk (importPos -> autoEP -> berechneEP),
       // nie mehr direkt aus einem Artikel-EK.
@@ -1537,6 +1538,7 @@ async function kiLV(text,datei){
       return;
     }
     LV.id = 0;   // neues LV, kein Update des zuletzt geoeffneten
+    LV.neu = true;   // ausdruecklich neu - siehe doSave
     LV.titel=datei.replace(/\.[^.]+$/,'');
     // EP kommt aus dem Regelwerk (importPos -> autoEP -> berechneEP).
     LV.pos=roh.map(importPos);
@@ -5947,6 +5949,18 @@ function doSave(silent){
   // Ein LV ohne Positionen gehoert nicht ins Archiv - sonst legt jeder
   // Zwischenzustand eine leere Karteileiche an.
   if(!(LV.pos && LV.pos.length)){ if(silent) setSaveStatus('nichts zu speichern'); return; }
+  // Ein automatisches Speichern darf NIEMALS ein neues LV im Archiv anlegen.
+  // Erik am 28.08.2026: "beim aktualisieren der seite erstellt das programm
+  // immer neue LVs die ich bereits mehrfach geloescht habe". Ein neues LV
+  // entsteht nur noch, wenn es ausdruecklich gewollt ist - beim Einlesen
+  // eines PDF, beim bestaetigten Einlesen einer Positionsdatei oder wenn
+  // Erik selbst auf "Speichern" drueckt. Alles andere bleibt lokal.
+  if(!(LV.id > 0) && !LV.neu){
+    if(silent){ setSaveStatus('nur lokal – noch nicht im Archiv'); return; }
+    if(!confirm('Dieses LV steht noch nicht im Archiv.\n\n'
+              + 'Als NEUES LV anlegen ('+LV.pos.length+' Positionen)?')) return;
+    LV.neu = true;
+  }
   // Summe berechnen
   let summe=0;
   (LV.pos||[]).forEach(p=>{ if(!istBedarfPos(p)) summe += (parseFloat(p.menge)||0)*(parseFloat(p.ep)||0); });
@@ -5968,7 +5982,8 @@ function doSave(silent){
   };
   fetch(API_URL+'?action=save_lv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(r=>r.json()).then(d=>{
-      if(d.ok){ if(d.id) LV.id=d.id; if(silent) setSaveStatus('✓ gespeichert'); else toast('LV gespeichert ✓ (Archiv)'); }
+      if(d.ok){ if(d.id) LV.id=d.id; delete LV.neu;
+                if(silent) setSaveStatus('✓ gespeichert'); else toast('LV gespeichert ✓ (Archiv)'); }
       else { if(silent) setSaveStatus('⚠ nur lokal'); else toast('Lokal gespeichert (DB-Fehler)'); }
     }).catch(e=>{ if(silent) setSaveStatus('⚠ offline (lokal)'); else toast('Lokal gespeichert (offline)'); });
 }
@@ -6058,6 +6073,7 @@ async function positionsdateiLaden(datei){
               + 'Die Datei würde ein NEUES LV anlegen ('+liste.length+' Positionen).\n'
               + 'Soll sie in ein bestehendes LV, dann jetzt abbrechen, das LV im\n'
               + 'Archiv öffnen und die Datei dort einlesen.\n\nTrotzdem neues LV anlegen?')) return;
+    LV.neu = true;   // ausdruecklich bestaetigt - siehe doSave
   } else if(!confirm('Das offene LV „'+(LV.titel||'ohne Titel')+'" (Nr. '+LV.id+', '
             + LV.pos.length+' Positionen)\nwird durch den Inhalt der Datei ersetzt ('
             + liste.length+' Positionen).\n\nFortfahren?')) return;
