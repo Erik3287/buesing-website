@@ -110,6 +110,19 @@ switch ($action) {
             ],
         ];
         $bericht = [];
+        // Tabelle fuer die Kalkulationswerte. Sie liegen sonst nur im Browser
+        // und gelten dann an jedem Rechner anders (Erik 28.08.2026: "ja, ich
+        // brauche das als Datenbank").
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS einstellungen (
+                schluessel VARCHAR(64) NOT NULL PRIMARY KEY,
+                wert       VARCHAR(64) NOT NULL DEFAULT '',
+                geaendert  VARCHAR(30) NOT NULL DEFAULT ''
+            ) DEFAULT CHARSET=utf8mb4");
+            $bericht[] = "einstellungen — Tabelle vorhanden";
+        } catch (Exception $e) {
+            $bericht[] = "einstellungen — FEHLER: " . $e->getMessage();
+        }
         foreach ($spalten as $tabelle => $felder) {
             // Welche Spalten hat die Tabelle jetzt?
             $da = [];
@@ -391,6 +404,44 @@ switch ($action) {
 
 
     // ===== ABDICHTUNG LADEN =====
+    // ===== KALKULATIONSWERTE =====
+    // Ein Schluessel, ein Wert. Was hier nicht steht, gilt mit dem
+    // Auslieferungswert aus der App.
+    case 'get_einstellungen':
+        try {
+            $rows = $pdo->query("SELECT schluessel, wert FROM einstellungen")->fetchAll();
+        } catch (Exception $e) {
+            // Tabelle noch nicht angelegt: leer zurueckgeben statt Fehler
+            echo json_encode(['ok' => true, 'werte' => new stdClass()]);
+            break;
+        }
+        $w = [];
+        foreach ($rows as $r) { $w[$r['schluessel']] = $r['wert']; }
+        echo json_encode(['ok' => true, 'werte' => (object)$w]);
+        break;
+
+    case 'save_einstellungen':
+        $d = json_decode(file_get_contents('php://input'), true);
+        $werte = isset($d['werte']) && is_array($d['werte']) ? $d['werte'] : [];
+        $pdo->exec("CREATE TABLE IF NOT EXISTS einstellungen (
+            schluessel VARCHAR(64) NOT NULL PRIMARY KEY,
+            wert       VARCHAR(64) NOT NULL DEFAULT '',
+            geaendert  VARCHAR(30) NOT NULL DEFAULT ''
+        ) DEFAULT CHARSET=utf8mb4");
+        // Vollstaendig ersetzen: was die App nicht mehr schickt, ist auf den
+        // Auslieferungswert zurueckgesetzt worden.
+        $pdo->exec("DELETE FROM einstellungen");
+        $stmt = $pdo->prepare("INSERT INTO einstellungen (schluessel, wert, geaendert) VALUES (?, ?, ?)");
+        $jetzt = date('d.m.Y H:i');
+        $n = 0;
+        foreach ($werte as $k => $v) {
+            if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', (string)$k)) continue;
+            $stmt->execute([(string)$k, (string)$v, $jetzt]);
+            $n++;
+        }
+        echo json_encode(['ok' => true, 'anzahl' => $n]);
+        break;
+
     case 'get_abdichtung':
         $rows = $pdo->query("SELECT * FROM abdichtung ORDER BY klasse")->fetchAll();
         echo json_encode(['ok' => true, 'abdichtung' => $rows]);

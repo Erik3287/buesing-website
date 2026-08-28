@@ -425,6 +425,7 @@ tr:hover td{background:#fafafa}
       Hier stehen alle Zahlen, mit denen die Rechner arbeiten. Was du änderst, gilt sofort für jedes LV.
       Geänderte Werte sind blau umrandet; daneben steht der Auslieferungswert mit einem ↩ zum Zurücksetzen.
       <span id="werte-kopf" style="font-weight:600"></span>
+      <span id="werte-status" style="color:#1a9e4b"></span>
     </div>
     <div id="werte-box"></div>
   </div>
@@ -750,10 +751,11 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 83';
+const APP_STAND = '28.08.2026 · 84';
 // Beim Start die eigenen Kalkulationswerte anwenden, bevor irgendetwas
 // gerechnet wird.
 try{ werteAnwenden(); }catch(e){}
+try{ werteLaden(); }catch(e){}
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1116,6 +1118,46 @@ function werteStdMerken(){
 function werteEigene(){
   try{ return JSON.parse(localStorage.getItem('buesing_werte')||'{}'); }catch(e){ return {}; }
 }
+// Die Werte liegen in der Datenbank, damit sie an jedem Rechner gelten
+// (Erik 28.08.2026: "ja, ich brauche das als Datenbank"). Der Browser haelt
+// zusaetzlich eine Kopie - so rechnet die App auch weiter, wenn der Server
+// gerade nicht erreichbar ist.
+let WERTE_QUELLE = 'Browser';
+async function werteLaden(){
+  try{
+    const res = await fetch(API_URL + '?action=get_einstellungen');
+    const d = await res.json();
+    if(!d || !d.ok || !d.werte) return;
+    const sauber = {};
+    Object.keys(d.werte).forEach(function(k){
+      const v = parseFloat(d.werte[k]);
+      if(isFinite(v)) sauber[k] = v;
+    });
+    try{ localStorage.setItem('buesing_werte', JSON.stringify(sauber)); }catch(e){}
+    WERTE_QUELLE = 'Datenbank';
+    werteAnwenden();
+    renderWerte();
+    if(LV && LV.pos && LV.pos.length) renderLV();
+  }catch(e){ /* offline: die Kopie im Browser gilt weiter */ }
+}
+async function werteSpeichern(){
+  try{
+    const res = await fetch(API_URL + '?action=save_einstellungen', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({werte: werteEigene()})
+    });
+    const d = await res.json();
+    if(d && d.ok){ WERTE_QUELLE='Datenbank'; setWerteStatus('in der Datenbank gespeichert'); return true; }
+    setWerteStatus('konnte nicht gespeichert werden – gilt nur auf diesem Rechner');
+  }catch(e){
+    setWerteStatus('kein Zugriff auf die Datenbank – gilt nur auf diesem Rechner');
+  }
+  return false;
+}
+function setWerteStatus(txt){
+  const el=document.getElementById('werte-status');
+  if(el) el.textContent = txt ? ('· '+txt) : '';
+}
 function werteAnwenden(){
   werteStdMerken();
   const eig=werteEigene();
@@ -1133,18 +1175,19 @@ function werteSetzen(key, roh){
   try{ localStorage.setItem('buesing_werte', JSON.stringify(eig)); }catch(e){}
   werteAnwenden();
   renderWerte();
+  werteSpeichern();
   if(LV && LV.pos && LV.pos.length) renderLV();
 }
 function werteZuruecksetzen(key){
   const eig=werteEigene(); delete eig[key];
   try{ localStorage.setItem('buesing_werte', JSON.stringify(eig)); }catch(e){}
-  werteAnwenden(); renderWerte();
+  werteAnwenden(); renderWerte(); werteSpeichern();
   if(LV && LV.pos && LV.pos.length) renderLV();
 }
 function werteAllesZurueck(){
   if(!confirm('Alle Kalkulationswerte auf den Auslieferungsstand zurücksetzen?')) return;
   try{ localStorage.removeItem('buesing_werte'); }catch(e){}
-  werteAnwenden(); renderWerte();
+  werteAnwenden(); renderWerte(); werteSpeichern();
   if(LV && LV.pos && LV.pos.length) renderLV();
   toast('Alle Werte zurückgesetzt.');
 }
@@ -1177,9 +1220,9 @@ function renderWerte(){
     h+='</table></div>';
   });
   const kopf=document.getElementById('werte-kopf');
-  if(kopf) kopf.textContent = geaendert
+  if(kopf) kopf.textContent = (geaendert
     ? (geaendert+' Wert(e) von dir geändert')
-    : 'alle Werte im Auslieferungsstand';
+    : 'alle Werte im Auslieferungsstand') + ' · Quelle: '+WERTE_QUELLE;
   box.innerHTML=h;
 }
 function showTab(n,b){
