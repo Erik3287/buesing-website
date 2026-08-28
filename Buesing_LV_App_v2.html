@@ -755,7 +755,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 88';
+const APP_STAND = '28.08.2026 · 89';
 // Beim Start die eigenen Kalkulationswerte anwenden, bevor irgendetwas
 // gerechnet wird.
 try{ werteAnwenden(); }catch(e){}
@@ -5371,7 +5371,7 @@ function calcGeaendertLeise(i){
   const gp=document.getElementById('gp-'+i);
   if(gp){
     const w=(parseFloat(p.menge)||0)*(parseFloat(p.ep)||0);
-    gp.textContent = w>0 ? (fmt(w)+' €') : '–';
+    gp.textContent = istBedarfPos(p) ? '– nur EP –' : (w>0 ? (fmt(w)+' €') : '–');
   }
   const out=document.getElementById('calc-out-'+i);
   if(out) out.innerHTML=renderCalcOut(i);
@@ -5685,7 +5685,7 @@ function renderLV(){
       <td><input type="number" step="0.01" value="${p.menge||''}" placeholder="0" oninput="upd(${i},'menge',this.value)" style="text-align:right;width:70px;padding:4px 6px"></td>
       <td style="color:var(--muted);font-size:13px">${p.einheit||''}</td>
       <td><input id="ep-${i}" type="number" step="0.01" value="${p.ep||''}" placeholder="0,00" oninput="upd(${i},'ep',this.value)" style="text-align:right;width:95px;padding:4px 6px;font-weight:600;border-color:${bc}"></td>
-      <td id="gp-${i}" style="text-align:right;font-weight:700;color:${gp>0?'var(--accent)':'var(--muted)'}">${gp>0?fmt(gp)+' €':'–'}</td>
+      <td id="gp-${i}" style="text-align:right;font-weight:700;color:${bedarf?'#0047c7':(gp>0?'var(--accent)':'var(--muted)')}">${bedarf?'– nur EP –':(gp>0?fmt(gp)+' €':'–')}</td>
       <td><select style="padding:3px 4px;font-size:11px;width:78px" onchange="upd(${i},'status',this.value)">
         <option value="gruen" ${p.status==='gruen'?'selected':''}>🟢 Grün</option>
         <option value="gelb" ${p.status==='gelb'?'selected':''}>🟡 Gelb</option>
@@ -5756,7 +5756,11 @@ function upd(i,f,v){
   document.getElementById('lv-sum').textContent=fmt(tot)+' €';
   const gp=(parseFloat(LV.pos[i].menge)||0)*(parseFloat(LV.pos[i].ep)||0);
   const gpCell=document.getElementById('gp-'+i);
-  if(gpCell){ gpCell.textContent = gp>0?fmt(gp)+' €':'–'; gpCell.style.color = gp>0?'var(--accent)':'var(--muted)'; }
+  if(gpCell){
+    const bed=istBedarfPos(LV.pos[i]);
+    gpCell.textContent = bed ? '– nur EP –' : (gp>0?fmt(gp)+' €':'–');
+    gpCell.style.color = bed ? '#0047c7' : (gp>0?'var(--accent)':'var(--muted)');
+  }
   scheduleSave();
 }
 function delP(i){LV.pos.splice(i,1);renderLV();doSave(true);}
@@ -6012,7 +6016,7 @@ function doExportPDF(){
       <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${p.menge||'–'}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #eee">${p.einheit||''}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${p.ep?fmt(p.ep)+' €':'–'}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700">${bedarf?'<span style="color:#0047c7">nur EP</span>':(gp>0?fmt(gp)+' €':'–')}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700">${bedarf?'<span style="color:#0047c7">– nur EP –</span>':(gp>0?fmt(gp)+' €':'–')}</td>
     </tr>`;
   }).join('');
   document.getElementById('pr-s').innerHTML='Angebotssumme netto: '+fmt(tot)+' €'
