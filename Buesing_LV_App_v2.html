@@ -738,7 +738,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '27.08.2026 · 71';
+const APP_STAND = '27.08.2026 · 72';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4744,7 +4744,7 @@ function renderCalcHTML(i){
     const pk=profilKandidaten();
     if(pk.length){
       const gruppen={};
-      pk.forEach(function(x){ (gruppen[x.format||'ohne Angabe']=gruppen[x.format||'ohne Angabe']||[]).push(x); });
+      pk.forEach(function(x){ const g=x.format||'weitere Profile'; (gruppen[g]=gruppen[g]||[]).push(x); });
       const st=fliesenstaerke(p);
       let inner='<option value="">– Standard aus der Oberfläche ('+esc((PROFILE[p.oberflaeche]||PROFILE.glaenzend).label)+') –</option>';
       Object.keys(gruppen).sort(function(a,b){ return a.localeCompare(b,'de'); }).forEach(function(g){
@@ -4781,6 +4781,10 @@ function renderCalcHTML(i){
         +'</div></div>';
     }
     const ampel = erk.sicher ? '<span style="color:#1a9e4b">🟢 '+erk.grund+'</span>' : '<span style="color:#e0a800">🟡 '+erk.grund+' – bitte prüfen</span>';
+    // Ist ein Profil aus der Preisdatenbank gewaehlt, ist die Oberflaeche
+    // damit entschieden - sie steckt im Artikel. Erik am 27.08.2026: "bei
+    // Treppenprofilen gibt es keine Auswahlmoeglichkeit zur Oberflaeche."
+    if(!profilArtikel(p))
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Oberfläche</div>'
       +'<select onchange="setOberflaeche('+i+',this.value)" style="width:auto;padding:6px 8px">'
       + Object.keys(PROFILE).map(function(k){return '<option value="'+k+'"'+(k===p.oberflaeche?' selected':'')+'>'+PROFILE[k].label+'</option>';}).join('')
