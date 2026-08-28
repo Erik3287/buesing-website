@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 102';
+const APP_STAND = '28.08.2026 · 103';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1046,6 +1046,7 @@ const WERTE = [
     ['WST_ZEIT_SETZ','Zeit je Setzstufe (1 Mann)','h',()=>WST_ZEIT_SETZ,v=>WST_ZEIT_SETZ=v],
     ['WST_SILIKON_M','Silikon je Stufe','lfdm',()=>WST_SILIKON_M,v=>WST_SILIKON_M=v],
     ['WST_RAND_M','Randstreifen je Stufe','lfdm',()=>WST_RAND_M,v=>WST_RAND_M=v],
+    ['WST_RAND_EUR','Randstreifen Preis','€/lfdm',()=>WST_RAND_EUR,v=>WST_RAND_EUR=v],
   ]],
   ['Sockelfliesen', [
     ['SOCKEL_QM_STD','Verbrauch, wenn kein Format im Text','m²/lfdm',()=>SOCKEL_QM_STD,v=>SOCKEL_QM_STD=v],
@@ -4107,6 +4108,12 @@ function epSpiegel(p){
 let WST_ZEIT_SETZ  = 20/60;  // h je Setzstufe, ein Mann
 let WST_SILIKON_M  = 1.30;   // lfm Silikon je Stufe (Fuge hinten zur Setzstufe/Wand)
 let WST_RAND_M     = 0.60;   // lfm Randstreifen je Stufe (2 x 30 cm an den Enden)
+// Eigener Meterpreis fuer den Randstreifen an der Stufe. Die Festpreis-Zulage
+// randfuge (4,90) gilt weiter fuer eigenstaendige Randfugen-Positionen - an
+// der Stufe sind es nur ein paar Zentimeter Streifen ohne eigene Anfahrt.
+// Erik am 28.08.2026: "der Randstreifen 4,90 pro meter ist viel zu viel!
+// Machen wir daraus bitte 2,50".
+let WST_RAND_EUR   = 2.50;   // EUR je lfm Randstreifen an der Stufe
 let WST_MOERTEL_KG = 31.0;   // kg je m2 Aufstandsflaeche
 let WST_ZEIT_STK   = 1.10;   // h je Trittstufe, Gesamtzeit beider Mann.
                                // Erik am 28.08.2026 zuerst "2 Mitarbeiter fuer
@@ -4214,9 +4221,9 @@ function epWerksteinstufe(p, system){
       WST_SILIKON_M.toFixed(2).replace('.',',')+' m × '+fmt(SILIKON.naturstein)+' €/m', sil]);
   }
   if(WST_RAND_M>0){
-    rand=WST_RAND_M*FESTPREISE.randfuge.ep;
+    rand=WST_RAND_M*WST_RAND_EUR;
     zeilen.push(['Randstreifen (schalltechnische Entkopplung)',
-      WST_RAND_M.toFixed(2).replace('.',',')+' m × '+fmt(FESTPREISE.randfuge.ep)+' €/m', rand]);
+      WST_RAND_M.toFixed(2).replace('.',',')+' m × '+fmt(WST_RAND_EUR)+' €/m', rand]);
   }
   const ep=Math.round((kalk+lohn+sil+rand)*100)/100;
   return {ep, zeilen, warn};
