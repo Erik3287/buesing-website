@@ -6336,7 +6336,11 @@ function renderLV(){
       <td><div style="font-size:13px;font-weight:600">${p.desc||''}${bedarf?` <span style="color:#0047c7;font-weight:800;font-size:12.5px;letter-spacing:.3px;cursor:pointer" onclick="bedarfUmschalten(${i})" title="Zählt nicht in die Angebotssumme – klicken zum Umstellen">BEDARFSPOSITION</span>`:''}</div>${langtextBlock(p,i)}${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${p.notiz}${p.status==='gelb'?` <button class="bg sm" style="padding:1px 9px;font-size:11px;font-weight:700;margin-left:6px" onclick="hinweisBestaetigen(${i})" title="Hinweis gelesen – Position auf Grün setzen">OK</button>`:''}</div>`:''}</td>
       <td><select style="padding:4px 5px;font-size:11px;width:118px" onchange="upd(${i},'typ',this.value)">${typOptions(p.typ)}</select></td>
       <td><input type="number" step="0.01" value="${p.menge||''}" placeholder="0" oninput="upd(${i},'menge',this.value)" style="text-align:right;width:70px;padding:4px 6px"></td>
-      <td style="color:var(--muted);font-size:13px">${p.einheit||''}</td>
+      <td><input type="text" value="${(p.einheit||'').replace(/"/g,'&quot;')}" onchange="upd(${i},'einheit',this.value)"
+           title="Einheit aus dem LV – änderbar, falls der Import sie falsch gelesen hat"
+           style="width:52px;padding:3px 4px;font-size:13px;color:var(--muted);border:1px solid transparent;background:transparent;border-radius:4px"
+           onfocus="this.style.border='1px solid var(--accent)';this.style.background='#fff'"
+           onblur="this.style.border='1px solid transparent';this.style.background='transparent'"></td>
       <td><input id="ep-${i}" type="number" step="0.01" value="${p.ep||''}" placeholder="0,00" oninput="upd(${i},'ep',this.value)" style="text-align:right;width:95px;padding:4px 6px;font-weight:600;border-color:${bc}"></td>
       <td id="gp-${i}" style="text-align:right;font-weight:700;color:${bedarf?'#0047c7':(gp>0?'var(--accent)':'var(--muted)')}">${bedarf?'– nur EP –':(gp>0?fmt(gp)+' €':'–')}</td>
       <td><select style="padding:3px 4px;font-size:11px;width:78px" onchange="upd(${i},'status',this.value)">
@@ -6400,6 +6404,12 @@ function renderLV(){
 function upd(i,f,v){
   if(f==='menge'||f==='ep') LV.pos[i][f]=parseFloat(v)||0;
   else LV.pos[i][f]=v;
+  // Die Einheit steuert die Rechnung (Laibung: m² oder je Meter) - neu rechnen.
+  if(f==='einheit'){
+    const p=LV.pos[i];
+    if(p.status!=='gruen' || p.gruenAuto) autoEP(p, LV.system||'sakret');
+    renderLV(); scheduleSave(); return;
+  }
   // Typwechsel = anderes Rezept -> EP neu rechnen. Frueher blieb der alte
   // (falsche) EP stehen, obwohl der Typ schon korrigiert war.
   if(f==='typ'){
