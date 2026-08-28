@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 109';
+const APP_STAND = '28.08.2026 · 110';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1621,7 +1621,12 @@ const TYP_REGELN = [
   ['rohrkasten',    ['rohrkasten','rohrverkleidung','vorwandinstallation verkleiden','schacht verkleiden','installationsschacht']],
   ['duschelement',  ['duschelement','gefälle im fliesenbereich','verfliesbares','jackoboard']],
   ['hohlkehlsockel',['hohlkehlsockel','hohlkehle']],
-  ['sockel',        ['sockelfliesen','sockelfliese']],
+  // "Sockelleiste, Sichtkanten gefast ..." (15.03.23, 15.04.9) landete beim
+  // Bodenrechner, weil im Text dreimal "Bodenbelag" steht. Erik am
+  // 28.08.2026: "ist weder im Krueger noch im Keramundo ein Sockel aus
+  // Betonwerkstein enthalten?" - doch, beide haben einen zu rund 5,50 EUR/lfm.
+  ['sockel',        ['sockelfliesen','sockelfliese','sockelleiste','sockelleisten',
+                     'sockel,betonwerkstein','sockel, betonwerkstein']],
   // Eng gefasst und nur aus der Ueberschrift: mit dem blossen Wort
   // "fensterbank" fielen auch die Zulage fuers seitliche Schleifen
   // (15.09.5), die Kopfbearbeitung (15.09.4, nach Stueck), die
@@ -3962,6 +3967,20 @@ function sockelQmProM(txt){
   const kurz=Math.min(f.a,f.b)/100;
   return {qm:kurz/2, format:Math.min(f.a,f.b)+'×'+Math.max(f.a,f.b)+' cm'};
 }
+// Fertige Sockelleisten - Betonwerkstein, Naturstein - stehen in der
+// Preisdatenbank mit einem Preis JE METER, nicht je m2. Dann wird nicht aus
+// einer Fliese gerechnet, sondern der Meterpreis direkt genommen.
+function sockelKandidaten(){
+  return (PREISE||[]).filter(function(x){
+    if(!/sockel/i.test(x.name||'')) return false;
+    const e=String(x.eu||'').toLowerCase().replace(/^\//,'');
+    return e==='lfm' || e==='m';
+  }).sort(function(a,b){ return (a.ek||0)-(b.ek||0); });
+}
+function sockelArtikel(p){
+  if(!p || !p.sockelArt) return null;
+  return (PREISE||[]).find(function(x){ return x.name===p.sockelArt; }) || null;
+}
 function epSockel(p, system){
   const warn=[], zeilen=[];
   const erkU=erkenneUmfang(p.desc, p.langtext);
@@ -3977,14 +3996,25 @@ function epSockel(p, system){
                  : (auto ? ('aus Format '+auto.format) : 'Standardwert');
   const qmtxt = qm.toFixed(3).replace('.',',');
 
+  const fertig=sockelArtikel(p);
   const ek=parseFloat(p.flieseEk)||0;
   let fliese=0;
-  if(mitFliese){
+  // Wer eine Sockelleiste aus der Preisdatenbank waehlt, liefert sie auch.
+  // 15.03.23 und 15.04.9 sagen nur "Verlegung im Duennbett"; erkenneUmfang
+  // las daraus "bauseits gestellt" und liess das Material weg - obwohl in
+  // 15.04.9 ausdruecklich "Angebotenes Erzeugnis (vom Bieter einzutragen)"
+  // steht.
+  if(!mitFliese && !fertig){
+    zeilen.push(['Sockel','bauseits gestellt – nicht berechnet',0]);
+  } else if(fertig){
+    if(!mitFliese) warn.push('PRUEFEN|Sockel aus der Preisdatenbank gewählt – Material ist mit angeboten');
+    // Fertige Sockelleiste: Meterpreis direkt, kein Zuschneiden aus Fliesen
+    fliese=parseFloat(fertig.ek)||0;
+    zeilen.push([fertig.name.slice(0,44), fmt(fliese)+' €/lfm', fliese]);
+  } else {
     if(!ek) warn.push('EINGABE|Fliesenpreis (€/m²) im Feld links eintragen');
     fliese=ek*qm;
     zeilen.push(['Fliese '+qmtxt+' m²/m', (ek?(fmt(ek)+' €/m² × '+qmtxt):'—')+' · '+herkunft, fliese]);
-  } else {
-    zeilen.push(['Fliese','bauseits gestellt – nicht berechnet',0]);
   }
   let kleber=0;
   if(mitBauchemie){
@@ -4660,7 +4690,7 @@ function istWieVor(p){
   return WIE_VOR.test(kopf);
 }
 function wieVorUebernehmen(liste){
-  const erben=['abdichtArt','wKlasse','spachtelModus','spachtelArt','entkopplungArt','entkopplungBandM','rektifiziert','reinigungArt','grundArt','umfang','oberflaeche','stufe','untergrund','silikonArt','schutzArt'];
+  const erben=['sockelArt','abdichtArt','wKlasse','spachtelModus','spachtelArt','entkopplungArt','entkopplungBandM','rektifiziert','reinigungArt','grundArt','umfang','oberflaeche','stufe','untergrund','silikonArt','schutzArt'];
   let uebernommen=0;
   for(let i=1;i<liste.length;i++){
     const p=liste[i];
@@ -4917,6 +4947,19 @@ function renderCalcHTML(i){
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Spiegel €/Stück (dein EK)</div>'
       +'<input type="number" step="0.01" value="'+(p.spiegelEk||'')+'" placeholder="'+SPIEGEL_EK.toFixed(2)+'" '
       +'oninput="setSpiegel('+i+',this.value)" style="width:120px;padding:6px 8px"></div>';
+  }
+  if(p.typ==='sockel'){
+    const sk=sockelKandidaten();
+    if(sk.length){
+      let inner='<option value="">– aus Fliesen zuschneiden –</option>';
+      sk.forEach(function(x){
+        inner+='<option value="'+esc(x.name)+'"'+((p.sockelArt===x.name)?' selected':'')+'>'
+             + esc(liefKurz(x.lief)||'?')+' · '+fmt(x.ek)+' €/lfm · '+esc(x.name.slice(0,44))+'</option>';
+      });
+      felder += '<div style="min-width:320px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Fertige Sockelleiste</div>'
+        +'<select onchange="waehleSockel('+i+',this.value)" style="width:100%;padding:6px 8px;font-size:12px">'+inner+'</select>'
+        +'<div style="font-size:11px;color:var(--muted);margin-top:3px">leer lassen, wenn der Sockel aus der Fliese geschnitten wird</div></div>';
+    }
   }
   if(p.typ==='werksteinstufe'){
     const ma=stufeMasseWerkstein(p);
@@ -5662,6 +5705,12 @@ function waehleProfil(i, name){
     p.profilArt=name;
     fabrikatSetzen(p, name);
   }
+  calcGeaendert(i);
+}
+function waehleSockel(i, name){
+  const p=LV.pos[i];
+  if(!name){ delete p.sockelArt; }
+  else { p.sockelArt=name; fabrikatSetzen(p, name); }
   calcGeaendert(i);
 }
 function waehleStufe(i, name){
