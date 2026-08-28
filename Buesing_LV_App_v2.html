@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 134';
+const APP_STAND = '28.08.2026 · 135';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -2855,7 +2855,10 @@ const ABD_GLEICHWERTIG = {
 
 // "oder gleichwertig" in allen ueblichen Schreibweisen, auch abgekuerzt
 function istGleichwertigTxt(t){
-  return /oder\s+(gleichwertig|gleichw|ähnlich|aehnlich|vergleichbar)|o\.?\s?glw\.?|o\.?\s?gl\.?\b|od\.?\s*gleichw/i.test(t||'');
+  // "o.gleichw. Art" fehlte - genau so steht es bei 15.06.01.11 und die
+  // Position galt deshalb als verbindlich vorgeschriebenes Fremdprodukt
+  // (Erik am 28.08.2026).
+  return /oder\s+(gleichwertig|gleichw|ähnlich|aehnlich|vergleichbar)|o\.?\s*(glw|gleichw|gl)\.?|od\.?\s*gleichw|gleichw\.?\s*art/i.test(t||'');
 }
 
 // Alle im Positionstext genannten Fremdprodukte mit dem eigenen Gegenstueck.
@@ -2935,6 +2938,13 @@ function erkenneWKlasse(text){
   if(m) return 'W'+m[1]+'-I';
   m=t.match(/WASSEREINWIRKUNGSKLASSE\s*:?\s*W?\s*([0-3])/);
   if(m) return 'W'+m[1]+'-I';
+  // Viele LVs stehen noch auf dem alten ZDB-Merkblatt statt auf DIN 18534 -
+  // 15.06.01.11 sagt "Beanspruchungsklasse A nach Merkblatt ZDB". Die
+  // uebliche Entsprechung:
+  //   A0 -> W0-I (gering)      A -> W1-I (maessig, Brauchwasser)
+  //   C  -> W2-I (hoch)        B -> W3-I (Schwimmbecken, sehr hoch)
+  m=t.match(/BEANSPRUCHUNGSKLASSE\s*:?\s*(A0|A|B0|B|C)\b/);
+  if(m) return {A0:'W0-I', A:'W1-I', B0:'W2-I', B:'W3-I', C:'W2-I'}[m[1]] || null;
   return null;
 }
 
@@ -8165,12 +8175,24 @@ async function delNutzer(id){
 // ============================================
 let ABDICHTUNG = [];
 
-async function renderAbdichtung(){
+// Die Tabelle wurde bisher NUR beim Oeffnen des Reiters geladen. Beim Rechnen
+// war sie deshalb leer, und jede Flaechenabdichtung meldete "keine
+// Systemfaktoren geladen - Dichtband, Ecken und Manschetten stecken NICHT im
+// Preis" (Erik am 28.08.2026 zu 15.06.01.11). Jetzt kommt sie beim Start mit,
+// und die Positionen werden danach einmal neu gerechnet.
+async function abdichtungLaden(){
   try{
     const res = await fetch(API_URL+'?action=get_abdichtung');
     const data = await res.json();
-    if(data.ok) ABDICHTUNG = data.abdichtung;
-  }catch(e){ console.error('Abdichtung laden:', e); }
+    if(data && data.ok && data.abdichtung && data.abdichtung.length){
+      ABDICHTUNG = data.abdichtung;
+      return true;
+    }
+  }catch(e){ console.warn('Abdichtung laden:', e); }
+  return false;
+}
+async function renderAbdichtung(){
+  await abdichtungLaden();
   const box = document.getElementById('abdicht-box');
   if(!box) return;
   if(!ABDICHTUNG.length){
@@ -8378,6 +8400,12 @@ dbGetLieferanten().then(l=>{LIEFERANTEN=l;});
 // noch nicht, der Aufruf brach still ab (28.08.2026).
 try{ werteAnwenden(); }catch(e){ console.warn('Kalkulationswerte:', e); }
 try{ werteLaden(); }catch(e){ console.warn('Kalkulationswerte laden:', e); }
+// Die Abdichtungs-Systemfaktoren gehoeren zum Rechnen, nicht zum Reiter.
+try{
+  abdichtungLaden().then(function(ok){
+    if(ok && LV && LV.pos && LV.pos.length){ werteInsLVUebernehmen(); }
+  });
+}catch(e){ console.warn('Abdichtung laden:', e); }
 </script>
 </body>
 </html>
