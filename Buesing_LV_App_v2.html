@@ -225,10 +225,10 @@ tr:hover td{background:#fafafa}
     <div class="ct">Leistungsverzeichnis laden</div>
     <div class="g2">
       <div class="uz" id="drop-lv" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="doDrop(event,'lv')">
-        <input type="file" accept=".pdf,.csv,.xlsx,.xls" onchange="handleFile(this.files[0],'lv')">
+        <input type="file" accept=".pdf,.csv,.xlsx,.xls,.json" onchange="handleFile(this.files[0],'lv')">
         <div style="font-size:40px;margin-bottom:12px">📄</div>
         <div style="font-size:16px;font-weight:600;margin-bottom:6px">PDF oder Excel hochladen</div>
-        <div style="color:var(--muted);font-size:13px">LV als PDF, CSV oder Excel<br>KI erkennt Positionen automatisch</div>
+        <div style="color:var(--muted);font-size:13px">LV als PDF, CSV oder Excel<br>KI erkennt Positionen automatisch<br><span style="font-size:12px">oder eine gesicherte Positionsdatei (.json)</span></div>
       </div>
       <div style="display:flex;flex-direction:column;justify-content:center;gap:14px">
         <div style="color:var(--muted);font-size:13px;line-height:1.8">
@@ -744,7 +744,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 93';
+const APP_STAND = '28.08.2026 · 94';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1309,6 +1309,10 @@ function doDrop(ev,typ){ev.preventDefault();document.getElementById('drop-'+typ)
 async function handleFile(file,typ){
   if(!file)return;
   const ext=file.name.split('.').pop().toLowerCase();
+  // Eine mit "Positionen als Datei" gesicherte Ablage direkt zurueckladen -
+  // ohne KI, Zeile fuer Zeile wie in der Datei. Damit lassen sich Korrekturen
+  // von aussen einspielen, ohne das LV neu einzulesen (Erik 28.08.2026).
+  if(typ==='lv' && ext==='json'){ await positionsdateiLaden(file); return; }
   const istPDF = (ext==='pdf') || (file.type==='application/pdf');
   if(typ==='lv'){
     if(!istPDF){
@@ -5897,6 +5901,32 @@ function loadDemo(){
 // herauszubekommen. Darin stehen die App-Notizen ("Typ passt nicht zur
 // Einheit …") mitten im Positionstext - wer das wieder einliest, haelt sie
 // fuer LV-Text. Diese Datei trennt sauber: Text ist Text, Notiz ist Notiz.
+// Gegenstueck zu doExportDaten(): eine gesicherte Positionsdatei einlesen.
+async function positionsdateiLaden(datei){
+  let d;
+  try{
+    d = JSON.parse(await datei.text());
+  }catch(e){ toast('Datei nicht lesbar: '+(e.message||e)); return; }
+  const liste = Array.isArray(d) ? d : (d.positionen || d.pos);
+  if(!Array.isArray(liste) || !liste.length){ toast('Keine Positionen in der Datei.'); return; }
+  if(LV.pos && LV.pos.length &&
+     !confirm('Das offene LV ("'+(LV.titel||'ohne Titel')+'", '+LV.pos.length+' Positionen)\n'
+            + 'wird durch den Inhalt der Datei ersetzt ('+liste.length+' Positionen).\n\nFortfahren?')) return;
+  const vorherId = LV.id || 0;
+  LV.pos = liste.map(function(q){
+    const p = Object.assign({}, q);
+    p.desc = q.titel || q.desc || '';
+    delete p._calcOpen;
+    return p;
+  });
+  if(d.titel)  LV.titel  = d.titel;
+  if(d.system) LV.system = d.system;
+  LV.id = vorherId;              // dasselbe LV weiterschreiben, kein zweites anlegen
+  showTab('lv', document.querySelector('.nb'));
+  renderLV();
+  doSave(true);
+  toast(LV.pos.length+' Positionen eingelesen');
+}
 function exportDatenObjekt(){
   return {
     titel:     LV.titel || 'LV',
@@ -5918,7 +5948,10 @@ function exportDatenObjekt(){
         notiz:     p.notiz || '',
         wKlasse:   p.wKlasse || '',
         fabrikat:  p.fabrikat || '',
-        flieseEk:  p.flieseEk || 0
+        flieseEk:  p.flieseEk || 0,
+        // Bedarfs-/Wahlposition mitgeben, sonst geht die Kennzeichnung beim
+        // Sichern und Wiedereinlesen verloren (28.08.2026).
+        bedarf:    istBedarfPos(p)
       };
     })
   };
