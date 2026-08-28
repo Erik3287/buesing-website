@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 137';
+const APP_STAND = '28.08.2026 · 138';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1660,7 +1660,15 @@ const TYP_REGELN = [
   // werden Ablagen oder Laibungen auch nach meter berechnet - wichtige Info.
   // als grundlage sollten wir 10 Euro pro qm mehr nehmen."
   ['laibung',       ['fensterlaibung','fensterleibung','zulage laibung','laibung verfliest',
-                     'leibung verfliest','geflieste ablage','ablage verfliest','ablagen verfliest']],
+                     'leibung verfliest','geflieste ablage','ablage verfliest','ablagen verfliest',
+                     // Innenfensterbaenke VERFLIEST sind dieselbe Arbeit: Wandfliese
+                     // auf schmalem Streifen, nach Metern. Der Typ 'fensterbank'
+                     // bleibt fuer Naturstein/Agglo im Moertelbett.
+                     'innenfensterbank verfliest','innenfensterbänke - verfliest',
+                     'innenfensterbaenke - verfliest','fensterbank verfliest','fensterbänke - verfliest']],
+  // "Vorbemerkungen und Planausschnitte" (15.01) ist eine Textseite des
+  // Planers, keine Leistung - sie stand als "Typ nicht erkannt" rot da.
+  ['ueberschrift',  ['vorbemerkung','vorbemerkungen','allgemeine hinweise zum lv','planausschnitt','planauschnitt']],
   // Eng gefasst und nur aus der Ueberschrift: mit dem blossen Wort
   // "fensterbank" fielen auch die Zulage fuers seitliche Schleifen
   // (15.09.5), die Kopfbearbeitung (15.09.4, nach Stueck), die
@@ -1812,7 +1820,7 @@ function pruefeTyp(text){
 // Treppenbelag") - beide wurden dadurch zu Fliesen-Treppenbelag erklaert.
 // Aus der Ueberschrift heraus greift der Typ weiter: alle vier echten
 // Positionen heissen "Treppenfliesen, Auf-/Antritt der Treppenstufen".
-const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge','treppenbelag','werksteinstufe','fensterbank','fb_rundung','fb_kante','behandlung','spiegel','revision','matte_anarbeiten','schraegschnitt','spachtel','laibung',
+const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge','treppenbelag','werksteinstufe','fensterbank','fb_rundung','fb_kante','behandlung','spiegel','revision','matte_anarbeiten','schraegschnitt','spachtel','laibung','ueberschrift',
   // "Spachtelung mit Gefaelle ZUM BODENABLAUF" ist eine Spachtelung, keine
   // Ablauf-Position. Alle echten Ablauf-Positionen im LV-15 heissen schon in
   // der Ueberschrift "Zulage Bodeneinlauf" (Erik 27.08.2026).
@@ -4858,9 +4866,16 @@ function autoEP(p, system){
   // Ich bestaetige das durch einen OK button in der jeweiligen position -
   // Ampel springt auf gruen - FERTIG!!!" Gemerkt wird der Wortlaut: aendert
   // sich der Hinweis spaeter, meldet sich die Position wieder.
+  // Fehlende EINGABEN (ein Preis, eine Wahl) kann man nicht "zur Kenntnis
+  // nehmen" - die Position bleibt gelb, bis die Eingabe da ist. Nur echte
+  // Pruef-Hinweise sind per OK bestaetigbar.
+  const eingaben = hinweis.filter(function(h){
+    return warn.some(function(w){ return String(w)==='EINGABE|'+h; });
+  });
   const hinweisTxt = hinweis.join(' · ');
-  const bestaetigt = hinweis.length > 0 && p.hinweisOk === hinweisTxt;
+  const bestaetigt = hinweis.length > 0 && !eingaben.length && p.hinweisOk === hinweisTxt;
   if(hinweis.length && !bestaetigt) delete p.hinweisOk;
+  p._okZeigen = hinweis.length > 0 && !eingaben.length;
 
   if(flieseFehlt)      { p.status='rot'; p.notiz='Fliesenpreis fehlt – Preis anfragen'; }
   else if(fehlend.length){ p.status='rot'; p.notiz='fehlt: ' + fehlend.join(', '); }
@@ -6333,7 +6348,7 @@ function renderLV(){
     const bc=p.status==='gruen'?'var(--green)':p.status==='gelb'?'var(--yellow)':'var(--red)';
     return `<tr class="pos-row" data-i="${i}" data-such="${suchtext}">
       <td style="font-weight:700;color:var(--accent);font-size:13px;border-left:6px solid ${bc};padding-left:8px">${p.nr||''}</td>
-      <td><div style="font-size:13px;font-weight:600">${p.desc||''}${bedarf?` <span style="color:#0047c7;font-weight:800;font-size:12.5px;letter-spacing:.3px;cursor:pointer" onclick="bedarfUmschalten(${i})" title="Zählt nicht in die Angebotssumme – klicken zum Umstellen">BEDARFSPOSITION</span>`:''}</div>${langtextBlock(p,i)}${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${p.notiz}${p.status==='gelb'?` <button class="bg sm" style="padding:1px 9px;font-size:11px;font-weight:700;margin-left:6px" onclick="hinweisBestaetigen(${i})" title="Hinweis gelesen – Position auf Grün setzen">OK</button>`:''}</div>`:''}</td>
+      <td><div style="font-size:13px;font-weight:600">${p.desc||''}${bedarf?` <span style="color:#0047c7;font-weight:800;font-size:12.5px;letter-spacing:.3px;cursor:pointer" onclick="bedarfUmschalten(${i})" title="Zählt nicht in die Angebotssumme – klicken zum Umstellen">BEDARFSPOSITION</span>`:''}</div>${langtextBlock(p,i)}${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${p.notiz}${(p.status==='gelb'&&p._okZeigen)?` <button class="bg sm" style="padding:1px 9px;font-size:11px;font-weight:700;margin-left:6px" onclick="hinweisBestaetigen(${i})" title="Hinweis gelesen – Position auf Grün setzen">OK</button>`:''}</div>`:''}</td>
       <td><select style="padding:4px 5px;font-size:11px;width:118px" onchange="upd(${i},'typ',this.value)">${typOptions(p.typ)}</select></td>
       <td><input type="number" step="0.01" value="${p.menge||''}" placeholder="0" oninput="upd(${i},'menge',this.value)" style="text-align:right;width:70px;padding:4px 6px"></td>
       <td><input type="text" value="${(p.einheit||'').replace(/"/g,'&quot;')}" onchange="upd(${i},'einheit',this.value)"
@@ -6661,7 +6676,19 @@ function exportDatenObjekt(){
         flieseEk:  p.flieseEk || 0,
         // Bedarfs-/Wahlposition mitgeben, sonst geht die Kennzeichnung beim
         // Sichern und Wiedereinlesen verloren (28.08.2026).
-        bedarf:    istBedarfPos(p)
+        bedarf:    istBedarfPos(p),
+        // ALLE Entscheidungsfelder mitgeben. Bis zum 28.08.2026 verlor die
+        // Datei die gewaehlte Stufe, den Sockel, die Schutz-Art, die
+        // Bieterfelder und die bestaetigten Hinweise - beim Wiedereinlesen
+        // waren Eriks Entscheidungen weg.
+        ...(function(){
+          const extra={};
+          ERBEN_FELDER.concat(['laibBreite','hinweisOk','gruenAuto','_typHand','_wieVor'])
+            .forEach(function(f){
+              if(p[f]!==undefined && p[f]!=='' && !(Array.isArray(p[f]) && !p[f].length)) extra[f]=p[f];
+            });
+          return extra;
+        })()
       };
     })
   };
