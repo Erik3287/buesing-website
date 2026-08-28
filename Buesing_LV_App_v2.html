@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 124';
+const APP_STAND = '28.08.2026 · 125';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1056,8 +1056,10 @@ const WERTE = [
     ['SCH_OSB_EK','Vlies + OSB, freie Fläche','€/m²',()=>SCH_OSB_EK,v=>SCH_OSB_EK=v],
     ['SCH_OSB_TR_EK','Vlies + OSB, Treppe','€/m²',()=>SCH_OSB_TR_EK,v=>SCH_OSB_TR_EK=v],
     ['SCH_ZEIT','Zeit ein- und ausbauen','h/m²',()=>SCH_ZEIT,v=>SCH_ZEIT=v],
-    ['SCH_ZEIT_OSB','Zeit OSB freie Fläche','h/m²',()=>SCH_ZEIT_OSB,v=>SCH_ZEIT_OSB=v],
-    ['SCH_ZEIT_OSBTR','Zeit OSB Treppe','h/m²',()=>SCH_ZEIT_OSBTR,v=>SCH_ZEIT_OSBTR=v],
+    ['SCH_ZEIT_OSB','OSB Fläche – Einbau','h/m²',()=>SCH_ZEIT_OSB,v=>SCH_ZEIT_OSB=v],
+    ['SCH_AUS_OSB','OSB Fläche – Rückbau','h/m²',()=>SCH_AUS_OSB,v=>SCH_AUS_OSB=v],
+    ['SCH_ZEIT_OSBTR','OSB Treppe – Einbau','h/m²',()=>SCH_ZEIT_OSBTR,v=>SCH_ZEIT_OSBTR=v],
+    ['SCH_AUS_OSBTR','OSB Treppe – Rückbau','h/m²',()=>SCH_AUS_OSBTR,v=>SCH_AUS_OSBTR=v],
   ]],
   ['Reinigung', [
     ['REIN_EK_L','Zementschleierentferner','€/l',()=>REIN_EK_L,v=>REIN_EK_L=v],
@@ -3828,26 +3830,32 @@ let SCH_ZEIT     = 4.5/60; // h je m²: auslegen, Stoesse verkleben, unterhalten
 // haengt daran, worauf das OSB liegt. Deshalb zwei Varianten, wie bei
 // Reinigung und Impraegnierung.
 //
-// FLAECHE: grosse Platten am Stueck, wenig Zuschnitt.
-//   OSB 1,15 m² je m² Flaeche x 8,50 = 9,78 + Vlies 1,90 + Band 0,80
-//   + Entsorgung 1,20 = 13,68 EUR/m², 12 min/m².
-//   Die 12 Minuten auf Eriks Einwand vom 28.08.2026: "aber 8 minuten pro qm
-//   - das wird eng. vor allem in kleineren Raeumen - alles zuschneiden etc."
-//   In einem Bad mit Tuerlaibung, Rohren und Ecken wird fast jede Platte
-//   geschnitten; nur in einer grossen offenen Halle reichen 8 Minuten.
+// Einbau und Rueckbau stehen getrennt. Erik: "das muss ja auch alles wieder
+// zurueckgebaut und entsorgt werden" - in einer einzigen Zeit verschwindet
+// der Rueckbau, und die Einbauzeit sieht groesser aus als sie ist. Der
+// Rueckbau ist ausserdem eine eigene Anfahrt Wochen spaeter.
+//
+// FLAECHE (Raeume mit Tuerlaibung, Rohren, Ecken - nicht die leere Halle):
+//   OSB 1,15 m² je m² x 8,50 = 9,78 + Vlies 1,90 + Band 0,80
+//   + Entsorgung 1,80 (rund 10 kg Holz je m²) = 14,28 EUR/m².
+//   Einbau 12 min - Erik am 28.08.2026: "aber 8 minuten pro qm - das wird
+//   eng. vor allem in kleineren Raeumen - alles zuschneiden etc."
+//   Rueckbau 4 min: aufnehmen, heraustragen, aufladen.
 //
 // TREPPE (15.03.36): Auftritt 32 x 0,25 x 1,30 = 10,40 m², Setzstufe
 //   32 x 0,1719 x 1,30 = 7,13 m² = 17,53 m² echte Oberflaeche bei 19 m²
 //   Abrechnung. Mit Verschnitt rund 24 m² Platte. Umgelegt auf die 19 m²:
 //   OSB 24 x 8,50 = 204 EUR -> 10,74 | Vlies 2,20 | Band 2,50 (alle
 //   Wandanschluesse staubdicht) | Entsorgung 2,00 = 17,44 EUR/m².
-//   Zeit je Stufe 13 min (5 zuschneiden, 5 verlegen und abkleben, 3
-//   ausbauen) = 6,9 h; dazu die eigene Anfahrt fuer den Rueckbau Wochen
-//   spaeter und das Nacharbeiten waehrend der Bauzeit - zusammen 28 min/m².
-let SCH_OSB_EK    = 13.68;  // EUR/m² Material, freie Flaeche
-let SCH_OSB_TR_EK = 17.44;  // EUR/m² Material, Treppe
-let SCH_ZEIT_OSB  = 12/60;  // h je m², freie Flaeche
-let SCH_ZEIT_OSBTR= 28/60;  // h je m², Treppe
+//   Einbau 20 min: je Stufe 5 min zuschneiden, 5 min verlegen und abkleben,
+//   dazu Nacharbeiten waehrend der Bauzeit. Rueckbau 8 min: 32 Stufen
+//   einzeln aufnehmen, Klebeband abloesen, heraustragen.
+let SCH_OSB_EK     = 14.28;  // EUR/m² Material, freie Flaeche
+let SCH_OSB_TR_EK  = 17.44;  // EUR/m² Material, Treppe
+let SCH_ZEIT_OSB   = 12/60;  // h je m², Einbau freie Flaeche
+let SCH_AUS_OSB    = 4/60;   // h je m², Rueckbau freie Flaeche
+let SCH_ZEIT_OSBTR = 20/60;  // h je m², Einbau Treppe
+let SCH_AUS_OSBTR  = 8/60;   // h je m², Rueckbau Treppe
 const SCH_LABEL = {pappe:'Schutzpappe', vlies:'Schutzvlies',
                    hartfaser:'Hartfaserplatten',
                    osb:'Vlies + OSB, freie Fläche', osb_tr:'Vlies + OSB, Treppe'};
@@ -3859,6 +3867,10 @@ function schutzEk(art){
 }
 function schutzZeit(art){
   return art==='osb_tr' ? SCH_ZEIT_OSBTR : (art==='osb' ? SCH_ZEIT_OSB : SCH_ZEIT);
+}
+// Rueckbau: bei Pappe, Vlies und Hartfaser steckt er in SCH_ZEIT drin.
+function schutzAusbau(art){
+  return art==='osb_tr' ? SCH_AUS_OSBTR : (art==='osb' ? SCH_AUS_OSB : 0);
 }
 function schutzAuto(txt){
   // OSB zuerst - der Text von 15.03.36 nennt Vlies UND OSB.
@@ -3875,11 +3887,13 @@ function epSchutz(p){
   zeilen.push([SCH_LABEL[art], fmt(ek)+' €/m² einschl. Klebeband und Entsorgung', ek]);
   const kalk=ek*1.20;
   zeilen.push(['Material × 1,20','',kalk]);
-  const zeit=schutzZeit(art);
-  const lohn=zeit*LOHN();
-  zeilen.push([(art==='osb'||art==='osb_tr') ? 'Zuschneiden, verlegen, staubdicht verkleben, ausbauen'
+  const zeit=schutzZeit(art), aus=schutzAusbau(art);
+  const lohn=(zeit+aus)*LOHN();
+  zeilen.push([(art==='osb'||art==='osb_tr') ? 'Einbau: zuschneiden, verlegen, staubdicht verkleben'
                                              : 'Auslegen, Stöße verkleben, unterhalten, abbauen',
-               (zeit*60).toFixed(1).replace('.',',')+' min × '+fmt(LOHN())+'/h', lohn]);
+               (zeit*60).toFixed(1).replace('.',',')+' min × '+fmt(LOHN())+'/h', zeit*LOHN()]);
+  if(aus>0) zeilen.push(['Rückbau: aufnehmen, heraustragen, entsorgen',
+               (aus*60).toFixed(1).replace('.',',')+' min × '+fmt(LOHN())+'/h', aus*LOHN()]);
   return {ep: Math.round((kalk+lohn)*100)/100, zeilen, warn:[]};
 }
 // Imprägnierung: wie bei der Reinigung ist die Treppe die aufwendigere
