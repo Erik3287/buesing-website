@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 116';
+const APP_STAND = '28.08.2026 · 117';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1048,6 +1048,12 @@ const WERTE = [
     ['WST_SILIKON_M','Silikon je Stufe','lfdm',()=>WST_SILIKON_M,v=>WST_SILIKON_M=v],
     ['WST_RAND_M','Randstreifen je Stufe','lfdm',()=>WST_RAND_M,v=>WST_RAND_M=v],
     ['WST_RAND_EUR','Randstreifen Preis','€/lfdm',()=>WST_RAND_EUR,v=>WST_RAND_EUR=v],
+  ]],
+  ['Schutz / Abdeckung', [
+    ['SCH_PAPPE_EK','Schutzpappe','€/m²',()=>SCH_PAPPE_EK,v=>SCH_PAPPE_EK=v],
+    ['SCH_VLIES_EK','Schutzvlies','€/m²',()=>SCH_VLIES_EK,v=>SCH_VLIES_EK=v],
+    ['SCH_HARTF_EK','Hartfaserplatten','€/m²',()=>SCH_HARTF_EK,v=>SCH_HARTF_EK=v],
+    ['SCH_ZEIT','Zeit ein- und ausbauen','h/m²',()=>SCH_ZEIT,v=>SCH_ZEIT=v],
   ]],
   ['Reinigung', [
     ['REIN_EK_L','Zementschleierentferner','€/l',()=>REIN_EK_L,v=>REIN_EK_L=v],
@@ -3790,14 +3796,35 @@ function epBaustelle(p){
   return {ep:Math.round(ep*100)/100, zeilen, warn};
 }
 // Schutz/Abdeckung: mit Hartfaserplatten 6,59 €/m², nur Vlies 3,85 €/m²
-const SCHUTZ = {hartfaser:6.59, vlies:3.85};
-function schutzHartfaser(txt){ return /hartfaser|hartfaserplatt/i.test(txt||''); }
+// Abdecken fertiger Belaege - gerechnet, nicht gegriffen. Der Text von
+// 15.03.35 verlangt ausdruecklich "Incl. liefern, einbauen, unterhalten,
+// abbauen, entsorgen": also zweimal anfassen, einmal beim Auslegen mit
+// Stoessen verkleben, spaeter abraeumen und entsorgen. Deshalb eine Zeit fuer
+// beides zusammen.
+let SCH_PAPPE_EK = 1.50;   // EUR/m² Schutzpappe einschl. Klebeband
+let SCH_VLIES_EK = 1.90;   // EUR/m² Schutzvlies
+let SCH_HARTF_EK = 4.20;   // EUR/m² Hartfaserplatten
+let SCH_ZEIT     = 4/60;   // h je m²: auslegen, verkleben, abbauen, entsorgen
+const SCH_LABEL = {pappe:'Schutzpappe', vlies:'Schutzvlies', hartfaser:'Hartfaserplatten'};
+function schutzEk(art){
+  return art==='hartfaser' ? SCH_HARTF_EK : (art==='vlies' ? SCH_VLIES_EK : SCH_PAPPE_EK);
+}
+function schutzAuto(txt){
+  if(/hartfaser|hartfaserplatt/i.test(txt||'')) return 'hartfaser';
+  if(/schutzvlies|abdeckvlies|vlies/i.test(txt||'')) return 'vlies';
+  return 'pappe';
+}
 function epSchutz(p){
-  const auto = schutzHartfaser((p.desc||'')+' '+(p.langtext||'')) ? 'hartfaser' : 'vlies';
-  const art  = p.schutzArt || auto;
-  const ep   = SCHUTZ[art] || SCHUTZ.vlies;
-  const label= art==='hartfaser' ? 'Schutz mit Hartfaserplatten' : 'Schutz nur Vlies';
-  return {ep, zeilen:[[label,'Festpreis – kein Aufschlag',ep]], warn:[]};
+  const art = p.schutzArt || schutzAuto((p.desc||'')+' '+(p.langtext||''));
+  const ek  = schutzEk(art);
+  const zeilen=[];
+  zeilen.push([SCH_LABEL[art], fmt(ek)+' €/m² einschl. Klebeband', ek]);
+  const kalk=ek*1.20;
+  zeilen.push(['Material × 1,20','',kalk]);
+  const lohn=SCH_ZEIT*LOHN();
+  zeilen.push(['Auslegen, verkleben, später abbauen und entsorgen',
+               (SCH_ZEIT*60).toFixed(1).replace('.',',')+' min × '+fmt(LOHN())+'/h', lohn]);
+  return {ep: Math.round((kalk+lohn)*100)/100, zeilen, warn:[]};
 }
 // Imprägnierung: wie bei der Reinigung ist die Treppe die aufwendigere
 // Flaeche - jede Stufe einzeln, Kanten und Sockelleisten von Hand.
@@ -5279,16 +5306,16 @@ function renderCalcHTML(i){
   }
   if(p.typ==='schutz'){
     const txt=(p.desc||'')+' '+(p.langtext||'');
-    const auto = schutzHartfaser(txt) ? 'hartfaser' : 'vlies';
-    if(!p.schutzArt) p.schutzArt = auto;
-    const ampelH = schutzHartfaser(txt)
-      ? '<span style="color:#1a9e4b">🟢 Hartfaserplatten im Text erkannt</span>'
-      : '<span style="color:var(--muted)">nur Vlies</span>';
+    const art = p.schutzArt || schutzAuto(txt);
+    const optS=function(k){ return '<option value="'+k+'"'+(art===k?' selected':'')+'>'
+      + SCH_LABEL[k]+' – '+fmt(schutzEk(k))+' €/m² Material</option>'; };
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Schutz-Art</div>'
       +'<select onchange="setSchutz('+i+',this.value)" style="width:auto;padding:6px 8px">'
-      +'<option value="vlies"'+(p.schutzArt==='vlies'?' selected':'')+'>nur Vlies – 3,85 €/m²</option>'
-      +'<option value="hartfaser"'+(p.schutzArt==='hartfaser'?' selected':'')+'>mit Hartfaserplatten – 6,59 €/m²</option>'
-      +'</select><div style="font-size:11px;margin-top:3px">'+ampelH+'</div></div>';
+      + optS('pappe') + optS('vlies') + optS('hartfaser')
+      +'</select><div style="font-size:11px;margin-top:3px">'
+      + (p.schutzArt ? '<span style="color:var(--muted)">von Hand gewählt</span>'
+                     : '<span style="color:#1a9e4b">🟢 aus dem Text erkannt</span>')
+      +'</div></div>';
   }
   if(p.typ==='silikon'){
     const txt=(p.desc||'')+' '+(p.langtext||'');
