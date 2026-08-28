@@ -416,6 +416,18 @@ tr:hover td{background:#fafafa}
 
 <!-- TAB KALKULATOR -->
 <div id="tab-kalkulator" class="tab">
+  <div class="card" style="margin-bottom:16px">
+    <div class="sh">
+      <div class="ct">Kalkulationswerte — alle Mengen, Zeiten und Festpreise</div>
+      <button class="bg sm" onclick="werteAllesZurueck()" title="Alle Werte auf den Auslieferungsstand">↩ Alles zurücksetzen</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted)">
+      Hier stehen alle Zahlen, mit denen die Rechner arbeiten. Was du änderst, gilt sofort für jedes LV.
+      Geänderte Werte sind blau umrandet; daneben steht der Auslieferungswert mit einem ↩ zum Zurücksetzen.
+      <span id="werte-kopf" style="font-weight:600"></span>
+    </div>
+    <div id="werte-box"></div>
+  </div>
   <div class="g2">
     <div class="card">
       <div class="ct">Einheitspreisberechnung</div>
@@ -738,7 +750,10 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 82';
+const APP_STAND = '28.08.2026 · 83';
+// Beim Start die eigenen Kalkulationswerte anwenden, bevor irgendetwas
+// gerechnet wird.
+try{ werteAnwenden(); }catch(e){}
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1009,6 +1024,164 @@ let PREISE = [
   {id:100,name:'RAW Winkelprofil PVC weiß 8mm 2,5m',kat:'profile',ek:0.57,eu:'m',format:'',lief:'Keramundo',dat:'26.06.2026'}
 ];
 
+// ===== KALKULATIONSWERTE ================================================
+// Alle Zahlen, mit denen die Rechner arbeiten, an einer Stelle - aenderbar
+// in der App statt in der Datei. Erik am 28.08.2026: "ich brauche im
+// Kalkulator zu ALLEN Positionen und Berechnungen eine leicht verstaendliche
+// Uebersicht, in welcher ich unsere Werte anpassen kann."
+// Jeder Eintrag weiss, wie er gelesen und gesetzt wird - so bleiben die
+// Rezepte unveraendert und greifen weiter auf ihre Variablen zu.
+const WERTE = [
+  ['Fliesen legen', [
+    ['FLI_KLEBER_KLEIN','Kleber bis 30×60','kg/m²',()=>FLI_KLEBER_KLEIN,v=>FLI_KLEBER_KLEIN=v],
+    ['FLI_KLEBER_GROSS','Kleber ab 60×60 (Buttering-Floating)','kg/m²',()=>FLI_KLEBER_GROSS,v=>FLI_KLEBER_GROSS=v],
+    ['FLI_ZEIT_WAND','Zeit Wand','h/m²',()=>FLI_ZEIT_WAND,v=>FLI_ZEIT_WAND=v],
+    ['FLI_ZEIT_BODEN','Zeit Boden bis 30×60','h/m²',()=>FLI_ZEIT_BODEN,v=>FLI_ZEIT_BODEN=v],
+    ['FLI_ZEIT_GROSS','Zeit Boden 60×60','h/m²',()=>FLI_ZEIT_GROSS,v=>FLI_ZEIT_GROSS=v],
+    ['FLI_ZEIT_XXL','Zeit Boden ab 80×80','h/m²',()=>FLI_ZEIT_XXL,v=>FLI_ZEIT_XXL=v],
+    ['REKT_ZUSCHLAG','Zuschlag rektifiziert','€/m²',()=>REKT_ZUSCHLAG,v=>REKT_ZUSCHLAG=v],
+  ]],
+  ['Treppenbelag (Fliese auf der Stufe)', [
+    ['TRB_VERSCHNITT','Verschnittfaktor','×',()=>TRB_VERSCHNITT,v=>TRB_VERSCHNITT=v],
+    ['TRB_KLEBER_KG','Mörtelbett','kg/m²',()=>TRB_KLEBER_KG,v=>TRB_KLEBER_KG=v],
+    ['TRB_FUGE_KG','Fuge','kg/m²',()=>TRB_FUGE_KG,v=>TRB_FUGE_KG=v],
+    ['TRB_ZEIT_STK','Zeit je Stufe','h',()=>TRB_ZEIT_STK,v=>TRB_ZEIT_STK=v],
+  ]],
+  ['Werksteinstufe', [
+    ['WST_MOERTEL_KG','Mörtelbett','kg/m²',()=>WST_MOERTEL_KG,v=>WST_MOERTEL_KG=v],
+    ['WST_ZEIT_STK','Zeit je Stufe (2 Mann)','h',()=>WST_ZEIT_STK,v=>WST_ZEIT_STK=v],
+  ]],
+  ['Sockelfliesen', [
+    ['SOCKEL_QM_STD','Verbrauch, wenn kein Format im Text','m²/lfdm',()=>SOCKEL_QM_STD,v=>SOCKEL_QM_STD=v],
+    ['SOCKEL_KLEBER','Kleber + Fuge','€/lfdm',()=>SOCKEL_KLEBER,v=>SOCKEL_KLEBER=v],
+    ['SOCKEL_ZEIT','Zeit','h/lfdm',()=>SOCKEL_ZEIT,v=>SOCKEL_ZEIT=v],
+  ]],
+  ['Betonwerksteinboden', [
+    ['BWS_KLEBER_KG','Kleber','kg/m²',()=>BWS_KLEBER_KG,v=>BWS_KLEBER_KG=v],
+    ['BWS_FUGE_KG','Fuge','kg/m²',()=>BWS_FUGE_KG,v=>BWS_FUGE_KG=v],
+    ['BWS_ZEIT','Zeit','h/m²',()=>BWS_ZEIT,v=>BWS_ZEIT=v],
+  ]],
+  ['Fensterbank', [
+    ['FB_MOERTEL_KG','Mörtel','kg/lfdm',()=>FB_MOERTEL_KG,v=>FB_MOERTEL_KG=v],
+    ['FB_ZEIT','Zeit','h/lfdm',()=>FB_ZEIT,v=>FB_ZEIT=v],
+    ['FB_BREITE_STD','Breite, wenn keine im Text','m',()=>FB_BREITE_STD,v=>FB_BREITE_STD=v],
+  ]],
+  ['Abdichtung', [
+    ['ABD_FLUESSIG_KG','Flüssigabdichtung Verbrauch','kg/m²',()=>ABD_FLUESSIG_KG,v=>ABD_FLUESSIG_KG=v],
+    ['ABD_FLUESSIG_H','Flüssigabdichtung Zeit','h/m²',()=>ABD_FLUESSIG_H,v=>ABD_FLUESSIG_H=v],
+    ['ABD_BAHN_H','Dichtbahn Zeit','h/m²',()=>ABD_BAHN_H,v=>ABD_BAHN_H=v],
+    ['DICHTBAHN_UEBERLAPP_CM','Überlappung der Bahn','cm',()=>DICHTBAHN_UEBERLAPP_CM,v=>DICHTBAHN_UEBERLAPP_CM=v],
+  ]],
+  ['Entkopplung', [
+    ['ENTKOPPLUNG_KLEBER_KG','Kleber','kg/m²',()=>ENTKOPPLUNG_KLEBER_KG,v=>ENTKOPPLUNG_KLEBER_KG=v],
+    ['ENTKOPPLUNG_BAND_M','Stoßband','m/m²',()=>ENTKOPPLUNG_BAND_M,v=>ENTKOPPLUNG_BAND_M=v],
+  ]],
+  ['Spachteln', [
+    ['WBS_KG_JE_MM','Standfeste Spachtelmasse','kg/m² je mm',()=>WBS_KG_JE_MM,v=>WBS_KG_JE_MM=v],
+    ['WBS_H','Zeit Handspachtelung','h/m²',()=>WBS_H,v=>WBS_H=v],
+    ['WBS_STD_MM','Dicke, wenn keine im Text','mm',()=>WBS_STD_MM,v=>WBS_STD_MM=v],
+    ['AUSGLEICH_KG_JE_MM','Ausgleichsmasse','kg/m² je mm',()=>AUSGLEICH_KG_JE_MM,v=>AUSGLEICH_KG_JE_MM=v],
+    ['AUSGLEICH_H','Zeit Ausgleichen','h/m²',()=>AUSGLEICH_H,v=>AUSGLEICH_H=v],
+    ['AUSGLEICH_STD_MM','Dicke, wenn keine im Text','mm',()=>AUSGLEICH_STD_MM,v=>AUSGLEICH_STD_MM=v],
+  ]],
+  ['Naturstein', [
+    ['NST_KG','Natursteinkleber','kg/m²',()=>NST_KG,v=>NST_KG=v],
+    ['NST_FUGE','Fuge','kg/m²',()=>NST_FUGE,v=>NST_FUGE=v],
+    ['NST_ZEIT','Zeit (Mittelbett)','h/m²',()=>NST_ZEIT,v=>NST_ZEIT=v],
+  ]],
+  ['Wandspiegel', [
+    ['SPIEGEL_EK','Preis je Stück','€',()=>SPIEGEL_EK,v=>SPIEGEL_EK=v],
+    ['SPIEGEL_ZEIT','Zeit je Stück','h',()=>SPIEGEL_ZEIT,v=>SPIEGEL_ZEIT=v],
+  ]],
+  ['Sonstiges', [
+    ['PREIS_MAX_MONATE','Preis gilt als alt nach','Monaten',()=>PREIS_MAX_MONATE,v=>PREIS_MAX_MONATE=v],
+  ]],
+];
+// Festpreise kommen aus FESTPREISE und werden dort direkt gesetzt.
+function werteAlle(){
+  const raus=WERTE.map(function(g){ return [g[0], g[1].slice()]; });
+  const fest=Object.keys(FESTPREISE).map(function(k){
+    return ['FEST_'+k, FESTPREISE[k].label, '€', function(){ return FESTPREISE[k].ep; },
+            function(v){ FESTPREISE[k].ep=v; }];
+  });
+  raus.push(['Festpreise (fertige Einheitspreise)', fest]);
+  return raus;
+}
+let WERTE_STD = null;   // Startwerte, einmal beim Laden gemerkt
+function werteStdMerken(){
+  if(WERTE_STD) return;
+  WERTE_STD={};
+  werteAlle().forEach(function(g){ g[1].forEach(function(e){ WERTE_STD[e[0]]=e[3](); }); });
+}
+function werteEigene(){
+  try{ return JSON.parse(localStorage.getItem('buesing_werte')||'{}'); }catch(e){ return {}; }
+}
+function werteAnwenden(){
+  werteStdMerken();
+  const eig=werteEigene();
+  werteAlle().forEach(function(g){
+    g[1].forEach(function(e){
+      const v=parseFloat(eig[e[0]]);
+      e[4](isFinite(v) ? v : WERTE_STD[e[0]]);
+    });
+  });
+}
+function werteSetzen(key, roh){
+  const eig=werteEigene();
+  const v=parseFloat(String(roh).replace(',','.'));
+  if(isFinite(v) && v>=0) eig[key]=v; else delete eig[key];
+  try{ localStorage.setItem('buesing_werte', JSON.stringify(eig)); }catch(e){}
+  werteAnwenden();
+  renderWerte();
+  if(LV && LV.pos && LV.pos.length) renderLV();
+}
+function werteZuruecksetzen(key){
+  const eig=werteEigene(); delete eig[key];
+  try{ localStorage.setItem('buesing_werte', JSON.stringify(eig)); }catch(e){}
+  werteAnwenden(); renderWerte();
+  if(LV && LV.pos && LV.pos.length) renderLV();
+}
+function werteAllesZurueck(){
+  if(!confirm('Alle Kalkulationswerte auf den Auslieferungsstand zurücksetzen?')) return;
+  try{ localStorage.removeItem('buesing_werte'); }catch(e){}
+  werteAnwenden(); renderWerte();
+  if(LV && LV.pos && LV.pos.length) renderLV();
+  toast('Alle Werte zurückgesetzt.');
+}
+function renderWerte(){
+  const box=document.getElementById('werte-box');
+  if(!box) return;
+  werteStdMerken();
+  const eig=werteEigene();
+  let geaendert=0;
+  let h='';
+  werteAlle().forEach(function(g){
+    h+='<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;'
+      +'letter-spacing:.5px;color:var(--accent);margin-bottom:6px">'+esc(g[0])+'</div>'
+      +'<table style="width:100%;border-collapse:collapse;font-size:13px">';
+    g[1].forEach(function(e){
+      const jetzt=e[3](), std=WERTE_STD[e[0]];
+      const ab=Math.abs(jetzt-std)>1e-9;
+      if(ab) geaendert++;
+      h+='<tr style="border-top:1px solid var(--line)">'
+        +'<td style="padding:5px 8px 5px 0">'+esc(e[1])+'</td>'
+        +'<td style="padding:5px 8px;white-space:nowrap;text-align:right">'
+        +'<input type="number" step="0.01" value="'+String(jetzt)+'" style="width:100px;padding:4px 6px;text-align:right'
+        +(ab?';border-color:var(--accent);font-weight:700':'')+'" '
+        +'onchange="werteSetzen(\''+e[0]+'\',this.value)"> <span style="color:var(--muted)">'+esc(e[2])+'</span></td>'
+        +'<td style="padding:5px 0 5px 8px;white-space:nowrap;color:var(--muted);font-size:11.5px">'
+        + (ab ? ('Standard '+String(std)+' <button class="bg sm" style="padding:1px 7px;font-size:11px" '
+                 +'onclick="werteZuruecksetzen(\''+e[0]+'\')">↩</button>') : '')
+        +'</td></tr>';
+    });
+    h+='</table></div>';
+  });
+  const kopf=document.getElementById('werte-kopf');
+  if(kopf) kopf.textContent = geaendert
+    ? (geaendert+' Wert(e) von dir geändert')
+    : 'alle Werte im Auslieferungsstand';
+  box.innerHTML=h;
+}
 function showTab(n,b){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.nb').forEach(x=>x.classList.remove('active'));
@@ -1020,6 +1193,7 @@ function showTab(n,b){
   if(n==='start')renderStart();
   if(n==='archiv')renderArchiv();
   if(n==='einstellungen'){ renderNutzer(); slFuellen(); }
+  if(n==='kalkulator') renderWerte();
   if(n==='abdichtung')renderAbdichtung();
 }
 
@@ -1634,20 +1808,20 @@ const GRUND = {
 // WBS = standfeste Spachtelmasse, schichtdickenabhaengig (Merkblatt 08.05.2026):
 // 1,2 kg/m² JE mm Schichtdicke, zulaessig 3-50 mm. Frueher stand hier ein fester
 // Wert von 3,9 kg -> bei 5 mm zu wenig, bei 3 mm zu viel gerechnet.
-const WBS_KG_JE_MM = 1.2;
-const WBS_STD_MM   = 3;    // Standard, wenn im Text keine Dicke steht
+let WBS_KG_JE_MM = 1.2;
+let WBS_STD_MM   = 3;    // Standard, wenn im Text keine Dicke steht
 const WBS_MIN_MM   = 3;
 const WBS_MAX_MM   = 50;
-const WBS_H        = 0.25; // h/m² Handspachtelung
+let WBS_H        = 0.25; // h/m² Handspachtelung
 const SPACHTEL = {
   sakret: {name:'Sakret Wand- und Bodenspachtel egalight WBS', gebinde:25},
   raw:    {name:'RAW Schnellreparaturmörtel SRM',              gebinde:25},
 };
 // Bodenausgleich / selbstverlaufende Nivelliermasse (Erik 25.07.):
 // Verbrauch 1,6 kg/m² JE mm Schichtdicke (2mm=3,2 · 3mm=4,8 · 4mm=6,4 · 5mm=8,0), Verlegezeit 8 min/m².
-const AUSGLEICH_KG_JE_MM = 1.6;
-const AUSGLEICH_H        = 8/60;   // 8 min/m²
-const AUSGLEICH_STD_MM   = 5;      // Standard, wenn im Text keine Dicke steht
+let AUSGLEICH_KG_JE_MM = 1.6;
+let AUSGLEICH_H        = 8/60;   // 8 min/m²
+let AUSGLEICH_STD_MM   = 5;      // Standard, wenn im Text keine Dicke steht
 const AUSGLEICH = {
   sakret: {name:'Sakret Fußbodenausgleichsmasse', gebinde:25},
   raw:    {name:'RAW Bodenausgleichsmasse BAM',    gebinde:30},
@@ -1680,9 +1854,9 @@ const NATURSTEIN = {
   sakret: {name:'Sakret Natursteinkleber weiß NKW', gebinde:25},
   raw:    {name:'RAW Natursteinmörtel NM weiß',     gebinde:25},
 };
-const NST_KG = 9.0;      // kg/m²
-const NST_FUGE = 0.57;   // kg/m²
-const NST_ZEIT = 1.28;   // h/m²
+let NST_KG = 9.0;      // kg/m²
+let NST_FUGE = 0.57;   // kg/m²
+let NST_ZEIT = 1.28;   // h/m²
 // Profile/Schienen — Preise sind €/m (kein Gebinde)
 const PROFILE = {
   glaenzend:  {name:'Rinklake FE 100',           label:'glänzend (FE)'},
@@ -1727,16 +1901,24 @@ function formatStufe(text){
   if(kurz>=60) return 'gross';
   return 'klein';
 }
+// Die Mengen und Zeiten des Fliesenrezepts stehen in Variablen, damit Erik
+// sie unter "Kalkulationswerte" aendern kann, ohne die Datei anzufassen
+// (28.08.2026: "ich will nicht jedes Mal die Datei bearbeiten muessen").
+let FLI_KLEBER_KLEIN = 3.0;   // kg/m² Kleber, Format bis 30x60
+let FLI_KLEBER_GROSS = 4.8;   // kg/m² Buttering-Floating ab 60x60
+let FLI_ZEIT_WAND    = 0.95;  // h/m² Wand, alle Formate
+let FLI_ZEIT_BODEN   = 0.95;  // h/m² Boden bis 30x60
+let FLI_ZEIT_GROSS   = 1.05;  // h/m² Boden 60x60
+let FLI_ZEIT_XXL     = 1.20;  // h/m² Boden ab 80x80
 function rezept(typ, stufe){
   if(typ==='wand'){
-    // Grossformat ab 60x60 -> Buttering-Floating 4,8 kg (wie Boden). Zeit bleibt 0,95 h/m² (alle Formate).
-    if(stufe==='gross'||stufe==='xxl') return {kleberKey:'gross', kleberKg:4.8, zeit:0.95};
-    return {kleberKey:'klein', kleberKg:3.0, zeit:0.95};
+    if(stufe==='gross'||stufe==='xxl') return {kleberKey:'gross', kleberKg:FLI_KLEBER_GROSS, zeit:FLI_ZEIT_WAND};
+    return {kleberKey:'klein', kleberKg:FLI_KLEBER_KLEIN, zeit:FLI_ZEIT_WAND};
   }
   if(typ==='boden'){
-    if(stufe==='xxl')   return {kleberKey:'gross', kleberKg:4.8, zeit:1.20};
-    if(stufe==='gross') return {kleberKey:'gross', kleberKg:4.8, zeit:1.05};
-    return {kleberKey:'klein', kleberKg:3.0, zeit:0.95};
+    if(stufe==='xxl')   return {kleberKey:'gross', kleberKg:FLI_KLEBER_GROSS, zeit:FLI_ZEIT_XXL};
+    if(stufe==='gross') return {kleberKey:'gross', kleberKg:FLI_KLEBER_GROSS, zeit:FLI_ZEIT_GROSS};
+    return {kleberKey:'klein', kleberKg:FLI_KLEBER_KLEIN, zeit:FLI_ZEIT_BODEN};
   }
   return null;
 }
@@ -1745,7 +1927,7 @@ function rezept(typ, stufe){
 // verlegt. Das verlangt genaueres Ausrichten, mehr Sorgfalt beim Fluchten und
 // duldet keine Toleranz - Erik rechnet dafuer 1,65 EUR/m² Aufschlag.
 // Der Aufschlag ist ein Endpreis-Zuschlag: kein Material, kein 20-%-Aufschlag.
-const REKT_ZUSCHLAG = 1.65;
+let REKT_ZUSCHLAG = 1.65;
 const REKT_WORTE = /\brekt(?:ifiziert|\.)|\brect(?:ifiziert|ifiziert|\.)|\brektifizierte?\b|\brectiviziert\b/i;
 function istRektifiziert(text){ return REKT_WORTE.test(String(text||'')); }
 // Rutschklasse: ab R12 erschwertes Verfugen -> 1,15 h/m² statt 0,95
@@ -2312,7 +2494,7 @@ function echtesGebinde(a, cfgGebinde){
 // Ein Preis aus einem alten Lieferantenblatt rechnet genauso still mit wie ein
 // aktueller. Deshalb sammelt die Kalkulation, welche Artikel ueberaltert sind,
 // und haengt es als Hinweis an die Position.
-const PREIS_MAX_MONATE = 12;
+let PREIS_MAX_MONATE = 12;
 let PREIS_ALT_SAMMLER = null;
 
 function datumLesen(d){
@@ -2603,9 +2785,9 @@ function abdichtFabrikat(text){
   return null;
 }
 
-const ABD_FLUESSIG_KG = 2.5;      // kg/m² Gesamtverbrauch bei 2 mm (2 Lagen, NICHT pro Lage) – Erik 25.07.
-const ABD_FLUESSIG_H  = 12/60;    // 12 min/m² (Erik 24.07.)
-const ABD_BAHN_H      = 8/60;     // 8 min/m² (Erik 24.07.) - Bahn ist schneller
+let ABD_FLUESSIG_KG = 2.5;      // kg/m² Gesamtverbrauch bei 2 mm (2 Lagen, NICHT pro Lage) – Erik 25.07.
+let ABD_FLUESSIG_H  = 12/60;    // 12 min/m² (Erik 24.07.)
+let ABD_BAHN_H      = 8/60;     // 8 min/m² (Erik 24.07.) - Bahn ist schneller
 // Vergleichspreis der Fluessigvariante. Nutzt dasselbe Produkt und denselben
 // Verbrauch wie die echte Berechnung - sonst vergleicht der Kasten Aepfel mit
 // Birnen (Hausschlaemme mit 2,5 kg gegen das tatsaechliche Produkt).
@@ -2978,14 +3160,14 @@ function epSpachtel(p, system){
 // Frueher landeten solche Positionen beim Typ "Boden" und wurden mit
 // 0,95 h/m² Verlegezeit plus Fugenmaterial gerechnet - 57,78 EUR/m² statt
 // rund 20 EUR/m², und die Fliese fehlte trotzdem.
-const ENTKOPPLUNG_KLEBER_KG = 1.2;   // wie Bahn-Kleber
+let ENTKOPPLUNG_KLEBER_KG = 1.2;   // wie Bahn-Kleber
 // Die Ditra-Matte kennt KEINE ueberlappende Verlegung (Erik 26.08.2026):
 // sie wird immer stumpf gestossen und der Stoss mit Dichtband ueberklebt.
 // Wie viele Meter Stoss je m² anfallen, haengt an der Raumbreite - die steht
 // nie im LV. Geometrisch: bei 1,00 m Bahnbreite und Raumbreite B sind es
 // (B-1)/B Meter je m². Also 2,6 m Raum -> 0,62 · 4 m -> 0,75 · 8 m -> 0,88.
 // 0,75 ist der Mittelwert ueblicher Raumbreiten - im Rechner aenderbar.
-const ENTKOPPLUNG_BAND_M = 0.75;
+let ENTKOPPLUNG_BAND_M = 0.75;
 const ENTKOPPLUNG = {
   sakret: {name:'Schlüter DITRA Verbundentkopplungsmatte', gebinde:1},
   raw:    {name:'RAW Entkopplungsmatte',                   gebinde:1},
@@ -3445,11 +3627,11 @@ function epHohlkehle(p){
 // Erik am 27.08.2026 zu den Mengen: "4,5 Kilo pro Qm Kleber waeren
 // ausreichend. 1,05 statt 0,95 passt." - die dickere Platte kostet also
 // 0,10 h/m2 mehr Zeit als eine Fliese (rund 5,80 EUR).
-const BWS_KLEBER_KG = 4.5;    // Duennbett bis 5 mm - Fliese braucht 3,0
-const BWS_FUGE_KG   = 0.55;   // Erik hat es am 27.08.2026 im PCI-Verbrauchsrechner
+let BWS_KLEBER_KG = 4.5;    // Duennbett bis 5 mm - Fliese braucht 3,0
+let BWS_FUGE_KG   = 0.55;   // Erik hat es am 27.08.2026 im PCI-Verbrauchsrechner
                               // nachgerechnet: Fuge 3 mm breit, 18 mm tief,
                               // Format 30x30 -> 0,55 kg je m2.
-const BWS_ZEIT      = 1.05;   // h/m2 - Fliese 0,95
+let BWS_ZEIT      = 1.05;   // h/m2 - Fliese 0,95
 function epBetonwerkstein(p, system){
   const warn=[], zeilen=[];
   const sys=SYSTEME[system]||SYSTEME.sakret;
@@ -3503,22 +3685,22 @@ function epBetonwerkstein(p, system){
 // Erik am 27.08.2026: "im Prinzip die gleiche Position wie 15.03.4, nur
 // dass es hier um die Verlegung der gleichen Fliese auf einer
 // Treppenstufe geht." Seine Werte, alle bestaetigt:
-const TRB_VERSCHNITT = 1.20;  // aus der 30er Fliese wird ein 25-cm-Auftritt
+let TRB_VERSCHNITT = 1.20;  // aus der 30er Fliese wird ein 25-cm-Auftritt
                               // geschnitten - Boden hat 1,06
-const TRB_KLEBER_KG  = 31.0;  // je m2 - MOERTELBETT ("Konstruktionshoehe
+let TRB_KLEBER_KG  = 31.0;  // je m2 - MOERTELBETT ("Konstruktionshoehe
                               // ca. 30 mm"), nicht Duennbett wie beim Boden (3,0).
                               // Erik am 27.08.2026: "der Kleber ist noch zu wenig,
                               // wir muessen da mindestens auf 4,90 Euro kommen."
                               // Mit 12,0 kg/m2 waren es 1,91 EUR je Auftritt. 31,0
                               // kg/m2 sind rund 19 mm Bett - mit der Fliese ergibt
                               // das die im LV geforderten ca. 30 mm.
-const TRB_ZEIT_STK   = 1.20;  // h JE STUFE, nicht je m2. Erik am 27.08.2026:
+let TRB_ZEIT_STK   = 1.20;  // h JE STUFE, nicht je m2. Erik am 27.08.2026:
                               // erst 0,60, dann 1,00, dann 1,20. Kurz auf 1,10
                               // gesenkt, weil er "ca. 80 Euro, ein klein wenig
                               // drunter" nannte - das sagte er aber, BEVOR er die
                               // 1,20-Fassung gesehen hatte. Danach: bleibt bei
                               // 1,20 h, also 83,86 EUR je Auftritt.
-const TRB_FUGE_KG    = 0.18;  // je m2, wie beim Boden
+let TRB_FUGE_KG    = 0.18;  // je m2, wie beim Boden
 // Die Stufenmasse stehen im Text: "25,0 cm x 1,30 m" bzw. "17,19 cm x 130 cm".
 // ACHTUNG bei der Reihenfolge (mm|cm|m): mit (cm|m|mm) trifft "130 mm" schon
 // auf das erste m und wird zu 130 Metern.
@@ -3625,10 +3807,10 @@ function epTreppenbelag(p, system){
 // Rolle. Daraus folgt: Verbrauch = Flaeche / (2 x lange Kante) = halbe
 // KURZE Kante. 30x60 und 30x30 ergeben beide 0,15 m2 je lfdm.
 // Der Verschnitt steckt schon in dieser Regel - kein Aufschlag obendrauf.
-const SOCKEL_QM_STD  = 0.15;   // m2 je lfdm, wenn im Text kein Format steht
-const SOCKEL_KLEBER  = 1.00;   // EUR je lfdm (Erik: "Nimm fuer Kleber 1 Euro pro Meter")
-const SOCKEL_ZEIT    = 0.12;   // h je lfdm = 7,2 min (Erik 27.08.2026: erst
-                               // 10 min, dann "7,2 sind gut. Das nehmen wir")
+let SOCKEL_QM_STD  = 0.15;   // m2 je lfdm, wenn im Text kein Format steht
+let SOCKEL_KLEBER  = 1.00;   // EUR je lfdm (Erik: "Nimm fuer Kleber 1 Euro pro Meter")
+let SOCKEL_ZEIT    = 10/60;  // h je lfdm. Erik 27.08.2026 erst 10 min, dann
+                               // 7,2 - am 28.08.2026 zurueck auf 10 min.
 function sockelQmProM(txt){
   const f=formatAusText(txt);
   if(!f || !f.a || !f.b) return null;
@@ -3671,7 +3853,7 @@ function epSockel(p, system){
   zeilen.push(['Material roh','',roh]);
   zeilen.push(['Material × 1,20','',kalk]);
   const lohn=mitLohn ? SOCKEL_ZEIT*LOHN() : 0;
-  if(mitLohn) zeilen.push(['Lohn je Meter','0,12 h (7,2 min) × '+fmt(LOHN()), lohn]);
+  if(mitLohn) zeilen.push(['Lohn je Meter', (SOCKEL_ZEIT*60).toFixed(1).replace('.',',')+' min × '+fmt(LOHN())+'/h', lohn]);
   else        zeilen.push(['Lohn','nur Lieferung – kein Lohn',0]);
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn};
@@ -3681,10 +3863,10 @@ function epSockel(p, system){
 // Trasszementmoertelbett in die Fensterleibung.
 // Erik am 27.08.2026: Material "Kunststein, also der Agglo" (229,11 EUR/m2
 // bei Krueger), "20 Minuten und 7 Kilo Moertel" je laufendem Meter.
-const FB_ZEIT      = 20/60;  // h je lfdm
-const FB_MOERTEL_KG= 7.0;    // kg je lfdm
+let FB_ZEIT      = 20/60;  // h je lfdm
+let FB_MOERTEL_KG= 7.0;    // kg je lfdm
 const FB_MOERTEL   = {name:'RAW Natursteinmörtel NM weiß', gebinde:25};
-const FB_BREITE_STD= 0.20;   // m, wenn im Text keine Breite steht
+let FB_BREITE_STD= 0.20;   // m, wenn im Text keine Breite steht
 // "Breite: ca. 15 cm" bzw. "ca. 20 cm" steht im Langtext. ACHTUNG: der Text
 // nennt weiter oben auch "breite ca. 226 cm" - das ist die LAENGE der Bank.
 // Deshalb gezielt nach "Breite:" mit Doppelpunkt suchen.
@@ -3741,8 +3923,8 @@ function epFensterbank(p, system){
 // ===== WANDSPIEGEL (Stk) =================================================
 // Erik am 27.08.2026: Spiegel 99,12 EUR, "30 Minuten pro Spiegel".
 // Der Preis ist sein EK - die 20 % liegen wie ueberall auf dem Material.
-const SPIEGEL_EK   = 99.12;   // EUR je Stueck, im Rechner ueberschreibbar
-const SPIEGEL_ZEIT = 0.50;    // h je Stueck
+let SPIEGEL_EK   = 99.12;   // EUR je Stueck, im Rechner ueberschreibbar
+let SPIEGEL_ZEIT = 0.50;    // h je Stueck
 function epSpiegel(p){
   const zeilen=[], warn=[];
   const ek=(parseFloat(p.spiegelEk)>0) ? parseFloat(p.spiegelEk) : SPIEGEL_EK;
@@ -3761,8 +3943,8 @@ function epSpiegel(p){
 // Meter Stufenlaenge ab, das LV nach Stueck.
 // Erik am 28.08.2026 zu Moertel und Zeit: "lassen wir so, passt alles" -
 // also dieselben Werte wie beim Fliesen-Treppenbelag.
-const WST_MOERTEL_KG = 31.0;   // kg je m2 Aufstandsflaeche
-const WST_ZEIT_STK   = 100/60; // h je Stufe. Erik am 28.08.2026: "Hier brauchen
+let WST_MOERTEL_KG = 31.0;   // kg je m2 Aufstandsflaeche
+let WST_ZEIT_STK   = 100/60; // h je Stufe. Erik am 28.08.2026: "Hier brauchen
                                // 2 Mitarbeiter fuer eine Stufe 50 Minuten (also
                                // insgesamt x2). Das sind ja fertige Platten und
                                // das schafft nicht ein Mann allein." Also 100
@@ -7309,7 +7491,7 @@ async function speichereAbdichtung(){
 // mindestens 5 cm - das ist ein Minimum, nicht die Praxis). Auf 1,00 m
 // Bahnbreite sind 10 cm genau 10 % Mehrverbrauch. Bei Stossverlegung
 // entfaellt die Ueberlappung ganz.
-const DICHTBAHN_UEBERLAPP_CM = 10;
+let DICHTBAHN_UEBERLAPP_CM = 10;
 // Bahnbreite. Bei Verlegung AUF STOSS braucht jede Stossfuge zwischen zwei
 // Bahnen zusaetzlich Dichtband - das faellt in der Flaeche an, nicht nur am
 // Rand. Stossmeter je m² = 1/Bahnbreite - 1/Raumbreite. Die Raumbreite steht
