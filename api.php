@@ -238,7 +238,12 @@ switch ($action) {
 
     // ===== LVs LADEN (Übersicht) =====
     case 'get_lvs':
-        $rows = $pdo->query("SELECT id, titel, auftraggeber, status, summe, nutzer, created_at, updated_at FROM lvs ORDER BY updated_at DESC")->fetchAll();
+        // poslen = Laenge des gespeicherten Positionen-Textes. "[]" sind zwei
+        // Zeichen - daran erkennt das Archiv ein leeres LV, ohne die ganzen
+        // Positionen mitzuschicken (Erik am 28.08.2026: "und wir haben wieder
+        // ein leeres LV!!!" - so ist auf einen Blick zu sehen, ob wirklich
+        // nichts drin steht).
+        $rows = $pdo->query("SELECT id, titel, auftraggeber, status, summe, nutzer, created_at, updated_at, CHAR_LENGTH(positionen) AS poslen FROM lvs ORDER BY updated_at DESC")->fetchAll();
         echo json_encode(['ok' => true, 'lvs' => $rows]);
         break;
 

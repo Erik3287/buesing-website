@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 119';
+const APP_STAND = '28.08.2026 · 120';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -7765,8 +7765,12 @@ async function renderArchiv(){
       body.innerHTML = data.lvs.map(lv=>{
         const datum = lv.updated_at ? new Date(lv.updated_at).toLocaleDateString('de-DE') : '';
         const st = lv.status || 'bearbeitung';
+        const leer = (lv.poslen!=null) && (parseInt(lv.poslen)||0) <= 2;
         return `<tr>
-          <td><strong>${esc(lv.titel||'(ohne Titel)')}</strong></td>
+          <td><strong>${esc(lv.titel||'(ohne Titel)')}</strong>
+              <div style="font-size:11px;color:${leer?'var(--red)':'var(--muted)'};margin-top:2px">
+                Nr. ${lv.id}${leer?' · LEER – keine Positionen':(lv.poslen!=null?(' · '+Math.round(lv.poslen/1000)+' kB Positionen'):'')}
+              </div></td>
           <td>${esc(lv.auftraggeber||'')}</td>
           <td>${esc(lv.nutzer||'')}</td>
           <td style="text-align:right">${fmt(parseFloat(lv.summe)||0)} €</td>
