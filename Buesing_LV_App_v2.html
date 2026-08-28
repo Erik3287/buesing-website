@@ -738,7 +738,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 80';
+const APP_STAND = '28.08.2026 · 82';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1996,12 +1996,24 @@ function gleicheArtikel(a){
     // derselbe Lieferant, sonst stellt die App dessen eigene Eintraege
     // (Listenpreis und Rabattzeile) als zwei Anbieter nebeneinander.
     if(liefKurz(x.lief)===liefKurz(a.lief)) return;
-    if(eu(x)!==eu(a)) return;               // m² gegen Stück vergleicht nichts
     const xt=fabToken(x.name);
     if(xt.indexOf(kopf)<0) return;
     let treffer=0;
     at.forEach(function(w){ if(xt.indexOf(w)>-1) treffer++; });
     const anteil=treffer/at.length;
+    // Verschiedene Einheiten waren bisher ein Ausschluss. Damit blieb die
+    // Trittstufe unsichtbar: Keramundo rechnet sie je lfm, Krueger je m2
+    // (Erik 28.08.2026: "weshalb kann ich nicht zwischen den 2 Lieferanten
+    // waehlen?"). Jetzt zaehlt sie mit, verlangt aber eine deutlichere
+    // Namensuebereinstimmung - und die Preisprobe entfaellt, weil sich
+    // EUR/lfm und EUR/m2 nicht vergleichen lassen.
+    // Verschiedene Einheiten bleiben aussen vor: EUR/lfm und EUR/m2 lassen
+    // sich nicht vergleichen, und ohne Preisprobe kamen Fehlpaare zurueck
+    // (Naturstein-Fensterbank 407 EUR/m2 gegen Plattenware 54 EUR/lfm).
+    // Wo ein Artikel in zwei Einheiten angeboten wird - etwa die Trittstufe -
+    // steht die Wahl im Auswahlfeld des jeweiligen Rechners, mit Lieferant.
+    const gleicheEinheit = (eu(x)===eu(a));
+    if(!gleicheEinheit) return;
     if(treffer<2 || anteil<0.5) return;
     // Preisprobe: derselbe Artikel kostet bei zwei Haendlern nicht das
     // Doppelte. "Naturstein Nero Assoluto Fensterbank 407,00" und
@@ -2020,12 +2032,13 @@ function liefBtnHtml(p, i){
        + 'onclick="liefInfo('+i+')" title="'+esc(a.lief)+' – Preise der Lieferanten vergleichen">'
        + esc(k) + '</button></div>';
 }
-function liefZeile(i, x, aktiv, tauschbar){
+function liefZeile(i, x, aktiv, tauschbar, andereEinheit){
   const preis=fmt(x.ek)+' €'+(x.eu?('/'+String(x.eu).replace(/^\//,'')):'');
   return '<tr style="border-top:1px solid var(--line)">'
     + '<td style="padding:6px 8px;font-weight:600;white-space:nowrap">'+esc(liefKurz(x.lief)||'—')+'</td>'
     + '<td style="padding:6px 8px;text-align:right;font-weight:700;white-space:nowrap">'+esc(preis)+'</td>'
     + '<td style="padding:6px 8px;font-size:11px;color:var(--muted)">'+esc(x.name)
+      + (andereEinheit?'<br><span style="color:#c47d00">andere Einheit – nicht direkt vergleichbar</span>':'')
       + (x.dat?('<br>Preis vom '+esc(x.dat)):'') + '</td>'
     + '<td style="padding:6px 8px;white-space:nowrap">'
       + (aktiv ? '<span style="color:#1a9e4b;font-weight:600;font-size:11px">✓ gewählt</span>'
@@ -2040,7 +2053,10 @@ function liefInfo(i){
   const andere=gleicheArtikel(a);
   let h='<table style="width:100%;border-collapse:collapse;font-size:12px">'
       + liefZeile(i, a, true, tauschbar)
-      + andere.map(function(x){ return liefZeile(i, x, false, tauschbar); }).join('')
+      + andere.map(function(x){
+          const ae = String(x.eu||'').toLowerCase().replace(/^\//,'') !== String(a.eu||'').toLowerCase().replace(/^\//,'');
+          return liefZeile(i, x, false, tauschbar && !ae, ae);
+        }).join('')
       + '</table>';
   if(!andere.length){
     h += '<div style="font-size:11.5px;color:var(--muted);margin-top:8px">'
@@ -4470,8 +4486,8 @@ function renderCalcHTML(i){
     let inner='<option value="">– Stufe aus der Preisdatenbank wählen –</option>';
     wk.forEach(function(x){
       const sel=(p.stufeArt===x.name)?' selected':'';
-      inner+='<option value="'+esc(x.name)+'"'+sel+'>'+fmt(x.ek)+' €/'+esc(String(x.eu||'').replace(/^\//,''))
-           +' · '+esc(x.name.slice(0,52))+'</option>';
+      inner+='<option value="'+esc(x.name)+'"'+sel+'>'+esc(liefKurz(x.lief)||'?')+' · '+fmt(x.ek)+' €/'
+           +esc(String(x.eu||'').replace(/^\//,''))+' · '+esc(x.name.slice(0,48))+'</option>';
     });
     felder += '<div style="min-width:330px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Stufe</div>'
       +'<select onchange="waehleStufe('+i+',this.value)" style="width:100%;padding:6px 8px;font-size:12px">'+inner+'</select>'
@@ -4895,7 +4911,7 @@ function renderCalcHTML(i){
           + sortiert.map(function(x){
               const sel=(p.profilArt===x.name)?' selected':'';
               const passt=(st.mm && profilHoehe(x.name)===st.mm) ? '  ← passt zu '+hoeheTxt(st.mm)+' mm' : '';
-              return '<option value="'+esc(x.name)+'"'+sel+'>'+esc(x.name.replace(/^Rinklake /,''))+' · '+fmt(x.ek)+' €/m'+esc(passt)+'</option>';
+              return '<option value="'+esc(x.name)+'"'+sel+'>'+esc(liefKurz(x.lief)||'?')+' · '+esc(x.name.replace(/^Rinklake /,''))+' · '+fmt(x.ek)+' €/m'+esc(passt)+'</option>';
             }).join('')
           + '</optgroup>';
       });
