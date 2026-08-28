@@ -253,10 +253,10 @@ tr:hover td{background:#fafafa}
 
   <div id="lv-main" style="display:none">
     <div class="g4" style="margin-bottom:16px">
-      <div class="sc"><div class="sv" id="s-pos">0</div><div class="sl">Positionen</div></div>
-      <div class="sc"><div class="sv" style="color:var(--green)" id="s-g">0</div><div class="sl">Bepreist ✓</div></div>
-      <div class="sc"><div class="sv" style="color:var(--yellow)" id="s-y">0</div><div class="sl">Schätzung ~</div></div>
-      <div class="sc"><div class="sv" style="color:var(--red)" id="s-r">0</div><div class="sl">Offen !</div></div>
+      <div class="sc" id="k-alle"   onclick="ampelFilter('')"      style="cursor:pointer" title="Alle Positionen zeigen"><div class="sv" id="s-pos">0</div><div class="sl">Positionen</div></div>
+      <div class="sc" id="k-gruen"  onclick="ampelFilter('gruen')" style="cursor:pointer" title="Nur bepreiste zeigen"><div class="sv" style="color:var(--green)" id="s-g">0</div><div class="sl">Bepreist ✓</div></div>
+      <div class="sc" id="k-gelb"   onclick="ampelFilter('gelb')"  style="cursor:pointer" title="Nur Schätzungen zeigen"><div class="sv" style="color:var(--yellow)" id="s-y">0</div><div class="sl">Schätzung ~</div></div>
+      <div class="sc" id="k-rot"    onclick="ampelFilter('rot')"   style="cursor:pointer" title="Nur offene zeigen"><div class="sv" style="color:var(--red)" id="s-r">0</div><div class="sl">Offen !</div></div>
     </div>
     <div class="card">
       <div class="sh">
@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 132';
+const APP_STAND = '28.08.2026 · 133';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -6046,6 +6046,24 @@ function stufeAusLV(i){
 function uebernehmeEP(i){ const r=berechneEP(LV.pos[i], LV.system||'sakret'); LV.pos[i].ep=r.ep; LV.pos[i].status='gruen'; renderLV(); doSave(true); toast('EP übernommen: '+fmt(r.ep)+' €'); }
 function setLvSystem(v){ LV.system=v; renderLV(); }
 
+// Die vier Zaehler oben sind Knoepfe. Erik am 28.08.2026: "koennten wir die
+// Buttons interaktiv machen - wenn ich auf Positionen klicke, werden alle
+// Positionen angezeigt. Wenn ich Bepreist klicke, werden alle bepreisten
+// Positionen angezeigt ..." Nochmal auf denselben Knopf hebt den Filter auf.
+let AMPEL_FILTER = '';
+function ampelFilter(status){
+  AMPEL_FILTER = (AMPEL_FILTER === status) ? '' : status;
+  const marke = {'':'k-alle', gruen:'k-gruen', gelb:'k-gelb', rot:'k-rot'};
+  Object.keys(marke).forEach(function(k){
+    const el = document.getElementById(marke[k]);
+    if(!el) return;
+    const an = (k === AMPEL_FILTER) && k !== '';
+    el.style.outline = an ? '2px solid var(--accent)' : '';
+    el.style.background = an ? 'var(--surface2)' : '';
+  });
+  const suche = document.getElementById('lv-search');
+  filterLV(suche ? suche.value : '');
+}
 function filterLV(q){
   const s=(q||'').trim().toLowerCase();
   const rows=document.querySelectorAll('tr.pos-row');
@@ -6053,14 +6071,18 @@ function filterLV(q){
   rows.forEach(function(row){
     const i=row.getAttribute('data-i');
     const calc=document.querySelector('tr.calc-row[data-i="'+i+'"]');
-    const match = !s || (row.getAttribute('data-such')||'').indexOf(s)>-1;
+    const passtAmpel = !AMPEL_FILTER || (LV.pos[i] && LV.pos[i].status === AMPEL_FILTER);
+    const match = passtAmpel && (!s || (row.getAttribute('data-such')||'').indexOf(s)>-1);
     row.style.display = match?'':'none';
     if(calc && !match) calc.style.display='none';
     else if(calc && match && !LV.pos[i]._calcOpen) calc.style.display='none';
     if(match) treffer++;
   });
   const info=document.getElementById('lv-search-info');
-  if(info) info.textContent = s ? (treffer+' von '+rows.length+' Positionen') : '';
+  const label={gruen:'bepreist', gelb:'Schätzung', rot:'offen'}[AMPEL_FILTER];
+  if(info) info.textContent = (s || AMPEL_FILTER)
+    ? (treffer+' von '+rows.length+' Positionen'+(label?(' · nur '+label):''))
+    : '';
 }
 // ============================================
 // "VOM BIETER EINZUTRAGEN": Ausfülllinien im Positionstext werden Eingabefelder
@@ -6268,9 +6290,9 @@ function renderLV(){
       kalkBox.style.display='none';
     }
   }
-  // Suchfilter nach jedem Neu-Rendern wieder anwenden, damit er nicht verloren geht
+  // Such- UND Ampelfilter nach jedem Neu-Rendern wieder anwenden
   const sf=document.getElementById('lv-search');
-  if(sf && sf.value.trim()) filterLV(sf.value);
+  if((sf && sf.value.trim()) || AMPEL_FILTER) filterLV(sf ? sf.value : '');
   // Zurueck an die Stelle, an der Erik gerade gearbeitet hat.
   if(scrollVorher && typeof window!=='undefined' && window.scrollTo){
     window.scrollTo(0, scrollVorher);
