@@ -738,7 +738,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 78';
+const APP_STAND = '28.08.2026 · 79';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5337,7 +5337,7 @@ function renderLV(){
     // nie welche sein sollten.
     if(p.typ==='ueberschrift'){
       return `<tr class="pos-row" data-i="${i}" data-such="${suchtext}">
-        <td style="font-weight:700;color:var(--muted);font-size:13px">${p.nr||''}</td>
+        <td style="font-weight:700;color:var(--muted);font-size:13px;border-left:6px solid var(--line);padding-left:8px">${p.nr||''}</td>
         <td colspan="7" style="font-weight:700;font-size:13px;padding:10px 0 6px">${p.desc||''}</td>
         <td class="np"><select style="padding:3px 4px;font-size:11px;width:118px" onchange="upd(${i},'typ',this.value)">${typOptions(p.typ)}</select></td>
       </tr>`;
@@ -5347,7 +5347,7 @@ function renderLV(){
     if(p.status==='gruen')g++;else if(p.status==='gelb')y++;else r++;
     const bc=p.status==='gruen'?'var(--green)':p.status==='gelb'?'var(--yellow)':'var(--red)';
     return `<tr class="pos-row" data-i="${i}" data-such="${suchtext}">
-      <td style="font-weight:700;color:var(--accent);font-size:13px">${p.nr||''}</td>
+      <td style="font-weight:700;color:var(--accent);font-size:13px;border-left:6px solid ${bc};padding-left:8px">${p.nr||''}</td>
       <td><div style="font-size:13px;font-weight:600">${p.desc||''}</div>${langtextEditHtml(p,i)}${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${p.notiz}</div>`:''}</td>
       <td><select style="padding:4px 5px;font-size:11px;width:118px" onchange="upd(${i},'typ',this.value)">${typOptions(p.typ)}</select></td>
       <td><input type="number" step="0.01" value="${p.menge||''}" placeholder="0" oninput="upd(${i},'menge',this.value)" style="text-align:right;width:70px;padding:4px 6px"></td>
@@ -5361,7 +5361,7 @@ function renderLV(){
       </select></td>
       <td class="np" style="white-space:nowrap;text-align:center"><button class="bg sm" style="padding:3px 6px" onclick="toggleCalc(${i})" title="EP berechnen">🧮</button>${liefBtnHtml(p,i)}</td>
     </tr>
-    <tr class="calc-row" data-i="${i}" id="calc-${i}" style="${p._calcOpen?'':'display:none'}"><td colspan="9" style="background:#f7f9fc;padding:0 16px">${p._calcOpen?renderCalcHTML(i):''}</td></tr>`;
+    <tr class="calc-row" data-i="${i}" id="calc-${i}" style="${p._calcOpen?'':'display:none'}"><td colspan="9" style="background:#f7f9fc;padding:0 16px;border-left:6px solid ${bc}">${p._calcOpen?renderCalcHTML(i):''}</td></tr>`;
   }).join('');
   document.getElementById('s-pos').textContent=LV.pos.length;
   document.getElementById('s-g').textContent=g;
@@ -5461,12 +5461,18 @@ function doSave(silent){
   let summe=0;
   (LV.pos||[]).forEach(p=>{ summe += (parseFloat(p.menge)||0)*(parseFloat(p.ep)||0); });
   // in Datenbank speichern
+  // Ob ein Rechner gerade offen ist, gehoert nicht in die Datenbank. Sonst
+  // stehen beim naechsten Oeffnen des LV zwanzig Rechner offen (Erik
+  // 28.08.2026: "das nervt").
+  const positionenOhneAnsicht=(LV.pos||[]).map(function(q){
+    const k={}; for(const f in q){ if(f!=='_calcOpen') k[f]=q[f]; } return k;
+  });
   const payload={
     id: LV.id||0,
     titel: LV.titel||'',
     auftraggeber: LV.auftraggeber||'',
     status: LV.status||'bearbeitung',
-    positionen: LV.pos||[],
+    positionen: positionenOhneAnsicht,
     summe: summe,
     nutzer: (currentUser&&currentUser.name)||''
   };
@@ -7053,6 +7059,8 @@ async function ladeLV(id){
       LV.status = data.lv.status || 'bearbeitung';
       LV.system = data.lv.system || 'sakret';
       LV.pos = data.lv.positionen || [];
+    // Aus frueher gespeicherten Staenden: alle Rechner zu.
+    LV.pos.forEach(function(q){ delete q._calcOpen; });
       // Ansicht auf das geladene LV umschalten (das war der Bug: lv-main blieb versteckt)
       document.getElementById('lv-up').style.display='none';
       document.getElementById('lv-proc').style.display='none';
