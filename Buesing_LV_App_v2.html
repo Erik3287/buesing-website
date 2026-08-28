@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 141';
+const APP_STAND = '28.08.2026 · 142';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5130,9 +5130,18 @@ function wieVorUebernehmen(liste){
       if(parseFloat(liste[j].flieseEk)>0){ v=liste[j]; break; }
     }
     if(!v) continue;
+    // Geerbt wird nur eine GETROFFENE Entscheidung: Fabrikat MIT Preis, und
+    // kein blosser Vorschlag der Beschreibungssuche. Erik am 28.08.2026 zu
+    // 15.06.01.22: 'WARUM ZUR HOELLE WIRD DA JETZT DIE KERMOS CONCEPT
+    // FLIESE ANGEBOTEN???' - die Laibung hatte von der Wand ein Fabrikat
+    // geerbt, das dort nur als Vorschlag stand, ohne Preis. Halbes erben
+    // verteilt Halbgares durchs ganze LV.
+    const flieseEntschieden = parseFloat(v.flieseEk) > 0 && !v._vorschlag;
+    if(ziel.nurFliese && !flieseEntschieden) continue;
     const felder = ziel.nurFliese ? ['flieseEk','fabrikat','rektifiziert'] : erben;
     let geerbt=[];
     felder.forEach(function(f){
+      if((f==='flieseEk'||f==='fabrikat') && !flieseEntschieden) return;
       if((p[f]===undefined||p[f]==='') && v[f]!==undefined && v[f]!=='' ){ p[f]=v[f]; geerbt.push(f); }
     });
     if(geerbt.length){
