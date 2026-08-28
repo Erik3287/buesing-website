@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 133';
+const APP_STAND = '28.08.2026 · 134';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1045,8 +1045,8 @@ const WERTE = [
     ['WST_ZEIT_STK','Zeit je Trittstufe (2 Mann)','h',()=>WST_ZEIT_STK,v=>WST_ZEIT_STK=v],
     ['WST_ZEIT_SETZ','Zeit je Setzstufe (1 Mann)','h',()=>WST_ZEIT_SETZ,v=>WST_ZEIT_SETZ=v],
     ['WST_ZEIT_WINK','Zeit je Winkelstufe (2 Mann)','h',()=>WST_ZEIT_WINK,v=>WST_ZEIT_WINK=v],
-    ['WST_SILIKON_M','Silikon je Stufe','lfdm',()=>WST_SILIKON_M,v=>WST_SILIKON_M=v],
-    ['WST_RAND_M','Randstreifen je Stufe','lfdm',()=>WST_RAND_M,v=>WST_RAND_M=v],
+    ['WST_SILIKON_F','Silikon je Stufe','× Stufenlänge',()=>WST_SILIKON_F,v=>WST_SILIKON_F=v],
+    ['WST_RAND_F','Randstreifen je Stufe','× Auftritt',()=>WST_RAND_F,v=>WST_RAND_F=v],
     ['WST_RAND_EUR','Randstreifen Preis','€/lfdm',()=>WST_RAND_EUR,v=>WST_RAND_EUR=v],
   ]],
   ['Schutz / Abdeckung', [
@@ -4334,8 +4334,15 @@ let WST_ZEIT_SETZ  = 20/60;  // h je Setzstufe, ein Mann
 // die zeit auf keinen fall! dann nehmen wir 2 mitarbeiter brauchen fuer eine
 // Stufe 45 minuten" - also 90 Mannminuten = 1,50 h Gesamtzeit.
 let WST_ZEIT_WINK  = 1.50;   // h je Winkelstufe, Gesamtzeit beider Mann
-let WST_SILIKON_M  = 1.30;   // lfm Silikon je Stufe (Fuge hinten zur Setzstufe/Wand)
-let WST_RAND_M     = 0.60;   // lfm Randstreifen je Stufe (2 x 30 cm an den Enden)
+// Nicht als feste Meterzahl, sondern als Vielfaches des Stufenmasses. Erik am
+// 28.08.2026: "aber nicht jede Stufe ist 1,30m breit". Die Laenge und die
+// Auftrittbreite stehen im LV-Text und werden ohnehin gelesen; damit gilt der
+// Wert fuer jede Treppe, nicht nur fuer diese.
+//   Silikon    = Stufenlaenge (die Fuge hinten zur Setzstufe bzw. zur Wand)
+//   Randstreifen = 2 x Auftritt (an beiden Stufenenden hoch), bei der
+//                  Winkelstufe 2 x (Auftritt + Steigung)
+let WST_SILIKON_F  = 1.0;    // je Stufenlaenge
+let WST_RAND_F     = 2.0;    // je Auftrittbreite
 // Eigener Meterpreis fuer den Randstreifen an der Stufe. Die Festpreis-Zulage
 // randfuge (4,90) gilt weiter fuer eigenstaendige Randfugen-Positionen - an
 // der Stufe sind es nur ein paar Zentimeter Streifen ohne eigene Anfahrt.
@@ -4484,17 +4491,16 @@ function epWerksteinstufe(p, system){
   // Versiegelung und Entkopplung: Festpreise je Meter, also Endpreise. Sie
   // kommen NACH dem Aufschlag dazu, sonst waeren die 20 % doppelt drin.
   let sil=0, rand=0;
-  if(WST_SILIKON_M>0){
-    sil=WST_SILIKON_M*SILIKON.naturstein;
+  const silM = WST_SILIKON_F * ma.laenge;
+  if(silM>0){
+    sil=silM*SILIKON.naturstein;
     zeilen.push(['Dauerelastische Versiegelung',
-      WST_SILIKON_M.toFixed(2).replace('.',',')+' m × '+fmt(SILIKON.naturstein)+' €/m', sil]);
+      silM.toFixed(2).replace('.',',')+' m × '+fmt(SILIKON.naturstein)+' €/m', sil]);
   }
-  if(WST_RAND_M>0){
-    // Beim Winkel laeuft der Streifen auch am Setzschenkel hoch:
-    // 2 x (Auftritt + Steigung) statt 2 x Auftritt.
-    const randM = (ma.wink && ma.tiefe && ma.hoehe)
-      ? WST_RAND_M*((ma.tiefe+ma.hoehe)/ma.tiefe)
-      : WST_RAND_M;
+  // Beim Winkel laeuft der Streifen auch am Setzschenkel hoch:
+  // 2 x (Auftritt + Steigung) statt 2 x Auftritt.
+  const randM = WST_RAND_F * ((ma.tiefe||0) + (ma.wink ? (ma.hoehe||0) : 0));
+  if(randM>0){
     rand=randM*WST_RAND_EUR;
     zeilen.push(['Randstreifen (schalltechnische Entkopplung)',
       randM.toFixed(2).replace('.',',')+' m × '+fmt(WST_RAND_EUR)+' €/m', rand]);
