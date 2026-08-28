@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 128';
+const APP_STAND = '28.08.2026 · 129';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4949,6 +4949,55 @@ function zwillingeUebernehmen(liste){
   });
   return {anzahl:uebernommen, nummern:betroffen};
 }
+// Fast gleich ist auch gleich. Erik am 28.08.2026 zu 15.04.4: "haben wir auch
+// schon. GENAU DAS GLEICHE" - die beiden Texte unterscheiden sich in einem
+// einzigen Wort ("Serie Extra / Betonico" gegen "Serie Extra"), sind also zu
+// 99,6 % identisch. Zeichengleichheit zu verlangen ist an dieser Stelle
+// zu streng.
+// Gemessen wird ueber gemeinsame Woerter (Dice): doppelte Schnittmenge
+// geteilt durch die Summe beider Wortzahlen. Das ist schnell genug fuer 192
+// Positionen und stolpert nicht ueber eine umgestellte Zeile.
+function textWorte(p){
+  const k = zwillingSchluessel(p);
+  if(!k) return null;
+  // Zahlen zaehlen mit, auch die kurzen: "Plattendicke 2 cm" gegen "4 cm"
+  // ist der ganze Unterschied zwischen Setz- und Trittstufe.
+  const w = k.split('|')[1].split(' ').filter(function(x){
+    return x.length > 2 || /\d/.test(x);
+  });
+  return w.length < 8 ? null : w;
+}
+function textAehnlich(a, b){
+  if(!a || !b) return 0;
+  const za = {};
+  a.forEach(function(w){ za[w] = (za[w]||0) + 1; });
+  let gemeinsam = 0;
+  b.forEach(function(w){ if(za[w] > 0){ za[w]--; gemeinsam++; } });
+  return (2 * gemeinsam) / (a.length + b.length);
+}
+const ZWILLING_SCHWELLE = 0.96;
+// Woerter, an denen sich zwei Positionen grundsaetzlich unterscheiden. Steht
+// eines davon im Unterschied, ist es KEINE gleiche Leistung - egal wie
+// aehnlich der Rest ist. 15.03.14 (Trittstufe) und 15.03.15 (Setzstufe) sind
+// zu 98 % wortgleich und trotzdem zwei verschiedene Bauteile.
+const NIE_GLEICH = /^(trittstufe|trittstufen|setzstufe|setzstufen|winkelstufe|winkelstufen|sockel|sockelleiste|sockelfliesen|wandfliese|wandfliesen|bodenfliese|bodenfliesen|treppe|treppen|boden|wand)$/i;
+function unterschiedIstWesentlich(d){
+  const alle = d.nurHier.concat(d.nurDort);
+  return alle.some(function(w){ return NIE_GLEICH.test(w) || /\d/.test(w); });
+}
+// Welche Woerter stehen nur in einem der beiden Texte? Damit Erik in der
+// Rueckfrage sieht, WORIN sich die Positionen unterscheiden.
+function textUnterschied(a, b){
+  const zb = {};
+  b.forEach(function(w){ zb[w] = (zb[w]||0) + 1; });
+  const nur = [];
+  a.forEach(function(w){ if(zb[w] > 0) zb[w]--; else if(nur.indexOf(w) < 0) nur.push(w); });
+  const nurB = [];
+  const za = {};
+  a.forEach(function(w){ za[w] = (za[w]||0) + 1; });
+  b.forEach(function(w){ if(za[w] > 0) za[w]--; else if(nurB.indexOf(w) < 0) nurB.push(w); });
+  return {nurHier: nur.slice(0,8), nurDort: nurB.slice(0,8)};
+}
 // Eine Position gruen zu setzen heisst: diese Leistung ist geprueft. Steht
 // dieselbe Leistung wortgleich noch anderswo im LV, ist sie dort genauso
 // geprueft. Erik am 28.08.2026: "warum sollen wir mit 15.04.2 weiter machen,
@@ -4958,12 +5007,37 @@ function zwillingeMitGruen(i){
   const p = LV.pos[i];
   const k = zwillingSchluessel(p);
   if(!k || !(parseFloat(p.ep) > 0)) return;
-  const andere = LV.pos.filter(function(q){
-    return q !== p && q.status !== 'gruen' && zwillingSchluessel(q) === k;
+  const worte = textWorte(p);
+  const gleich = [], fast = [];
+  LV.pos.forEach(function(q){
+    if(q === p || q.status === 'gruen' || q.typ !== p.typ) return;
+    if(zwillingSchluessel(q) === k){ gleich.push(q); return; }
+    const wq = textWorte(q);
+    const ae = textAehnlich(worte, wq);
+    if(ae < ZWILLING_SCHWELLE) return;
+    const d = textUnterschied(worte, wq);
+    if(unterschiedIstWesentlich(d)) return;   // Maß oder Bauteil unterscheidet sich
+    fast.push({p:q, ae:ae, d:d});
   });
+  const andere = gleich.slice();
+  if(fast.length){
+    // Fast gleiche NICHT stillschweigend mitnehmen - erst zeigen, worin sie
+    // sich unterscheiden.
+    const zeilen = fast.map(function(f){
+      const t = [];
+      if(f.d.nurHier.length) t.push('nur hier: ' + f.d.nurHier.join(' '));
+      if(f.d.nurDort.length) t.push('nur dort: ' + f.d.nurDort.join(' '));
+      return '   ' + (f.p.nr||'?') + '  (' + Math.round(f.ae*100) + ' % gleich)'
+           + (t.length ? '\n      ' + t.join('\n      ') : '');
+    });
+    if(confirm('Fast dieselbe Leistung steht noch ' + fast.length + '× im LV:\n\n'
+             + zeilen.join('\n') + '\n\nDiese mit übernehmen?')){
+      fast.forEach(function(f){ andere.push(f.p); });
+    }
+  }
   if(!andere.length) return;
   const nrn = andere.map(function(q){ return q.nr || '?'; });
-  if(!confirm('Diese Leistung steht wortgleich noch ' + andere.length + '× im LV:\n\n'
+  if(!confirm('Dieselbe Leistung steht noch ' + andere.length + '× im LV:\n\n'
             + nrn.join(', ') + '\n\n'
             + 'Dort ebenfalls ' + fmt(p.ep) + ' € eintragen und auf Grün setzen?')) return;
   andere.forEach(function(q){
