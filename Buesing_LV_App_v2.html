@@ -755,11 +755,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 89';
-// Beim Start die eigenen Kalkulationswerte anwenden, bevor irgendetwas
-// gerechnet wird.
-try{ werteAnwenden(); }catch(e){}
-try{ werteLaden(); }catch(e){}
+const APP_STAND = '28.08.2026 · 90';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1116,8 +1112,19 @@ function werteAlle(){
 let WERTE_STD = null;   // Startwerte, einmal beim Laden gemerkt
 function werteStdMerken(){
   if(WERTE_STD) return;
-  WERTE_STD={};
-  werteAlle().forEach(function(g){ g[1].forEach(function(e){ WERTE_STD[e[0]]=e[3](); }); });
+  // Erst in eine Hilfsliste, dann uebernehmen. Bricht das Auslesen mittendrin
+  // ab, bleibt WERTE_STD leer und wird beim naechsten Mal neu versucht - sonst
+  // stuende dort eine halbe Liste und alles Fehlende wuerde auf undefined
+  // gesetzt (dann rechnet die App gar nichts mehr).
+  const hilf={};
+  try{
+    werteAlle().forEach(function(g){ g[1].forEach(function(e){
+      const v=e[3]();
+      if(typeof v!=='number' || !isFinite(v)) throw new Error('Wert fehlt: '+e[0]);
+      hilf[e[0]]=v;
+    }); });
+  }catch(err){ console.warn('Kalkulationswerte noch nicht bereit:', err.message); return; }
+  WERTE_STD=hilf;
 }
 function werteEigene(){
   try{ return JSON.parse(localStorage.getItem('buesing_werte')||'{}'); }catch(e){ return {}; }
@@ -1164,6 +1171,7 @@ function setWerteStatus(txt){
 }
 function werteAnwenden(){
   werteStdMerken();
+  if(!WERTE_STD) return;          // ohne Startwerte nichts anfassen
   const eig=werteEigene();
   werteAlle().forEach(function(g){
     g[1].forEach(function(e){
@@ -7762,6 +7770,12 @@ kalkuliere();
 initDB();
 // Lieferanten initial laden für Dropdowns
 dbGetLieferanten().then(l=>{LIEFERANTEN=l;});
+
+// Erst hier, ganz am Ende: jetzt sind alle Rechenwerte deklariert. Weiter
+// oben lief das ins Leere - die Werte gibt es an dieser Stelle des Skripts
+// noch nicht, der Aufruf brach still ab (28.08.2026).
+try{ werteAnwenden(); }catch(e){ console.warn('Kalkulationswerte:', e); }
+try{ werteLaden(); }catch(e){ console.warn('Kalkulationswerte laden:', e); }
 </script>
 </body>
 </html>
