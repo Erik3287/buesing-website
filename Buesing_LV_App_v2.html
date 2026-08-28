@@ -738,7 +738,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 74';
+const APP_STAND = '28.08.2026 · 75';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1379,8 +1379,12 @@ const TYP_REGELN = [
   ['treppenbelag',  ['treppenfliesen','treppenstufenauftritt','treppenstufenantritt',
                      'auftritt der treppenstufen','antritt der treppenstufen',
                      'stufenauftritt','stufenantritt','treppenbelag']],
-  ['wand',          ['wandbelag','wandfliesen','steingut-wandfliesen','wandkeramik']],
-  ['boden',         ['bodenbelag','bodenfliesen','feinsteinzeug','anarbeiten von bodenfliesen']],
+  // Einzahl UND Mehrzahl. '15.06.01.14 Bodenfliese 30 x 30 cm' traf keine
+  // Regel im Titel, deshalb entschied der Langtext - und dort steht die
+  // Abdichtung des Bades. Zwei Positionen rechneten so 16,43 EUR/m2
+  // Abdichtungspreis statt Fliesen legen (Erik 28.08.2026).
+  ['wand',          ['wandbelag','wandfliesen','wandfliese','steingut-wandfliesen','wandkeramik']],
+  ['boden',         ['bodenbelag','bodenfliesen','bodenfliese','feinsteinzeug','anarbeiten von bodenfliesen']],
 ];
 // Umlaute einebnen, sonst trifft die Regel "dichtband" nicht auf die
 // Ueberschrift "Dichtbaender": ae ist nicht a. Genau daran ist eine
@@ -3937,7 +3941,9 @@ function autoEP(p, system){
   if(!p.typ) p.typ = erkenneTyp(p.desc, p.langtext, p.einheit);
 
   if(p.typ === 'ueberschrift'){
+    // Nicht rot lassen: eine Ueberschrift ist nichts, was noch zu tun waere.
     p.ep = 0; p.menge = 0; p.notiz = '';
+    if(p.status !== 'gruen') p.status = 'gelb';
     return p;
   }
   if(p.typ === 'unbekannt'){
