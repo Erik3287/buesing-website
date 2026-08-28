@@ -424,6 +424,8 @@ tr:hover td{background:#fafafa}
     <div style="font-size:12px;color:var(--muted)">
       Hier stehen alle Zahlen, mit denen die Rechner arbeiten. Was du änderst, gilt sofort für jedes LV.
       Geänderte Werte sind blau umrandet; daneben steht der Auslieferungswert mit einem ↩ zum Zurücksetzen.
+      Die Einheitspreise im LV werden dabei sofort neu gerechnet — grüne Positionen bleiben stehen.
+      <b>Nicht zu verwechseln</b> mit der Einheitspreisberechnung darunter: die rechnet einen einzelnen Preis zum Ausprobieren und ändert nichts am LV.
       <span id="werte-kopf" style="font-weight:600"></span>
       <span id="werte-status" style="color:#1a9e4b"></span>
     </div>
@@ -751,7 +753,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 84';
+const APP_STAND = '28.08.2026 · 85';
 // Beim Start die eigenen Kalkulationswerte anwenden, bevor irgendetwas
 // gerechnet wird.
 try{ werteAnwenden(); }catch(e){}
@@ -1137,7 +1139,7 @@ async function werteLaden(){
     WERTE_QUELLE = 'Datenbank';
     werteAnwenden();
     renderWerte();
-    if(LV && LV.pos && LV.pos.length) renderLV();
+    werteInsLVUebernehmen();
   }catch(e){ /* offline: die Kopie im Browser gilt weiter */ }
 }
 async function werteSpeichern(){
@@ -1176,19 +1178,41 @@ function werteSetzen(key, roh){
   werteAnwenden();
   renderWerte();
   werteSpeichern();
-  if(LV && LV.pos && LV.pos.length) renderLV();
+  werteInsLVUebernehmen();
+}
+// Ein geaenderter Wert muss die Einheitspreise NEU RECHNEN. renderLV()
+// zeichnet nur neu und zeigt die gespeicherten Preise - Erik am 28.08.2026:
+// "ich gebe einen neuen Wert ein ... zurueck in die LV-Kalkulation, der Wert
+// ist noch der alte." Gruene Positionen bleiben unangetastet, sie sind ja
+// bewusst festgesetzt.
+function werteInsLVUebernehmen(){
+  if(!(LV && LV.pos && LV.pos.length)) return;
+  let geaendert=0, geschuetzt=0;
+  LV.pos.forEach(function(p){
+    if(p.typ==='ueberschrift') return;
+    if(p.status==='gruen'){ geschuetzt++; return; }
+    const alt=parseFloat(p.ep)||0;
+    autoEP(p, LV.system||'sakret');
+    if(Math.abs((parseFloat(p.ep)||0)-alt)>0.005) geaendert++;
+  });
+  renderLV();
+  scheduleSave();
+  if(geaendert || geschuetzt){
+    setWerteStatus('· '+geaendert+' Position(en) neu gerechnet'
+      + (geschuetzt?(' · '+geschuetzt+' grüne unangetastet'):''));
+  }
 }
 function werteZuruecksetzen(key){
   const eig=werteEigene(); delete eig[key];
   try{ localStorage.setItem('buesing_werte', JSON.stringify(eig)); }catch(e){}
   werteAnwenden(); renderWerte(); werteSpeichern();
-  if(LV && LV.pos && LV.pos.length) renderLV();
+  werteInsLVUebernehmen();
 }
 function werteAllesZurueck(){
   if(!confirm('Alle Kalkulationswerte auf den Auslieferungsstand zurücksetzen?')) return;
   try{ localStorage.removeItem('buesing_werte'); }catch(e){}
   werteAnwenden(); renderWerte(); werteSpeichern();
-  if(LV && LV.pos && LV.pos.length) renderLV();
+  werteInsLVUebernehmen();
   toast('Alle Werte zurückgesetzt.');
 }
 function renderWerte(){
