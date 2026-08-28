@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 103';
+const APP_STAND = '28.08.2026 · 104';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1660,8 +1660,14 @@ const TYP_REGELN = [
   ['randfuge',      ['randfuge','weichfedernder randstreifen','randstreifen','randdämmstreifen','randdaemmstreifen']],
   // 'Schutzabdeck., Tritt-/Setzstufen/Podeste' ist eine Abdeckung, keine
   // Stufe - muss vor der Werksteinstufe stehen (Erik 28.08.2026).
+  // "Schutzpappe fuer Bodenbelagsflaechen" stand am 28.08.2026 in fuenf
+  // Positionen (252,5 m²) als Typ "boden" - also mit 57,78 EUR/m² fuers
+  // Fliesenlegen statt mit dem Preis fuers Abdecken. Ursache: das Wort
+  // "Schutzpappe" fehlte hier, waehrend "Bodenbelagsflaechen" und
+  // "Bodenbelaege" im Text den Bodenrechner zogen.
   ['schutz',        ['schutz von fußböden','hartfaserplatten','bodenbelag schützen','schutzvlies',
-                     'abdecken mit','schutzabdeck','abdeckung mit vlies']],
+                     'schutzpappe','schutzpapier','abdecken mit','schutzabdeck','abdeckung mit vlies',
+                     'schutz vor schädigenden einwirkungen']],
   ['werksteinstufe',['trittstufe','trittstufen','setzstufe','setzstufen','winkelstufe','winkelstufen']],
   // Ueberschriften wie "Untergrund saeubern" waren nicht erfasst - 15 von 16
   // Reinigungspositionen im LV-15 blieben deshalb ohne Typ (Erik 27.08.2026).
