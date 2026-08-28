@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 129';
+const APP_STAND = '28.08.2026 · 130';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5019,26 +5019,23 @@ function zwillingeMitGruen(i){
     if(unterschiedIstWesentlich(d)) return;   // Maß oder Bauteil unterscheidet sich
     fast.push({p:q, ae:ae, d:d});
   });
-  const andere = gleich.slice();
-  if(fast.length){
-    // Fast gleiche NICHT stillschweigend mitnehmen - erst zeigen, worin sie
-    // sich unterscheiden.
-    const zeilen = fast.map(function(f){
-      const t = [];
-      if(f.d.nurHier.length) t.push('nur hier: ' + f.d.nurHier.join(' '));
-      if(f.d.nurDort.length) t.push('nur dort: ' + f.d.nurDort.join(' '));
-      return '   ' + (f.p.nr||'?') + '  (' + Math.round(f.ae*100) + ' % gleich)'
-           + (t.length ? '\n      ' + t.join('\n      ') : '');
-    });
-    if(confirm('Fast dieselbe Leistung steht noch ' + fast.length + '× im LV:\n\n'
-             + zeilen.join('\n') + '\n\nDiese mit übernehmen?')){
-      fast.forEach(function(f){ andere.push(f.p); });
-    }
-  }
+  // EINE Rueckfrage, nicht zwei. Erik am 28.08.2026: "ABER 15.03.4 und
+  // 15.04.4 SIND DOCH EXAKT GLEICH!!" - sie standen unter der Ueberschrift
+  // "Fast dieselbe Leistung" und daneben "100 % gleich". Das widersprach
+  // sich. Jetzt stehen alle in einer Liste, jede mit dem Grund.
+  const andere = gleich.concat(fast.map(function(f){ return f.p; }));
   if(!andere.length) return;
-  const nrn = andere.map(function(q){ return q.nr || '?'; });
+  const zeilen = gleich.map(function(q){
+    return '   ' + (q.nr||'?') + '   wortgleich';
+  }).concat(fast.map(function(f){
+    const t = f.d.nurHier.concat(f.d.nurDort).join(' ');
+    // Nie 100 % anzeigen, wenn der Text nicht wirklich gleich ist.
+    const pr = Math.min(99, Math.floor(f.ae*100));
+    return '   ' + (f.p.nr||'?') + '   ' + pr + ' % gleich'
+         + (t ? '\n         Unterschied: ' + t : '');
+  }));
   if(!confirm('Dieselbe Leistung steht noch ' + andere.length + '× im LV:\n\n'
-            + nrn.join(', ') + '\n\n'
+            + zeilen.join('\n') + '\n\n'
             + 'Dort ebenfalls ' + fmt(p.ep) + ' € eintragen und auf Grün setzen?')) return;
   andere.forEach(function(q){
     ERBEN_FELDER.forEach(function(f){
