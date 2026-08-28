@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 121';
+const APP_STAND = '28.08.2026 · 122';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -3820,9 +3820,20 @@ let SCH_ZEIT     = 4.5/60; // h je m²: auslegen, Stoesse verkleben, unterhalten
 // Wandanschluesse staubdicht verklebt", spaeter Ausbau und Entsorgung. Jede
 // Stufe muss einzeln zugeschnitten werden - deshalb eigenes Material und eine
 // eigene Zeit.
-let SCH_OSB_EK   = 14.20;  // EUR/m²: Vlies 1,90 + OSB 15 mm 10,50
-                           //         + Klebeband 1,20 + Entsorgung 0,60
-let SCH_ZEIT_OSB = 18/60;  // h je m²: zuschneiden, verlegen, staubdicht
+// Die abgerechneten 19 m² sind weniger als die Arbeit: Auftritt
+// 32 x 0,25 x 1,30 = 10,40 m² plus Setzstufe 32 x 0,1719 x 1,30 = 7,13 m²
+// = 17,53 m² echte Oberflaeche, und dafuer braucht man mit Verschnitt rund
+// 22 m² Platte. Umgelegt auf die 19 Abrechnungsquadratmeter:
+//   OSB 15 mm   22 m² x 8,00 = 176 EUR -> 9,26 EUR/m²
+//   Vlies       22 m² x 1,90 =  42 EUR -> 2,20 EUR/m²
+//   Klebeband   (32 Stufen, alle Wandanschluesse) -> 2,50 EUR/m²
+//   Entsorgung  (rund 200 kg Holz)               -> 2,00 EUR/m²
+// Zeit je Stufe: 5 min zuschneiden, 5 min verlegen und abkleben, 3 min
+// ausbauen = 13 min. 32 Stufen = 6,9 h; auf 19 m² sind das 22 min/m².
+// Aufgerundet auf 24, weil "Ausbau nach Anweisung der Bauleitung" auch
+// abschnittsweise heissen kann.
+let SCH_OSB_EK   = 15.95;  // EUR/m² Material, siehe oben
+let SCH_ZEIT_OSB = 24/60;  // h je m²: zuschneiden, verlegen, staubdicht
                            //          verkleben, ausbauen, entsorgen
 const SCH_LABEL = {pappe:'Schutzpappe', vlies:'Schutzvlies',
                    hartfaser:'Hartfaserplatten', osb:'Vlies + OSB-Verlegeplatte'};
