@@ -758,7 +758,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 167';
+const APP_STAND = '29.08.2026 · 168';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -3695,8 +3695,45 @@ function epProfil(p, system){
   zeilen.push(['Material × 1,20','',kalk]);
   const lohn=0.15*LOHN();
   zeilen.push(['Einbau',lohnTxt(0.15),lohn]);
-  const ep=Math.round((kalk+lohn)*100)/100;
+  let ep=kalk+lohn;
+  // Nach STUECK ausgeschrieben: der Meterpreis muss auf ein Stueck
+  // umgerechnet werden. Die Laenge steht im Langtext - bei 01.02.0070
+  // (Materialtrennschiene, 3 St) sind es 0,76 m je Schiene, zusammen also
+  // 2,28 m. Erik am 29.08.2026: "Im LV-Langtext der Schiene steht eine
+  // Laenge (0,76 Meter). Das muss das Programm erkennen. Multipliziert mit 3
+  // macht das 2,28 Meter. Dann wieder zurueck rechnen."
+  if(einheitKlasse(p.einheit)==='stueck'){
+    const l = profilLaengeStueck(p);
+    if(l > 0){
+      const menge=parseFloat(p.menge)||0;
+      zeilen.push(['Umrechnung auf das Stück',
+        fmt(ep)+' €/m × '+l.toFixed(2).replace('.',',')+' m je Stück'
+        + (menge?(' · '+fmt(menge)+' × '+l.toFixed(2).replace('.',',')+' m = '+fmt(menge*l)+' m gesamt'):''), null]);
+      ep = ep * l;
+    } else {
+      warn.push('EINGABE|Position rechnet je Stück – Länge je Schiene (m) im Rechner eintragen');
+    }
+  }
+  ep=Math.round(ep*100)/100;
   return {ep, zeilen, warn, unsicher:(!gewaehlt && !erk.sicher)};
+}
+// Laenge EINER Schiene, wenn die Position nach Stueck abgerechnet wird.
+// Nicht die Stangenlaenge ("a 2,70 m", "Liefereinheit 2,50 m") - die sagt
+// nur, wie das Profil geliefert wird.
+function profilLaengeStueck(p){
+  if(parseFloat(p.profilLaenge)>0) return parseFloat(p.profilLaenge);
+  const t=((p.desc||'')+' '+(p.langtext||'')).replace(/\s+/g,' ');
+  const ohneStange=t.replace(/(?:à|a|je|pro)\s*\d+[.,]?\d*\s*m\b/gi,'')
+                    .replace(/liefer(?:einheit|l(?:ä|ae)nge)[^.;]{0,30}/gi,'')
+                    .replace(/stangenl(?:ä|ae)nge[^.;]{0,30}/gi,'');
+  const m = ohneStange.match(/(?:l(?:ä|ae)nge|lg\.?|abwicklung|zuschnitt)[^\d]{0,18}(\d+(?:[.,]\d+)?)\s*(m|cm|mm)\b/i)
+         || ohneStange.match(/(\d+(?:[.,]\d+)?)\s*(m|cm)\s*(?:lang|l(?:ä|ae)nge)/i);
+  if(!m) return 0;
+  const v=parseFloat(String(m[1]).replace(',','.'));
+  const e=(m[2]||'m').toLowerCase();
+  const meter = e==='mm' ? v/1000 : (e==='cm' ? v/100 : v);
+  // Ueber 5 m je Stueck ist mit Sicherheit keine Einzelschiene
+  return (meter>0 && meter<=5) ? meter : 0;
 }
 // ===== FENSTERLAIBUNG / ABLAGE (Zulage) ==================================
 // Wandfliesenarbeit auf schmalen Streifen: gleiche Fliese, gleiches Rezept,
@@ -5067,14 +5104,17 @@ function autoEP(p, system){
   // Stueckzahl richtig, nicht der Typ falsch: die Position wird zum
   // Formteil/Stueckpreis und fragt nach dem Preis, statt rot zu blockieren.
   if(einheitKlasse(p.einheit)==='stueck'
-     && ['profil','wand','boden','laibung'].indexOf(p.typ)>-1 && !p._typHand){
+     && ['wand','boden','laibung'].indexOf(p.typ)>-1 && !p._typHand){
     p.typ='formteil';
     p.notiz='nach Stück ausgeschrieben – als Einzelteil gerechnet';
   }
   // Einheit gegen Typ pruefen: eine Flaeche in "m" oder ein Profil in "m²"
   // ist ein Widerspruch und meist ein Zeichen fuer den falschen Typ.
   const sollK = einheitKlasse(p.einheit), istK = typKlasse(p.typ);
-  if(sollK && istK && sollK !== istK){
+  // Ein Profil nach Stueck ist kein Widerspruch: der Rechner setzt den
+  // Meterpreis ueber die Laenge je Schiene auf das Stueck um (29.08.2026).
+  const profilStueck = (p.typ==='profil' && sollK==='stueck');
+  if(sollK && istK && sollK !== istK && !profilStueck){
     const wort = {flaeche:'Fläche (m²)', laenge:'Länge (m)', stueck:'Stück'};
     p.ep = 0; p.status = 'rot';
     p.notiz = 'Typ passt nicht zur Einheit: „'+(TYPEN.find(function(t){return t[0]===p.typ;})||['',''])[1]
@@ -5326,7 +5366,7 @@ function wieVorZiel(p){
 }
 // Alles, was eine Entscheidung an der Position festhaelt. Wird von "wie vor"
 // geerbt.
-const ERBEN_FELDER = ['behandlungArt','sockelArt','stufeArt','profilArt','zstArt','bplArt','abdichtArt','wKlasse',
+const ERBEN_FELDER = ['behandlungArt','sockelArt','stufeArt','profilArt','zstArt','bplArt','profilLaenge','abdichtArt','wKlasse',
   'spachtelModus','spachtelArt','entkopplungArt','entkopplungBandM','rektifiziert','reinigungArt',
   'grundArt','umfang','oberflaeche','stufe','untergrund','silikonArt','schutzArt',
   'flieseEk','fabrikat','stufeLaenge','stufeTiefeW','sockelQm','spiegelEk','bieterFelder'];
@@ -5722,6 +5762,15 @@ function renderCalcHTML(i){
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Spiegel €/Stück (dein EK)</div>'
       +'<input type="number" step="0.01" value="'+(p.spiegelEk||'')+'" placeholder="'+SPIEGEL_EK.toFixed(2)+'" '
       +'oninput="setSpiegel('+i+',this.value)" style="width:120px;padding:6px 8px"></div>';
+  }
+  if(p.typ==='profil' && einheitKlasse(p.einheit)==='stueck'){
+    const l=profilLaengeStueck(p);
+    felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Länge je Schiene (m)</div>'
+      +'<input type="number" step="0.01" value="'+(l?l.toFixed(2):'')+'" placeholder="0,76" '
+      +'oninput="setProfilLaenge('+i+',this.value)" style="width:110px;padding:6px 8px">'
+      +'<div style="font-size:11px;color:'+(l?'#1a9e4b':'var(--red)')+';margin-top:3px">'
+      + (l?('🟢 '+l.toFixed(2).replace('.',',')+' m aus dem LV-Text'):'🔴 keine Länge im Text gefunden')
+      +'</div></div>';
   }
   if(p.typ==='bauplatte'){
     const bk=bauplatteKandidaten();
@@ -6550,6 +6599,11 @@ function waehleProfil(i, name){
     fabrikatSetzen(p, name);
   }
   calcGeaendert(i);
+}
+function setProfilLaenge(i,v){
+  const m=parseFloat(String(v).replace(',','.'));
+  LV.pos[i].profilLaenge = (m>0) ? m : '';
+  calcGeaendertLeise(i);
 }
 function waehleBauplatte(i, name){
   const p=LV.pos[i];
