@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 147';
+const APP_STAND = '29.08.2026 · 148';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -2575,7 +2575,7 @@ function epFliese(p, system){
   const mitFliese   = p.umfang!=='nur_verlegen';   // bei "nur verlegen" ist nur die FLIESE bauseits
   const mitBauchemie= p.umfang!=='nur_liefern';    // Kleber+Fuge nur, wenn auch verlegt wird
   const mitLohn     = p.umfang!=='nur_liefern';
-  if(!erkU.sicher) warn.push('PRUEFEN|Leistungsumfang prüfen – '+erkU.grund);
+  if(!erkU.sicher && !p._umfangHand) warn.push('PRUEFEN|Leistungsumfang prüfen – '+erkU.grund);
   const flieseEk=parseFloat(p.flieseEk)||0;
   let fliese=0;
   if(mitFliese){
@@ -4064,7 +4064,7 @@ function epBetonwerkstein(p, system){
   const sys=SYSTEME[system]||SYSTEME.sakret;
   const erkU=erkenneUmfang(p.desc, p.langtext);
   if(!p.umfang) p.umfang=erkU.u;
-  if(!erkU.sicher) warn.push('PRUEFEN|Leistungsumfang prüfen – '+erkU.grund);
+  if(!erkU.sicher && !p._umfangHand) warn.push('PRUEFEN|Leistungsumfang prüfen – '+erkU.grund);
   const mitPlatte    = p.umfang!=='nur_verlegen';
   const mitBauchemie = p.umfang!=='nur_liefern';
   const mitLohn      = p.umfang!=='nur_liefern';
@@ -4166,7 +4166,7 @@ function epTreppenbelag(p, system){
   const sys=SYSTEME[system]||SYSTEME.sakret;
   const erkU=erkenneUmfang(p.desc, p.langtext);
   if(!p.umfang) p.umfang=erkU.u;
-  if(!erkU.sicher) warn.push('PRUEFEN|Leistungsumfang prüfen – '+erkU.grund);
+  if(!erkU.sicher && !p._umfangHand) warn.push('PRUEFEN|Leistungsumfang prüfen – '+erkU.grund);
   const mitFliese    = p.umfang!=='nur_verlegen';
   const mitBauchemie = p.umfang!=='nur_liefern';
   const mitLohn      = p.umfang!=='nur_liefern';
@@ -4262,7 +4262,7 @@ function epSockel(p, system){
   const warn=[], zeilen=[];
   const erkU=erkenneUmfang(p.desc, p.langtext);
   if(!p.umfang) p.umfang=erkU.u;
-  if(!erkU.sicher) warn.push('PRUEFEN|Leistungsumfang prüfen – '+erkU.grund);
+  if(!erkU.sicher && !p._umfangHand) warn.push('PRUEFEN|Leistungsumfang prüfen – '+erkU.grund);
   const mitFliese    = p.umfang!=='nur_verlegen';
   const mitBauchemie = p.umfang!=='nur_liefern';
   const mitLohn      = p.umfang!=='nur_liefern';
@@ -4334,7 +4334,7 @@ function epFensterbank(p, system){
   const warn=[], zeilen=[];
   const erkU=erkenneUmfang(p.desc, p.langtext);
   if(!p.umfang) p.umfang=erkU.u;
-  if(!erkU.sicher) warn.push('PRUEFEN|Leistungsumfang prüfen – '+erkU.grund);
+  if(!erkU.sicher && !p._umfangHand) warn.push('PRUEFEN|Leistungsumfang prüfen – '+erkU.grund);
   const mitPlatte    = p.umfang!=='nur_verlegen';
   const mitBauchemie = p.umfang!=='nur_liefern';
   const mitLohn      = p.umfang!=='nur_liefern';
@@ -5251,7 +5251,9 @@ function renderCalcHTML(i){
   if(p.typ==='wand' || p.typ==='boden' || p.typ==='laibung' || p.typ==='betonwerkstein' || p.typ==='treppenbelag' || p.typ==='sockel' || p.typ==='fensterbank'){
     const erkU=erkenneUmfang(p.desc, p.langtext);
     if(!p.umfang) p.umfang=erkU.u;
-    const ampelU = erkU.sicher ? '<span style="color:#1a9e4b">🟢 '+erkU.grund+'</span>' : '<span style="color:#e0a800">🟡 '+erkU.grund+'</span>';
+    const ampelU = p._umfangHand
+      ? '<span style="color:#1a9e4b">🟢 von Hand festgelegt – geprüft</span>'
+      : (erkU.sicher ? '<span style="color:#1a9e4b">🟢 '+erkU.grund+'</span>' : '<span style="color:#e0a800">🟡 '+erkU.grund+'</span>');
     felder+='<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Leistungsumfang</div>'
       +'<select onchange="setUmfang('+i+',this.value)" style="width:auto;padding:6px 8px">'
       + UMFAENGE.map(function(u){return '<option value="'+u[0]+'"'+(u[0]===p.umfang?' selected':'')+'>'+u[1]+'</option>';}).join('')
@@ -6065,7 +6067,12 @@ function hinweisBestaetigen(i){
 function setReinigung(i,v){ LV.pos[i].reinigungArt=v; calcGeaendert(i); }
 function setBehandlung(i,v){ LV.pos[i].behandlungArt=v; calcGeaendert(i); }
 function setRektifiziert(i,v){ LV.pos[i].rektifiziert=(v==='1'||v===1||v===true); calcGeaendert(i); }
-function setUmfang(i,v){ LV.pos[i].umfang=v; calcGeaendert(i); }
+function setUmfang(i,v){
+  // Von Hand gewaehlt = geprueft. Erik am 29.08.2026: "wenn ich haendisch
+  // umstelle, waere es schoen, wenn der Hinweis gruen wird. Gelbe Hinweise
+  // suggerieren immer Fehler." Der Pruef-Hinweis entfaellt dann.
+  LV.pos[i].umfang=v; LV.pos[i]._umfangHand=true; calcGeaendert(i);
+}
 function setOberflaeche(i,v){ LV.pos[i].oberflaeche=v; calcGeaendert(i); }
 function setFarbe(i,v){ LV.pos[i].farbe=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 // Vorspachtel/Bodenausgleich: Modus schaltet Felder um -> ganzes Rechner-Panel neu bauen
@@ -6769,7 +6776,7 @@ function exportDatenObjekt(){
         // waren Eriks Entscheidungen weg.
         ...(function(){
           const extra={};
-          ERBEN_FELDER.concat(['laibBreite','hinweisOk','gruenAuto','_typHand','_wieVor'])
+          ERBEN_FELDER.concat(['laibBreite','hinweisOk','gruenAuto','_typHand','_wieVor','_umfangHand','_fabTouched'])
             .forEach(function(f){
               if(p[f]!==undefined && p[f]!=='' && !(Array.isArray(p[f]) && !p[f].length)) extra[f]=p[f];
             });
