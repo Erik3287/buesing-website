@@ -758,7 +758,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 163';
+const APP_STAND = '29.08.2026 · 164';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -6607,6 +6607,31 @@ function langtextPrintHtml(p){
   if(k<0 && f[0]) html += ' '+esc(f[0]);
   return html;
 }
+// Summe einer Titel- oder Bereichsgruppe (15.03 bzw. 15.06.01). Zaehlt nur
+// die Positionen, die direkt zu dieser Ebene gehoeren: 15.06.01 bekommt
+// 15.06.01.x, aber 15.06 NICHT die Positionen seiner Bereiche - sonst
+// stuende dieselbe Summe zweimal da, wie im Original auch nicht.
+function gruppenSumme(nr){
+  const key=String(nr||'').trim();
+  const raus={summe:0, bedarf:0, n:0, nBedarf:0, wahl:false};
+  if(!key) return raus;
+  const tiefe=key.split('.').length;
+  (LV.pos||[]).forEach(function(q){
+    if(q.typ==='ueberschrift') return;
+    const n2=(q.nr||'').trim();
+    if(n2.indexOf(key+'.')!==0) return;
+    // Nur die naechste Ebene: 15.06 zaehlt 15.06.1, nicht 15.06.01.3
+    if(n2.split('.').length !== tiefe+1) return;
+    const gp=(parseFloat(q.menge)||0)*(parseFloat(q.ep)||0);
+    if(istBedarfPos(q)){
+      raus.bedarf+=gp; raus.nBedarf++;
+      if(/wahlposition|alternativposition|alternativpos\b/i.test((q.desc||'')+' '+(q.langtext||''))) raus.wahl=true;
+    } else { raus.summe+=gp; raus.n++; }
+  });
+  raus.summe=Math.round(raus.summe*100)/100;
+  raus.bedarf=Math.round(raus.bedarf*100)/100;
+  return raus;
+}
 function renderLV(){
   const b=document.getElementById('pos-body');
   // Die Tabelle wird komplett neu aufgebaut. Der Browser springt dabei nach
@@ -6631,9 +6656,20 @@ function renderLV(){
     // zaehlen nicht in die Ampel. Sonst stehen im LV-15 16 rote Zeilen, die
     // nie welche sein sollten.
     if(p.typ==='ueberschrift'){
-      return `<tr class="pos-row" data-i="${i}" data-such="${suchtext}">
+      // Die Ueberschrift traegt die Summe ihrer Gruppe - so wie im
+      // Zusammenfassungsblatt des LV. Erik am 29.08.2026: "was machen wir mit
+      // der Uebersicht - die muss auch zusammengefasst und ausgefuellt
+      // werden." Ohne das stehen die Titelzeilen leer da.
+      const g = gruppenSumme(p.nr);
+      const summeTxt = g.n
+        ? `<span style="font-variant-numeric:tabular-nums">${g.wahl?'[ '+fmt(g.summe)+' ]':fmt(g.summe)} €</span>`
+          + (g.nBedarf ? `<div style="font-size:10.5px;font-weight:400;color:#0047c7">+ ${g.nBedarf} Bedarf/Wahl ${fmt(g.bedarf)} €</div>` : '')
+        : `<span style="font-size:11px;font-weight:400;color:var(--muted)">nur Textinformation</span>`;
+      return `<tr class="pos-row" data-i="${i}" data-such="${suchtext}" style="background:var(--surface2)">
         <td style="font-weight:700;color:var(--muted);font-size:13px;border-left:6px solid var(--line);padding-left:8px">${p.nr||''}</td>
-        <td colspan="7" style="font-weight:700;font-size:13px;padding:10px 0 6px">${p.desc||''}</td>
+        <td colspan="5" style="font-weight:700;font-size:13px;padding:10px 0 6px">${p.desc||''}
+          <span style="font-weight:400;font-size:11px;color:var(--muted);margin-left:8px">${(p.nr||'').split('.').length>2?'Bereich':'Titel'}${g.n?' · '+g.n+' Positionen':''}</span></td>
+        <td colspan="2" style="text-align:right;font-weight:700;font-size:13px;padding:10px 8px 6px;white-space:nowrap">${summeTxt}</td>
         <td class="np"><select style="padding:3px 4px;font-size:11px;width:118px" onchange="upd(${i},'typ',this.value)">${typOptions(p.typ)}</select></td>
       </tr>`;
     }
