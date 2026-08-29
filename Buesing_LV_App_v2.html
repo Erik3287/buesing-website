@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 154';
+const APP_STAND = '29.08.2026 · 155';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4948,6 +4948,13 @@ function autoEP(p, system){
                     .some(function(f){ return fabrikatGleich(p.fabrikat, f); });
     if(!imText) hinweis.push('Fabrikat „'+p.fabrikat+'" steht NICHT im LV-Text und wurde nicht von Hand gewählt – bestätigen oder Fliese ändern');
   }
+  // Widersprechen sich KI und Stichwortregeln beim Typ, entscheidet Erik.
+  if(p._kiTyp && p._kiTyp!==p.typ && !p._typHand){
+    const lblKi   = (TYPEN.find(function(t){return t[0]===p._kiTyp;})||['',p._kiTyp])[1];
+    const lblReg  = (TYPEN.find(function(t){return t[0]===p.typ;})||['',p.typ])[1];
+    hinweis.push('Die KI liest diese Position als „'+lblKi+'", die Regeln als „'+lblReg+'" – Typ prüfen (im Auswahlfeld umstellbar)');
+  }
+  if(p._typHand) delete p._kiTyp;
   // Fehlende EINGABEN (ein Preis, eine Wahl) kann man nicht "zur Kenntnis
   // nehmen" - die Position bleibt gelb, bis die Eingabe da ist. Nur echte
   // Pruef-Hinweise sind per OK bestaetigbar.
@@ -5043,7 +5050,24 @@ function importPos(roh){
   // Vermerk noch da, im gekuerzten Langtext spaeter oft nicht mehr.
   if(roh.bedarf===true || roh.bedarf===false) p.bedarf = roh.bedarf;
   else if(BEDARF_WORTE.test((p.desc||'')+' '+(p.langtext||''))) p.bedarf = true;
+  // Seit dem 29.08.2026 klassifiziert die KI beim Lesen jede Position mit
+  // ('kategorie'). Die Stichwortregeln bleiben die Kontrolle:
+  //   beide einig            -> Typ gesetzt, fertig
+  //   Regeln wissen nichts   -> KI-Typ gilt, mit Vermerk
+  //   beide widersprechen sich -> Regel-Typ gilt, aber die Position wird
+  //                               gelb mit Hinweis (siehe autoEP) - Erik
+  //                               entscheidet. Preise rechnet IMMER nur das
+  //                               Regelwerk, die KI nie.
   p.typ = erkenneTyp(p.desc, p.langtext, p.einheit);
+  const kiTyp = String(roh.kategorie||'').trim();
+  if(kiTyp && kiTyp!=='unbekannt' && TYPEN.some(function(t){ return t[0]===kiTyp; })){
+    if(p.typ==='unbekannt'){
+      p.typ = kiTyp;
+      p.notiz = 'Typ von der KI erkannt: ' + kiTyp;
+    } else if(kiTyp !== p.typ){
+      p._kiTyp = kiTyp;   // Widerspruch - autoEP macht daraus einen Hinweis
+    }
+  }
 
   // Abdichtung: erkannte Werte festhalten, damit "wie vor" sie weitergeben kann
   if(p.typ==='abdicht_flaeche'){
@@ -6840,7 +6864,7 @@ function exportDatenObjekt(){
         // waren Eriks Entscheidungen weg.
         ...(function(){
           const extra={};
-          ERBEN_FELDER.concat(['laibBreite','hinweisOk','gruenAuto','_typHand','_wieVor','_umfangHand','_fabTouched'])
+          ERBEN_FELDER.concat(['laibBreite','hinweisOk','gruenAuto','_typHand','_wieVor','_umfangHand','_fabTouched','_kiTyp'])
             .forEach(function(f){
               if(p[f]!==undefined && p[f]!=='' && !(Array.isArray(p[f]) && !p[f].length)) extra[f]=p[f];
             });
