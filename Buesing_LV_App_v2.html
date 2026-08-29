@@ -758,7 +758,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 162';
+const APP_STAND = '29.08.2026 · 163';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4947,6 +4947,13 @@ function berechneEPKern(p, system){
 //   gruen= ausschliesslich von Erik von Hand, nie automatisch
 function autoEP(p, system){
   system = system || LV.system || 'sakret';
+  // Handarbeit ist unantastbar: ein selbst eingetragener Preis bleibt stehen,
+  // die Position bleibt gruen. Nur der Hinweis wird aktualisiert.
+  if(p._epHand && parseFloat(p.ep) > 0){
+    if(p.status !== 'gruen'){ p.status='gruen'; }
+    p.notiz = 'Preis von Hand eingetragen';
+    return p;
+  }
   if(!p.typ) p.typ = erkenneTyp(p.desc, p.langtext, p.einheit);
 
   if(p.typ === 'ueberschrift'){
@@ -6706,7 +6713,20 @@ function renderLV(){
 }
 
 function upd(i,f,v){
-  if(f==='menge'||f==='ep') LV.pos[i][f]=parseFloat(v)||0;
+  // Komma als Dezimaltrennzeichen zulassen - '88,50' wurde bisher zu 88.
+  if(f==='menge'||f==='ep') LV.pos[i][f]=parseFloat(String(v).replace(',','.'))||0;
+  // Ein von Hand eingetippter Einheitspreis ist eine Entscheidung und wird
+  // NIE wieder ueberschrieben. Erik am 29.08.2026: "das LV war komplett
+  // fertig. nach dem upload der datei ist wieder eine position auf rot" -
+  // die Nachpruefung beim Laden hatte seine Handarbeit angefasst.
+  if(f==='ep' && (parseFloat(String(v).replace(',','.'))||0) > 0){
+    const p=LV.pos[i];
+    p._epHand = true;
+    // Ein selbst eingetragener Preis heisst: geprueft. Ampel auf Gruen.
+    if(p.status!=='gruen'){ p.status='gruen'; delete p.gruenAuto; }
+    p.notiz = 'Preis von Hand eingetragen';
+    const amp=document.getElementById('st-'+i); if(amp) amp.value='gruen';
+  }
   else LV.pos[i][f]=v;
   // Die Einheit steuert die Rechnung (Laibung: m² oder je Meter) - neu rechnen.
   if(f==='einheit'){
@@ -6973,7 +6993,7 @@ function exportDatenObjekt(){
         // waren Eriks Entscheidungen weg.
         ...(function(){
           const extra={};
-          ERBEN_FELDER.concat(['laibBreite','hinweisOk','gruenAuto','_typHand','_wieVor','_umfangHand','_fabTouched','_kiTyp'])
+          ERBEN_FELDER.concat(['laibBreite','hinweisOk','gruenAuto','_typHand','_wieVor','_umfangHand','_fabTouched','_kiTyp','_epHand'])
             .forEach(function(f){
               if(p[f]!==undefined && p[f]!=='' && !(Array.isArray(p[f]) && !p[f].length)) extra[f]=p[f];
             });
@@ -8684,6 +8704,14 @@ async function delLV(id, titel){
 // 'Duschelement' mit Mosaikzeilen.
 function lvKomplettPruefen(){
   if(!(LV && LV.pos && LV.pos.length)) return 0;
+  // Altbestand schuetzen: was Erik selbst auf Gruen gestellt hat, hat auch
+  // einen von ihm verantworteten Preis. Vor der ersten Nachpruefung eines
+  // gespeicherten LV wird das nachgetragen, damit die Sperre auch fuer alles
+  // gilt, was vor dem 29.08.2026 entstanden ist.
+  LV.pos.forEach(function(q){
+    if(q.typ!=='ueberschrift' && q.status==='gruen' && !q.gruenAuto
+       && parseFloat(q.ep)>0 && q._epHand===undefined) q._epHand=true;
+  });
   // Beim Oeffnen werden ALLE Positionen neu geprueft, die Erik nicht
   // selbst auf Gruen gestellt hat. Ohne das blieben gespeicherte
   // Automatik-Gruens einfach stehen - die neun nie gewaehlten
@@ -8694,6 +8722,7 @@ function lvKomplettPruefen(){
   LV.pos.forEach(function(q){
     if(q.typ==='ueberschrift') return;
     if(q.status==='gruen' && !q.gruenAuto) return;   // Eriks Gruen ist gesperrt
+    if(q._epHand && parseFloat(q.ep)>0) return;      // von Hand eingetragener Preis
     // Auch der TYP wird beim Oeffnen neu geprueft - ein falsch
     // gespeicherter Typ zieht sonst den kompletten falschen Rechner nach
     // sich (15.06.01.6 stand als 'Duschelement' mit Mosaikzeilen im LV,
