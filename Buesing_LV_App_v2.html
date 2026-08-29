@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 145';
+const APP_STAND = '28.08.2026 · 146';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5022,7 +5022,10 @@ function importPos(roh){
 // Pos. zuvor" (15.06.01.22, im LV mit Tippfehler 'euvor'), "Material und
 // Fuge: wie Bodenbelag" (15.03.23) und "passend zu den Boden und
 // Treppenbelag zuvor" (15.03.21).
-const WIE_VOR = /\b(wie\s+(vor|zuvor|vorstehend|oben|beschrieben)|wie\s+pos(ition)?\.?\s*[0-9]|gleichen?\s+material\s+wie|material\s+(und\s+fuge\s*:?\s*)?wie|wie\s+(die\s+)?(wand|boden)(fliesen?|belag)|(der\s+)?pos\.?\s*zuvor|belag\s+zuvor)/i;
+// 'passend zu den Flurbelag (60x30 cm)' (15.04.8) ist ebenfalls ein
+// ausdruecklicher Bezug - nur ohne das Wort 'zuvor'. Jedes 'passend zu ...
+// belag' zaehlt.
+const WIE_VOR = /\b(wie\s+(vor|zuvor|vorstehend|oben|beschrieben)|wie\s+pos(ition)?\.?\s*[0-9]|gleichen?\s+material\s+wie|material\s+(und\s+fuge\s*:?\s*)?wie|wie\s+(die\s+)?(wand|boden)(fliesen?|belag)|(der\s+)?pos\.?\s*zuvor|belag\s+zuvor|passend\s+zu[a-zä]*\s+(den\s+|dem\s+|der\s+)?[a-zäöüß]*belag)/i;
 function wieVorKopf(p){
   return ((p.desc||'')+' '+(p.langtext||'')).slice(0,220).toLowerCase()
          .replace(/euvor/g,'zuvor');   // Tippfehler im LV-Original
@@ -5036,10 +5039,14 @@ function istWieVor(p){
 // Fliese geerbt, nicht die uebrige Ausfuehrung.
 function wieVorZiel(p){
   const k = wieVorKopf(p);
-  if(/wandflies|wandbelag|wie\s+(die\s+)?wand\b/.test(k))   return {typ:'wand',   nurFliese:p.typ!=='wand'};
-  if(/bodenflies|bodenbelag|wie\s+(der\s+)?boden\b/.test(k)) return {typ:'boden',  nurFliese:p.typ!=='boden'};
-  if(/treppenbelag/.test(k) && p.typ!=='treppenbelag')          return {typ:'treppenbelag', nurFliese:true};
-  return {typ:p.typ, nurFliese:false};
+  if(/wandflies|wandbelag|wie\s+(die\s+)?wand\b/.test(k))   return {typen:['wand'],  nurFliese:p.typ!=='wand'};
+  if(/bodenflies|bodenbelag|wie\s+(der\s+)?boden\b/.test(k)) return {typen:['boden'], nurFliese:p.typ!=='boden'};
+  if(/treppenbelag/.test(k) && p.typ!=='treppenbelag')          return {typen:['treppenbelag'], nurFliese:true};
+  // 'Flurbelag', 'Belag zuvor' - irgendein Belag: die naechste vorherige
+  // Boden- oder Treppenposition ist gemeint.
+  if(/[a-zäöüß]*belag/.test(k) && p.typ!=='boden' && p.typ!=='treppenbelag')
+    return {typen:['boden','treppenbelag'], nurFliese:true};
+  return {typen:[p.typ], nurFliese:false};
 }
 // Alles, was eine Entscheidung an der Position festhaelt. Wird von "wie vor"
 // geerbt.
@@ -5137,7 +5144,7 @@ function wieVorUebernehmen(liste){
     const ziel = wieVorZiel(p);
     let v=null;
     for(let j=i-1;j>=0;j--){
-      if(liste[j].typ!==ziel.typ) continue;
+      if(ziel.typen.indexOf(liste[j].typ)<0) continue;
       if(!v) v=liste[j];
       if(parseFloat(liste[j].flieseEk)>0){ v=liste[j]; break; }
     }
