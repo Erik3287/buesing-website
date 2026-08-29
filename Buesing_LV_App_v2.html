@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 155';
+const APP_STAND = '29.08.2026 · 156';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -6827,6 +6827,7 @@ async function positionsdateiLaden(datei){
   if(d.system) LV.system = d.system;
   LV.id = vorherId;              // dasselbe LV weiterschreiben, kein zweites anlegen
   showTab('lv', document.querySelector('.nb'));
+  try{ lvKomplettPruefen(); }catch(e){ console.warn('Nachpruefung:', e); }
   renderLV();
   doSave(true);
   toast(LV.pos.length+' Positionen eingelesen'
@@ -7898,6 +7899,13 @@ try{
       document.getElementById('lv-up').style.display='none';
       document.getElementById('lv-main').style.display='block';
       document.getElementById('lv-tit').textContent=LV.titel||'LV-Kalkulation';
+      // Auch die Wiederherstellung nach einem Seiten-Neuladen bekommt die
+      // volle Nachpruefung - hier haengt lvKomplettPruefen noch nicht im
+      // Skript, deshalb verzoegert.
+      setTimeout(function(){
+        try{ lvKomplettPruefen(); }catch(e){ console.warn('Nachpruefung:', e); }
+        renderLV();
+      }, 0);
       renderLV();
     }
   }
@@ -8310,6 +8318,61 @@ async function delLV(id, titel){
   toast('LV gelöscht');
 }
 
+// Die komplette Nachpruefung eines geladenen LV: Typen neu erkennen,
+// Positionen neu rechnen, Duplikate markieren, wie-vor-Bezuege aufloesen.
+// Sie MUSS ueberall laufen, wo ein LV in die Ansicht kommt - auch bei der
+// Wiederherstellung aus dem Browser-Speicher nach einem Neuladen der Seite.
+// Genau dieser Weg lief bis zum 29.08.2026 daran vorbei: Erik stand auf
+// Stand 155, drueckte Strg+F5, und 15.06.01.16 blieb trotzdem das alte
+// 'Duschelement' mit Mosaikzeilen.
+function lvKomplettPruefen(){
+  if(!(LV && LV.pos && LV.pos.length)) return 0;
+  // Beim Oeffnen werden ALLE Positionen neu geprueft, die Erik nicht
+  // selbst auf Gruen gestellt hat. Ohne das blieben gespeicherte
+  // Automatik-Gruens einfach stehen - die neun nie gewaehlten
+  // 'Kermos Concept'-Positionen standen trotz eingebauter Heilung
+  // weiter gruen da (Erik am 28.08.2026: 'meine guete - fangen wir
+  // jetzt wieder von vorne an?'). Von Hand gesetztes Gruen bleibt
+  // unangetastet.
+  LV.pos.forEach(function(q){
+    if(q.typ==='ueberschrift') return;
+    if(q.status==='gruen' && !q.gruenAuto) return;   // Eriks Gruen ist gesperrt
+    // Auch der TYP wird beim Oeffnen neu geprueft - ein falsch
+    // gespeicherter Typ zieht sonst den kompletten falschen Rechner nach
+    // sich (15.06.01.6 stand als 'Duschelement' mit Mosaikzeilen im LV,
+    // obwohl es eine reine Abdichtungsposition ist; Erik am 29.08.2026).
+    // Von Hand gewaehlte Typen bleiben stehen.
+    if(!q._typHand){
+      const neuTyp = istUeberschriftPos(q, LV.pos) ? 'ueberschrift'
+                   : erkenneTyp(q.desc, q.langtext, q.einheit);
+      if(neuTyp && neuTyp!=='unbekannt' && neuTyp!==q.typ){
+    q.typ = neuTyp;
+    delete q.stufe; delete q.oberflaeche; delete q.rutsch;
+    if(!q._umfangHand) delete q.umfang;
+    q.notiz = (q.notiz?q.notiz+' · ':'') + 'Typ neu erkannt';
+      }
+    }
+    if(q.typ==='ueberschrift') return;
+    try{ autoEP(q, LV.system||'sakret'); }catch(e){}
+  });
+  // Doppelte Positionsnummern sind ein Importfehler - 15.06.01.11 lag
+  // zweimal im LV, einmal als Fragment mit Menge 0 (29.08.2026). Beide
+  // bekommen einen unuebersehbaren Vermerk; Erik loescht das Fragment.
+  (function(){
+    const zaehl = {};
+    LV.pos.forEach(function(q){ const n=(q.nr||'').trim(); if(n) zaehl[n]=(zaehl[n]||0)+1; });
+    LV.pos.forEach(function(q){
+      const n=(q.nr||'').trim();
+      if(n && zaehl[n]>1 && q.typ!=='ueberschrift')
+    q.notiz='⚠ Nr. '+n+' steht '+zaehl[n]+'× im LV – Duplikat prüfen und eines löschen'
+       +(q.notiz?' · '+q.notiz:'');
+    });
+  })();
+  // Ausdrueckliche "wie vor"-Bezuege aufloesen: die Wandfliese wird oft
+  // erst nach dem Import gewaehlt - beim naechsten Oeffnen zieht die
+  // Laibung sie nach. Fuellt nur leere Felder, ist also gefahrlos.
+  return wieVorUebernehmen(LV.pos);
+}
 async function ladeLV(id){
   try{
     const res = await fetch(API_URL+'?action=get_lv&id='+id);
@@ -8333,51 +8396,7 @@ async function ladeLV(id){
       document.getElementById('lv-proc').style.display='none';
       document.getElementById('lv-main').style.display='block';
       const tit=document.getElementById('lv-tit'); if(tit) tit.textContent = LV.titel || 'LV-Kalkulation';
-      // Beim Oeffnen werden ALLE Positionen neu geprueft, die Erik nicht
-      // selbst auf Gruen gestellt hat. Ohne das blieben gespeicherte
-      // Automatik-Gruens einfach stehen - die neun nie gewaehlten
-      // 'Kermos Concept'-Positionen standen trotz eingebauter Heilung
-      // weiter gruen da (Erik am 28.08.2026: 'meine guete - fangen wir
-      // jetzt wieder von vorne an?'). Von Hand gesetztes Gruen bleibt
-      // unangetastet.
-      LV.pos.forEach(function(q){
-        if(q.typ==='ueberschrift') return;
-        if(q.status==='gruen' && !q.gruenAuto) return;   // Eriks Gruen ist gesperrt
-        // Auch der TYP wird beim Oeffnen neu geprueft - ein falsch
-        // gespeicherter Typ zieht sonst den kompletten falschen Rechner nach
-        // sich (15.06.01.6 stand als 'Duschelement' mit Mosaikzeilen im LV,
-        // obwohl es eine reine Abdichtungsposition ist; Erik am 29.08.2026).
-        // Von Hand gewaehlte Typen bleiben stehen.
-        if(!q._typHand){
-          const neuTyp = istUeberschriftPos(q, LV.pos) ? 'ueberschrift'
-                                                       : erkenneTyp(q.desc, q.langtext, q.einheit);
-          if(neuTyp && neuTyp!=='unbekannt' && neuTyp!==q.typ){
-            q.typ = neuTyp;
-            delete q.stufe; delete q.oberflaeche; delete q.rutsch;
-            if(!q._umfangHand) delete q.umfang;
-            q.notiz = (q.notiz?q.notiz+' · ':'') + 'Typ neu erkannt';
-          }
-        }
-        if(q.typ==='ueberschrift') return;
-        try{ autoEP(q, LV.system||'sakret'); }catch(e){}
-      });
-      // Doppelte Positionsnummern sind ein Importfehler - 15.06.01.11 lag
-      // zweimal im LV, einmal als Fragment mit Menge 0 (29.08.2026). Beide
-      // bekommen einen unuebersehbaren Vermerk; Erik loescht das Fragment.
-      (function(){
-        const zaehl = {};
-        LV.pos.forEach(function(q){ const n=(q.nr||'').trim(); if(n) zaehl[n]=(zaehl[n]||0)+1; });
-        LV.pos.forEach(function(q){
-          const n=(q.nr||'').trim();
-          if(n && zaehl[n]>1 && q.typ!=='ueberschrift')
-            q.notiz='⚠ Nr. '+n+' steht '+zaehl[n]+'× im LV – Duplikat prüfen und eines löschen'
-                   +(q.notiz?' · '+q.notiz:'');
-        });
-      })();
-      // Ausdrueckliche "wie vor"-Bezuege aufloesen: die Wandfliese wird oft
-      // erst nach dem Import gewaehlt - beim naechsten Oeffnen zieht die
-      // Laibung sie nach. Fuellt nur leere Felder, ist also gefahrlos.
-      const wv = wieVorUebernehmen(LV.pos);
+      const wv = lvKomplettPruefen();
       renderLV();
       showTab('lv', document.querySelector('.nb')); // sauber zum LV-Tab wechseln
       if(wv) doSave(true);
