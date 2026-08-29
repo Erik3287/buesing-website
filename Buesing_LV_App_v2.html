@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 150';
+const APP_STAND = '29.08.2026 · 151';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1838,6 +1838,15 @@ function erkenneTyp(desc, langtext, einheit){
     // Quadratmetern abgerechnet werden - Eriks Regel: die Einheit entscheidet.
     if(soll && soll!=='zeit') treffer = treffer.filter(function(t){ return t!=='stundenlohn'; });
     if(!treffer.length) continue;
+    // Die Ueberschrift nennt oft Bauteil UND Taetigkeit - 'Estrichflaeche/
+    // Duschelement abdichten' (15.06.01.6). Die Taetigkeit ist die Leistung:
+    // steht 'abdicht...' im Text, ist es eine Abdichtung, kein Duschelement
+    // (dessen Rechner Mosaik verlegen mit 2,2 h/m² ansetzt - EP 130,53 statt
+    // rund 18 EUR/m², 29.08.2026).
+    if(treffer.indexOf('abdicht_flaeche')>-1 && treffer.indexOf('duschelement')>-1
+       && /abdicht/i.test(quelle||'')){
+      treffer = treffer.filter(function(t){ return t!=='duschelement'; });
+    }
     if(soll){
       const passend = treffer.find(function(t){ const k=typKlasse(t); return k && k===soll; });
       if(passend) return passend;
