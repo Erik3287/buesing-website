@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 157';
+const APP_STAND = '29.08.2026 · 159';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1048,6 +1048,9 @@ const WERTE = [
     ['WST_SILIKON_F','Silikon je Stufe','× Stufenlänge',()=>WST_SILIKON_F,v=>WST_SILIKON_F=v],
     ['WST_RAND_F','Randstreifen je Stufe','× Auftritt',()=>WST_RAND_F,v=>WST_RAND_F=v],
     ['WST_RAND_EUR','Randstreifen Preis','€/lfdm',()=>WST_RAND_EUR,v=>WST_RAND_EUR=v],
+  ]],
+  ['Zulage Stufe', [
+    ['ZST_ZEIT','Einfräsen/Einsetzen','h/lfdm',()=>ZST_ZEIT,v=>ZST_ZEIT=v],
   ]],
   ['Zulage Gefälle', [
     ['GEF_ZEIT','Mehraufwand Gefälleverlegung','h/m²',()=>GEF_ZEIT,v=>GEF_ZEIT=v],
@@ -1629,7 +1632,7 @@ const TYPEN = [
   ['grundierung','Grundierung'],['spachtel','Vorspachtel'],['entkopplung','Entkopplung Boden'],['stundenlohn','Stundenlohn'],
   ['profil','Profil/Schiene'],['reservefliesen','Reservefliesen'],['loch','Loch/Anschnitt'],
   ['ablauf','Ablauf anarbeiten'],['ablauf_doppel','Ablauf doppelstöckig'],['hohlkehlsockel','Hohlkehlsockel'],
-  ['rohrkasten','Rohrkasten (lfm)'],['duschelement','Duschelement'],['zulage_gefaelle','Zulage Gefälleverlegung'],['fliesentausch','Fliesentausch'],['silikon','Silikon/Elast. Fuge'],
+  ['rohrkasten','Rohrkasten (lfm)'],['duschelement','Duschelement'],['zulage_gefaelle','Zulage Gefälleverlegung'],['zulage_stufe','Zulage Stufe (lfdm)'],['formteil','Formteil/Ecke (Stück)'],['fliesentausch','Fliesentausch'],['silikon','Silikon/Elast. Fuge'],
   ['randfuge','Randfuge'],['schutz','Schutz/Abdeckung'],['reinigung','Reinigung'],
   ['behandlung','Imprägnierung'],['sauberlaufmatte','Sauberlaufmatte'],['sauberlaufrahmen','Sauberlauf-Rahmen'],['baustelle','Baustelleneinrichtung'],
   ['unbekannt','— bitte wählen —'],
@@ -1656,6 +1659,16 @@ const TYP_REGELN = [
   // auch wenn die Ort-Zeile eines nennt (Erik am 29.08.2026: 'Es geht um
   // eine Position, welche die Mehrkosten fuer die Verlegung des Duschbodens
   // im Gefaelle definiert').
+  // 'Zulagen Stufen - Kontraststreifen / Gleitschutzstreifen' (15.03.19/20)
+  // blieben als 'Typ nicht erkannt' rot stehen. Beides ist Streifenarbeit an
+  // der Stufenkante je Meter - eigener Typ, damit der Preis nicht aus einem
+  // Fliesenrezept kommt (29.08.2026).
+  // 'Formteile fuer Kantenschutzprofil (Edelstahl)', 6 Stk (15.06.01.25):
+  // Profil-Zubehoer nach Stueck - der Profil-Rechner rechnet je Meter und
+  // meldete deshalb einen Einheiten-Widerspruch.
+  ['formteil',       ['formteil','formteile','eckstueck','eckstück']],
+  ['zulage_stufe',   ['kontraststreifen','gleitschutzstreifen','gleitschutz durch','pilzprofil',
+                      'zulagen stufen','zulage stufen','gleitschutz eingefräst','gleitschutz eingefraest']],
   ['zulage_gefaelle',['zul.verlegung gefälle','zul. verlegung gefälle','zulage verlegung gefälle',
                       'zulage für verlegung der bodenfliesen im gefälle','gefälleverlegung',
                       'im gefälle anstelle','zulage gefälle']],
@@ -1766,9 +1779,9 @@ function typNorm(t){
 const TYP_EINHEIT = {
   flaeche: ['wand','boden','naturstein','betonwerkstein','abdicht_flaeche','entkopplung','grundierung','spachtel',
             'duschelement','reinigung','behandlung','schutz','reservefliesen'],
-  laenge:  ['dichtband','profil','hohlkehlsockel','sockel','fensterbank','fb_kante','silikon','randfuge','sauberlaufrahmen','rohrkasten','matte_anarbeiten','schraegschnitt'],
+  laenge:  ['dichtband','profil','hohlkehlsockel','sockel','fensterbank','fb_kante','silikon','randfuge','sauberlaufrahmen','rohrkasten','matte_anarbeiten','schraegschnitt','zulage_stufe'],
   zeit:    ['stundenlohn'],
-  stueck:  ['manschette','dichtecke','loch','ablauf','ablauf_doppel','fliesentausch','treppenbelag','werksteinstufe','fb_rundung','spiegel','revision',
+  stueck:  ['manschette','dichtecke','loch','ablauf','ablauf_doppel','fliesentausch','treppenbelag','werksteinstufe','fb_rundung','spiegel','revision','formteil',
             // Das Rezept liefert den Preis der GANZEN Matte, nicht je m2.
             'sauberlaufmatte'],
 };
@@ -2178,8 +2191,13 @@ function istGleichwertig(t){ return istGleichwertigTxt(t); }
 //    AGROB-BUCHTAL - Serie Valley o.glw. Art"
 // Frueher meldete die App hier "LV nennt kein Fabrikat" - das Muster verlangte
 // "Fabr." oder "Fabrikat", im Text stand aber die Abkuerzung "Fabrk.".
-const FAB_ENDE = /\b(gr[oö]ße|groesse|format|oberfl[aä]che|farbe|verlege|untergrund|fugen|angebot|einbauort|menge)\b/i;
-const FAB_TRENN = /\bo\.?\s*glw\.?\s*Art\b|\boder\s+gleichwertig(?:er?\s+Art)?\b|\bo\.?\s*[äa]\.?\s/i;
+const FAB_ENDE = /\b(gr[oö]ße|groesse|format|oberfl[aä]che|farbe|verlege|untergrund|fugen|angebot|einbauort|menge|unterkante|oberkante|okff|h\s*=|hoehe|höhe|als\s+fliesenband|ohne\s+dekor)\b/i;
+// "oder gleichw. Art" fehlte: bei 15.06.02.3 verschluckte das Fabrikat den
+// ganzen Rest des Satzes ("V & B CT 61 / RAKO Extra oder gleichw. Art
+// Unterkante ca. 88 cm ueber OKFF, H= 60cm, als Fliesenband"). Der Vergleich
+// mit der gewaehlten Fliese scheiterte daran, und die App warnte zu Unrecht
+// 'passt zu KEINEM im LV genannten Fabrikat' (Erik am 29.08.2026).
+const FAB_TRENN = /\bo\.?\s*glw\.?\s*Art\b|\boder\s+gleichw(?:ertig)?\.?(?:er?\s+Art|\s+Art)?\b|\bo\.?\s*gleichw\.?\s*Art\b|\bo\.?\s*[äa]\.?\s/i;
 function fabrikateAusText(t){
   const s=(t||'').replace(/\s+/g,' ');
   // Der Doppelpunkt ist Pflicht - ohne ihn greift das Muster mitten in Woerter
@@ -3672,6 +3690,9 @@ function epLaibung(p, system){
 // Festpreis-Zulagen (Endpreise, kein Material-Aufschlag, kein Zuschlag)
 const FESTPREISE = {
   loch:          {ep:7.90,  label:'Loch / Anschnitt'},
+  // Formteil zum Kantenschutzprofil (Aussen-/Innenecke): Zubehoerteil plus
+  // Einbau, nach Stueck. 15.06.01.25, 6 Stk (29.08.2026).
+  formteil:      {ep:12.50, label:'Formteil / Ecke zum Profil (Stück)'},
   ablauf:        {ep:35.00, label:'Ablauf anarbeiten (Abdichtung)'},
   ablauf_doppel: {ep:58.00, label:'Bodenablauf doppelstöckig'},
   fliesentausch: {ep:44.50, label:'Fliesentausch (Aus- + Einbau + Fuge)'},
@@ -3751,6 +3772,48 @@ function epReinigung(p){
   const lohn=reinZeit(art)*LOHN();
   zeilen.push([REIN_LABEL[art], (reinZeit(art)*60).toFixed(2).replace('.',',')+' min × '+fmt(LOHN())+'/h', lohn]);
   return {ep: reinPreis(art), zeilen, warn:[]};
+}
+// ===== ZULAGE STUFE (Kontrast-/Gleitschutzstreifen) ======================
+// Streifen an der Stufenvorderkante, je laufendem Meter. Das Material steht
+// in den Lieferantenangeboten (Keramundo: Kontraststreifen 55,65 EUR/lfm,
+// Zulage Gleitschutz 20,50 EUR/lfm) - findet die App dort nichts, fragt sie
+// danach, statt zu raten.
+let ZST_ZEIT = 12/60;   // h je lfdm einfraesen, einsetzen, verfugen
+function zulageStufeArtikel(p){
+  if(p.zstArt) return (PREISE||[]).find(function(x){ return x.name===p.zstArt; }) || null;
+  const t=((p.desc||'')+' '+(p.langtext||'')).toLowerCase();
+  const suche = /kontrast/.test(t) ? /kontraststreifen/i
+              : (/gleitschutz|pilzprofil/.test(t) ? /gleitschutz/i : null);
+  if(!suche) return null;
+  return (PREISE||[]).find(function(x){
+    const e=String(x.eu||'').toLowerCase().replace(/^\//,'');
+    return suche.test(x.name||'') && (e==='lfm'||e==='m');
+  }) || null;
+}
+function zulageStufeKandidaten(){
+  return (PREISE||[]).filter(function(x){
+    const e=String(x.eu||'').toLowerCase().replace(/^\//,'');
+    return /kontraststreifen|gleitschutz|pilzprofil|zulage.*streifen/i.test(x.name||'')
+        && (e==='lfm'||e==='m');
+  }).sort(function(a,b){ return alphabetisch(a.name,b.name); });
+}
+function epZulageStufe(p){
+  const warn=[], zeilen=[];
+  const a=zulageStufeArtikel(p);
+  let mat=0;
+  if(a){
+    mat=parseFloat(a.ek)||0;
+    zeilen.push([a.name.slice(0,44), fmt(mat)+' €/lfm', mat]);
+  } else {
+    warn.push('EINGABE|Streifen aus der Preisdatenbank wählen oder Preis (€/lfm) eintragen');
+    zeilen.push(['Streifen','—',0]);
+  }
+  const kalk=mat*1.20;
+  zeilen.push(['Material × 1,20','',kalk]);
+  const lohn=ZST_ZEIT*LOHN();
+  zeilen.push(['Einfräsen, einsetzen, verfugen',
+               (ZST_ZEIT*60).toFixed(0)+' min/lfdm × '+fmt(LOHN())+'/h', lohn]);
+  return {ep: Math.round((kalk+lohn)*100)/100, zeilen, warn};
 }
 // ===== ZULAGE GEFAELLEVERLEGUNG ==========================================
 // Mehrkosten fuer das Verlegen im Gefaelle statt auf ebener Flaeche: vier
@@ -4828,6 +4891,7 @@ function berechneEPKern(p, system){
   if(t==='wand'||t==='boden') return epFliese(p, system);
   if(t==='laibung') return epLaibung(p, system);
   if(t==='zulage_gefaelle') return epZulageGefaelle(p);
+  if(t==='zulage_stufe') return epZulageStufe(p);
   if(t==='abdicht_flaeche') return epAbdichtFlaeche(p, system);
   if(t==='dichtband') return epDichtband(p, system);
   if(t==='manschette'||t==='dichtecke') return epStueckAbdicht(p, system, t);
@@ -5139,7 +5203,7 @@ function wieVorZiel(p){
 }
 // Alles, was eine Entscheidung an der Position festhaelt. Wird von "wie vor"
 // geerbt.
-const ERBEN_FELDER = ['behandlungArt','sockelArt','stufeArt','profilArt','abdichtArt','wKlasse',
+const ERBEN_FELDER = ['behandlungArt','sockelArt','stufeArt','profilArt','zstArt','abdichtArt','wKlasse',
   'spachtelModus','spachtelArt','entkopplungArt','entkopplungBandM','rektifiziert','reinigungArt',
   'grundArt','umfang','oberflaeche','stufe','untergrund','silikonArt','schutzArt',
   'flieseEk','fabrikat','stufeLaenge','stufeTiefeW','sockelQm','spiegelEk','bieterFelder'];
@@ -5325,7 +5389,7 @@ function renderCalcOut(i){
 }
 function renderCalcHTML(i){
   const p=LV.pos[i];
-  const SUP=['wand','boden','laibung','zulage_gefaelle','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','treppenbelag','werksteinstufe','sockel','fensterbank','fb_rundung','fb_kante','spiegel','revision','matte_anarbeiten','schraegschnitt','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
+  const SUP=['wand','boden','laibung','zulage_gefaelle','zulage_stufe','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','treppenbelag','werksteinstufe','sockel','fensterbank','fb_rundung','fb_kante','spiegel','revision','matte_anarbeiten','schraegschnitt','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
   if(SUP.indexOf(p.typ)<0){
     const lbl=(TYPEN.find(t=>t[0]===p.typ)||['','dieser Typ'])[1];
     return '<div style="font-size:12px;color:var(--muted);padding:12px 0">EP-Rechner für „'+lbl+'" ist noch nicht gebaut. Kommt Schritt für Schritt dazu.</div>';
@@ -5522,6 +5586,17 @@ function renderCalcHTML(i){
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Spiegel €/Stück (dein EK)</div>'
       +'<input type="number" step="0.01" value="'+(p.spiegelEk||'')+'" placeholder="'+SPIEGEL_EK.toFixed(2)+'" '
       +'oninput="setSpiegel('+i+',this.value)" style="width:120px;padding:6px 8px"></div>';
+  }
+  if(p.typ==='zulage_stufe'){
+    const zk=zulageStufeKandidaten();
+    const jetzt=zulageStufeArtikel(p);
+    let inner='<option value="">– Streifen wählen –</option>';
+    zk.forEach(function(x){
+      inner+='<option value="'+esc(x.name)+'"'+((jetzt&&jetzt.name===x.name)?' selected':'')+'>'
+           + esc(liefKurz(x.lief)||'?')+' · '+fmt(x.ek)+' €/lfm · '+esc(x.name.slice(0,46))+'</option>';
+    });
+    felder += '<div style="min-width:330px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Streifen aus der Preisdatenbank</div>'
+      +'<select onchange="waehleZulageStufe('+i+',this.value)" style="width:100%;padding:6px 8px;font-size:12px">'+inner+'</select></div>';
   }
   if(p.typ==='sockel'){
     const sk=sockelKandidaten();
@@ -6259,7 +6334,19 @@ function fabrikatGleich(a, b){
   }
   let woerter=0;
   ta.forEach(function(w){ if(!/\d/.test(w) && tb.indexOf(w)>-1) woerter++; });
-  return woerter>=3;
+  if(woerter>=3) return true;
+  // Kurzschreibweisen: das LV nennt oft nur "V & B CT 61 / RAKO Extra",
+  // der Artikel heisst "V&B Unit Four 2369-CT61 I.Sorte R10/A". Gemeinsame
+  // Woerter gibt es dann fast keine - aber BEIDE tragen denselben
+  // Artikelschluessel (ct61). Der ist eindeutig genug; ohne diese Regel warnte
+  // die App bei 15.06.02.3 zu Unrecht "passt zu KEINEM im LV genannten
+  // Fabrikat" (Erik am 29.08.2026).
+  const schluessel = function(l){
+    return l.filter(function(w){ return /^[a-zäöüß]{1,4}\d{2,4}$/.test(w); });
+  };
+  const sa=schluessel(ta), sb=schluessel(tb);
+  if(sa.length && sb.length && sa.some(function(w){ return sb.indexOf(w)>-1; })) return true;
+  return false;
 }
 // Preis eines konkreten DB-Treffers (zum angebotenen Fabrikat) uebernehmen
 function uebernehmePreis(i, ek){
@@ -6313,6 +6400,11 @@ function waehleProfil(i, name){
     p.profilArt=name;
     fabrikatSetzen(p, name);
   }
+  calcGeaendert(i);
+}
+function waehleZulageStufe(i, name){
+  const p=LV.pos[i];
+  if(!name){ delete p.zstArt; } else { p.zstArt=name; fabrikatSetzen(p, name); }
   calcGeaendert(i);
 }
 function waehleSockel(i, name){
