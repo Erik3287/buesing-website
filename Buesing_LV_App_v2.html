@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 153';
+const APP_STAND = '29.08.2026 · 154';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1048,6 +1048,9 @@ const WERTE = [
     ['WST_SILIKON_F','Silikon je Stufe','× Stufenlänge',()=>WST_SILIKON_F,v=>WST_SILIKON_F=v],
     ['WST_RAND_F','Randstreifen je Stufe','× Auftritt',()=>WST_RAND_F,v=>WST_RAND_F=v],
     ['WST_RAND_EUR','Randstreifen Preis','€/lfdm',()=>WST_RAND_EUR,v=>WST_RAND_EUR=v],
+  ]],
+  ['Zulage Gefälle', [
+    ['GEF_ZEIT','Mehraufwand Gefälleverlegung','h/m²',()=>GEF_ZEIT,v=>GEF_ZEIT=v],
   ]],
   ['Laibung / Ablage', [
     ['LAIB_ZUSCHLAG','Zuschlag auf den Wandpreis','€/m²',()=>LAIB_ZUSCHLAG,v=>LAIB_ZUSCHLAG=v],
@@ -1626,7 +1629,7 @@ const TYPEN = [
   ['grundierung','Grundierung'],['spachtel','Vorspachtel'],['entkopplung','Entkopplung Boden'],['stundenlohn','Stundenlohn'],
   ['profil','Profil/Schiene'],['reservefliesen','Reservefliesen'],['loch','Loch/Anschnitt'],
   ['ablauf','Ablauf anarbeiten'],['ablauf_doppel','Ablauf doppelstöckig'],['hohlkehlsockel','Hohlkehlsockel'],
-  ['rohrkasten','Rohrkasten (lfm)'],['duschelement','Duschelement'],['fliesentausch','Fliesentausch'],['silikon','Silikon/Elast. Fuge'],
+  ['rohrkasten','Rohrkasten (lfm)'],['duschelement','Duschelement'],['zulage_gefaelle','Zulage Gefälleverlegung'],['fliesentausch','Fliesentausch'],['silikon','Silikon/Elast. Fuge'],
   ['randfuge','Randfuge'],['schutz','Schutz/Abdeckung'],['reinigung','Reinigung'],
   ['behandlung','Imprägnierung'],['sauberlaufmatte','Sauberlaufmatte'],['sauberlaufrahmen','Sauberlauf-Rahmen'],['baustelle','Baustelleneinrichtung'],
   ['unbekannt','— bitte wählen —'],
@@ -1648,6 +1651,14 @@ const TYP_REGELN = [
                      'bodeneinlauf','bodeneinläufe','duschrinne einfliesen']],
   ['rohrkasten',    ['rohrkasten','rohrverkleidung','vorwandinstallation verkleiden','schacht verkleiden','installationsschacht']],
   ['duschelement',  ['duschelement','gefälle im fliesenbereich','verfliesbares','jackoboard']],
+  // 'Zul. Verlegung Gefaelle' (15.06.01.16) ist eine reine Lohn-Zulage fuer
+  // das Verlegen im Gefaelle statt auf ebener Flaeche - kein Duschelement,
+  // auch wenn die Ort-Zeile eines nennt (Erik am 29.08.2026: 'Es geht um
+  // eine Position, welche die Mehrkosten fuer die Verlegung des Duschbodens
+  // im Gefaelle definiert').
+  ['zulage_gefaelle',['zul.verlegung gefälle','zul. verlegung gefälle','zulage verlegung gefälle',
+                      'zulage für verlegung der bodenfliesen im gefälle','gefälleverlegung',
+                      'im gefälle anstelle','zulage gefälle']],
   ['hohlkehlsockel',['hohlkehlsockel','hohlkehle']],
   // "Sockelleiste, Sichtkanten gefast ..." (15.03.23, 15.04.9) landete beim
   // Bodenrechner, weil im Text dreimal "Bodenbelag" steht. Erik am
@@ -1847,6 +1858,10 @@ function erkenneTyp(desc, langtext, einheit){
        && /abdicht/i.test(quelle||'')){
       treffer = treffer.filter(function(t){ return t!=='duschelement'; });
     }
+    // Die Gefaelle-Zulage nennt in der Ort-Zeile oft das Duschelement -
+    // die Zulage ist trotzdem die Leistung.
+    if(treffer.indexOf('zulage_gefaelle')>-1)
+      treffer = treffer.filter(function(t){ return t!=='duschelement' && t!=='boden'; });
     if(soll){
       const passend = treffer.find(function(t){ const k=typKlasse(t); return k && k===soll; });
       if(passend) return passend;
@@ -3737,6 +3752,19 @@ function epReinigung(p){
   zeilen.push([REIN_LABEL[art], (reinZeit(art)*60).toFixed(2).replace('.',',')+' min × '+fmt(LOHN())+'/h', lohn]);
   return {ep: reinPreis(art), zeilen, warn:[]};
 }
+// ===== ZULAGE GEFAELLEVERLEGUNG ==========================================
+// Mehrkosten fuer das Verlegen im Gefaelle statt auf ebener Flaeche: vier
+// Richtungen, Kreuzgefaelle, Diagonalschnitte - reiner Mehr-Lohn, das
+// Material steckt in der Grundposition.
+let GEF_ZEIT = 20/60;   // h je m² Mehraufwand, im Kalkulator einstellbar
+function epZulageGefaelle(p){
+  const lohn=GEF_ZEIT*LOHN();
+  return {ep: Math.round(lohn*100)/100,
+          zeilen:[['Mehraufwand Gefälleverlegung',
+                   (GEF_ZEIT*60).toFixed(0)+' min/m² × '+fmt(LOHN())+'/h', lohn],
+                  ['Material','steckt in der Grundposition',0]],
+          warn:[]};
+}
 // Silikon/elastische Fuge: Festpreis je nach Material.
 const SILIKON = {sanitaer:7.90, naturstein:8.90};
 function silikonNaturstein(txt){
@@ -4795,6 +4823,7 @@ function berechneEPKern(p, system){
   if(t==='ueberschrift') return {ep:0, zeilen:[], warn:[]};
   if(t==='wand'||t==='boden') return epFliese(p, system);
   if(t==='laibung') return epLaibung(p, system);
+  if(t==='zulage_gefaelle') return epZulageGefaelle(p);
   if(t==='abdicht_flaeche') return epAbdichtFlaeche(p, system);
   if(t==='dichtband') return epDichtband(p, system);
   if(t==='manschette'||t==='dichtecke') return epStueckAbdicht(p, system, t);
@@ -5268,7 +5297,7 @@ function renderCalcOut(i){
 }
 function renderCalcHTML(i){
   const p=LV.pos[i];
-  const SUP=['wand','boden','laibung','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','treppenbelag','werksteinstufe','sockel','fensterbank','fb_rundung','fb_kante','spiegel','revision','matte_anarbeiten','schraegschnitt','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
+  const SUP=['wand','boden','laibung','zulage_gefaelle','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','treppenbelag','werksteinstufe','sockel','fensterbank','fb_rundung','fb_kante','spiegel','revision','matte_anarbeiten','schraegschnitt','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
   if(SUP.indexOf(p.typ)<0){
     const lbl=(TYPEN.find(t=>t[0]===p.typ)||['','dieser Typ'])[1];
     return '<div style="font-size:12px;color:var(--muted);padding:12px 0">EP-Rechner für „'+lbl+'" ist noch nicht gebaut. Kommt Schritt für Schritt dazu.</div>';
