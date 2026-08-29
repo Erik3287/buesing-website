@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '28.08.2026 · 146';
+const APP_STAND = '29.08.2026 · 147';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -2545,7 +2545,13 @@ function fliesenVorschlag(typ, desc, langtext){
 const UMFAENGE = [['liefern_verlegen','liefern + verlegen'],['nur_liefern','nur liefern'],['nur_verlegen','nur verlegen (Material bauseits)']];
 function erkenneUmfang(desc, langtext){
   const t=((desc||'')+' '+(langtext||'')).toLowerCase();
-  const hatLiefern  = /liefer/.test(t);
+  // Nicht nur das Wort 'liefern' zaehlt. Wer ein 'Angebotenes Erzeugnis /
+  // Fabrikat (vom Bieter einzutragen)' nennen soll, liefert es auch - Erik
+  // am 29.08.2026 zu 15.04.9: 'Das Material muss doch aber dazu. Wie kommt
+  // das Programm zu dieser Annahme?' Der Text sagte nur 'Verlegung im
+  // Duennbett', das Wort 'liefern' fehlte, aber die Bieterzeile stand da.
+  const hatLiefern  = /liefer/.test(t)
+    || /angebotenes\s+(erzeugnis|fabrikat|produkt)|vom\s+bieter\s+(einzutragen|anzubieten|einzusetzen)|materiallieferung/.test(t);
   // "einsetzen" und "ansetzen" fehlten: 15.06.01.22 sagt "liefern und im
   // Duennbett einsetzen" und galt deshalb als reine Lieferung - ohne Kleber,
   // ohne Lohn (28.08.2026).
