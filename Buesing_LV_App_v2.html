@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 148';
+const APP_STAND = '29.08.2026 · 150';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -2340,11 +2340,28 @@ function fabSchluessel(p){
 function flieseAusNachbar(p){
   const key=fabSchluessel(p);
   if(!key || !LV.pos) return null;
+  // 1) Positionen mit exakt derselben Fabrikatsliste
   for(const q of LV.pos){
     if(q===p) continue;
     if(!q.fabrikat || !(parseFloat(q.flieseEk)>0)) continue;
     if(fabSchluessel(q)!==key) continue;
     return {nr:q.nr||'', name:q.fabrikat, ek:parseFloat(q.flieseEk)};
+  }
+  // 2) Exakt gleich war zu streng: 15.03.4 nennt 'Serie Extra / Betonico',
+  //    15.04.4 nur 'Serie Extra' - ein Wort Unterschied, und der Vorschlag
+  //    blieb aus (Erik am 29.08.2026: 'Warum wird dann die Newcon
+  //    angeboten??'). Entscheidend ist, ob die anderswo GEWAEHLTE Fliese zu
+  //    einem der HIER ausgeschriebenen Fabrikate passt - nur eine echte
+  //    Wahl (_fabTouched oder gruen), damit sich Automatik-Reste nicht
+  //    weiterreichen.
+  const meineFabs = fabrikateAusText((p.desc||'')+' '+(p.langtext||''));
+  if(!meineFabs.length) return null;
+  for(const q of LV.pos){
+    if(q===p || q.typ!==p.typ) continue;
+    if(!q.fabrikat || !(parseFloat(q.flieseEk)>0)) continue;
+    if(!q._fabTouched && q.status!=='gruen') continue;
+    if(meineFabs.some(function(f){ return fabrikatGleich(q.fabrikat, f); }))
+      return {nr:q.nr||'', name:q.fabrikat, ek:parseFloat(q.flieseEk)};
   }
   return null;
 }
@@ -5298,8 +5315,17 @@ function renderCalcHTML(i){
       }
       // Ist das ausgeschriebene Fabrikat womoeglich schon in der Preisdatenbank,
       // nur anders geschrieben? Dann nachfragen statt schweigen.
+      // Der Kasten kommt AUCH, wenn das eingetragene Fabrikat zwar in der
+      // Datenbank steht, aber zu KEINEM der im LV genannten passt - die
+      // 'Kermos Newcon' bei 15.04.4 hatte einen Datenbankpreis, und deshalb
+      // wurde die richtige V&B CT62 gar nicht erst gesucht (Erik am
+      // 29.08.2026: 'die Newcon hat absolut keinen Bezug dazu!').
+      const fabFremd = p.fabrikat && alleFab.length
+        && !alleFab.some(function(f){ return fabrikatGleich(p.fabrikat, f); });
+      if(dbTreffer && fabFremd)
+        preisStatus='<span style="color:#e0a800">🟡 '+esc(p.fabrikat)+' hat einen Datenbankpreis, passt aber zu KEINEM im LV genannten Fabrikat</span>';
       let treffer='';
-      if(!dbTreffer){
+      if(!dbTreffer || fabFremd){
         let kandidaten = alleFab.map(function(f){ return {fab:f, t:fabTreffer(f, p.typ, p.desc, p.langtext)}; })
                                   .filter(function(x){ return x.t; });
         // Zuerst schauen, ob dieselbe Fliese in diesem LV schon gewaehlt ist.
