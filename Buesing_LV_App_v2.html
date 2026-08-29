@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 151';
+const APP_STAND = '29.08.2026 · 152';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -8290,6 +8290,22 @@ async function ladeLV(id){
       LV.pos.forEach(function(q){
         if(q.typ==='ueberschrift') return;
         if(q.status==='gruen' && !q.gruenAuto) return;   // Eriks Gruen ist gesperrt
+        // Auch der TYP wird beim Oeffnen neu geprueft - ein falsch
+        // gespeicherter Typ zieht sonst den kompletten falschen Rechner nach
+        // sich (15.06.01.6 stand als 'Duschelement' mit Mosaikzeilen im LV,
+        // obwohl es eine reine Abdichtungsposition ist; Erik am 29.08.2026).
+        // Von Hand gewaehlte Typen bleiben stehen.
+        if(!q._typHand){
+          const neuTyp = istUeberschriftPos(q, LV.pos) ? 'ueberschrift'
+                                                       : erkenneTyp(q.desc, q.langtext, q.einheit);
+          if(neuTyp && neuTyp!=='unbekannt' && neuTyp!==q.typ){
+            q.typ = neuTyp;
+            delete q.stufe; delete q.oberflaeche; delete q.rutsch;
+            if(!q._umfangHand) delete q.umfang;
+            q.notiz = (q.notiz?q.notiz+' · ':'') + 'Typ neu erkannt';
+          }
+        }
+        if(q.typ==='ueberschrift') return;
         try{ autoEP(q, LV.system||'sakret'); }catch(e){}
       });
       // Ausdrueckliche "wie vor"-Bezuege aufloesen: die Wandfliese wird oft
