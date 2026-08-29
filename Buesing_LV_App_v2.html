@@ -268,7 +268,9 @@ tr:hover td{background:#fafafa}
         <div style="display:flex;gap:8px;align-items:center" class="np">
           <span id="save-status" style="font-size:12px;color:var(--muted);margin-right:4px"></span>
           <button class="bg sm" onclick="neuesLV()">+ Neues LV</button>
+          <button class="bg sm" onclick="doExportBesprechung()" title="Kompakte Datei mit allen Rechenwegen – zum Hochladen ins Gespräch">📦 Für Claude</button>
           <button class="bg sm" onclick="doExportPDF()">📄 PDF-Angebot</button>
+          <button class="bg sm" onclick="doExportLV()" title="Das ausgefüllte LV im Layout der Ausschreibung, mit Zusammenfassungsblatt">📑 LV-Export</button>
           <button class="bg sm" onclick="doExportDaten()" title="Alle Positionen als Datei sichern – zum Weitergeben oder Nachschauen">💾 Positionen als Datei</button>
           <button class="bg sm" onclick="document.getElementById('pos-datei').click()" title="Eine gesicherte Positionsdatei in DIESES LV einlesen">📂 Datei einlesen</button>
           <input type="file" id="pos-datei" accept=".json" style="display:none" onchange="positionsdateiLaden(this.files[0]); this.value='';">
@@ -709,6 +711,16 @@ tr:hover td{background:#fafafa}
     </table>
     <div style="text-align:right;margin-top:16px;font-size:15px;font-weight:700" id="pr-s"></div>
     <div style="margin-top:8px;text-align:right;color:#666;font-size:12px">Alle Preise netto zzgl. MwSt.</div>
+    <!-- Zusammenfassungsblatt: eigene Seite, wie im Original-LV -->
+    <div id="pr-zus" style="page-break-before:always;padding-top:10px">
+      <div style="font-size:20px;font-weight:700;margin-bottom:4px">LV-Zusammenfassung</div>
+      <div style="color:#666;font-size:12px;margin-bottom:14px" id="pr-zus-ti"></div>
+      <div id="pr-zus-b"></div>
+      <div style="margin-top:34px;display:flex;justify-content:space-between;font-size:12px;color:#666">
+        <div>....................................................<br>Anbieter – Unterschrift</div>
+        <div style="text-align:right">Stempel</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -746,7 +758,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 159';
+const APP_STAND = '29.08.2026 · 162';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -7051,6 +7063,189 @@ function doExportDaten(){
   }
 }
 
+// ===== LV-ZUSAMMENFASSUNG ================================================
+// Das Deckblatt des LV: je Titel (15.03) und Bereich (15.06.01) eine Summe,
+// darunter Netto, MwSt und Brutto. Erik am 29.08.2026: "der letzte teil ist
+// eine zusammenfassung - auf jeden fall muss diese auch noch ausgefuellt
+// werden."
+// Bedarfs- und Wahlpositionen zaehlen NICHT in die Summe; ein Bereich, der
+// eine enthaelt, wird gekennzeichnet - so wie im Original die eckigen
+// Klammern. Massgeblich sind dabei die Texte: 15.06.02.3 ist die
+// "Grundposition 001.0", 15.06.02.4 die "Wahlposition 001.1" - nur die
+// beiden bilden das Paar, die uebrigen Positionen des Bereichs zaehlen
+// ganz normal mit.
+function lvZusammenfassung(){
+  const gruppen = [];   // Reihenfolge wie im LV
+  const index   = {};
+  (LV.pos||[]).forEach(function(p){
+    const nr=(p.nr||'').trim();
+    if(!nr) return;
+    const t=nr.split('.');
+    if(p.typ==='ueberschrift'){
+      // Ueberschriften liefern den Klartext-Namen zur Nummer
+      const g=index[nr]; if(g && !g.name) g.name=p.desc||'';
+      if(!g){ const neu={nr:nr, name:p.desc||'', summe:0, bedarf:0, n:0, nBedarf:0, ueberschrift:true};
+              index[nr]=neu; gruppen.push(neu); }
+      return;
+    }
+    if(t.length<3) return;                       // 15.02.1 -> Titel 15.02
+    const titel   = t.slice(0,2).join('.');
+    const bereich = (t.length>=4) ? t.slice(0,3).join('.') : null;
+    const key = bereich || titel;
+    let g = index[key];
+    if(!g){ g={nr:key, name:'', summe:0, bedarf:0, n:0, nBedarf:0, wahl:false}; index[key]=g; gruppen.push(g); }
+    const gp=(parseFloat(p.menge)||0)*(parseFloat(p.ep)||0);
+    if(istBedarfPos(p)){
+      g.bedarf+=gp; g.nBedarf++;
+      // Nur eine WAHL-/Alternativposition bekommt im Original die eckige
+      // Klammer (15.06.02.4 "Wahlposition 001.1"). Eine Bedarfsposition
+      // wird nur vermerkt.
+      if(/wahlposition|alternativposition|alternativpos\b/i.test((p.desc||'')+' '+(p.langtext||''))) g.wahl=true;
+    } else { g.summe+=gp; g.n++; }
+  });
+  // Nur Gruppen mit Inhalt, in LV-Reihenfolge
+  const zeilen = gruppen.filter(function(g){ return g.n>0 || g.nBedarf>0 || g.ueberschrift; })
+    .sort(function(a,b){
+      const za=a.nr.split('.').map(Number), zb=b.nr.split('.').map(Number);
+      for(let i=0;i<Math.max(za.length,zb.length);i++){
+        const x=za[i]||0, y=zb[i]||0; if(x!==y) return x-y;
+      }
+      return 0;
+    });
+  // Namen aus den Ueberschriften nachtragen
+  zeilen.forEach(function(g){
+    if(g.name) return;
+    const u=(LV.pos||[]).find(function(p){ return p.typ==='ueberschrift' && (p.nr||'').trim()===g.nr; });
+    if(u){ g.name=u.desc||''; return; }
+    // Keine Ueberschrift im LV (15.10 Stundenlohnarbeiten) - dann den Titel
+    // der ersten Position der Gruppe nehmen, damit die Zeile nicht leer ist.
+    const e=(LV.pos||[]).find(function(p){ return p.typ!=='ueberschrift' && (p.nr||'').trim().indexOf(g.nr+'.')===0; });
+    if(e) g.name=e.desc||'';
+  });
+  const netto = zeilen.reduce(function(s,g){ return s+g.summe; }, 0);
+  const bedarf= zeilen.reduce(function(s,g){ return s+g.bedarf; }, 0);
+  return {zeilen: zeilen.filter(function(g){ return g.n>0 || g.nBedarf>0; }),
+          netto: Math.round(netto*100)/100,
+          mwst:  Math.round(netto*0.19*100)/100,
+          brutto:Math.round(netto*1.19*100)/100,
+          bedarf:Math.round(bedarf*100)/100};
+}
+function zusammenfassungHtml(){
+  const z=lvZusammenfassung();
+  let h='<table style="width:100%;border-collapse:collapse;font-size:12px">'
+      + '<thead><tr style="border-bottom:1.5px solid #000">'
+      + '<th style="text-align:left;padding:5px 6px;width:80px">Nr.</th>'
+      + '<th style="text-align:left;padding:5px 6px">Bezeichnung</th>'
+      + '<th style="text-align:right;padding:5px 6px;width:130px">Gesamt in EUR</th></tr></thead><tbody>';
+  z.zeilen.forEach(function(g){
+    const tief = g.nr.split('.').length > 2;
+    const art  = tief ? 'Bereich' : 'Titel';
+    h += '<tr style="border-bottom:1px solid #ddd">'
+      + '<td style="padding:5px 6px;'+(tief?'padding-left:16px;':'font-weight:700;')+'">'+esc(g.nr)+'</td>'
+      + '<td style="padding:5px 6px'+(tief?'':';font-weight:700')+'">'
+      +   '<span style="color:#666;font-size:11px;margin-right:8px">'+art+'</span>'+esc(g.name||'')
+      +   (g.nBedarf ? '<div style="font-size:10.5px;color:#0047c7">enthält '+g.nBedarf+' Bedarfs-/Wahlposition(en): '+fmt(g.bedarf)+' € – nicht in der Summe</div>' : '')
+      + '</td>'
+      + '<td style="padding:5px 6px;text-align:right;font-variant-numeric:tabular-nums'+(tief?'':';font-weight:700')+'">'
+      +   (g.wahl ? '[ '+fmt(g.summe)+' ]' : fmt(g.summe))
+      + '</td></tr>';
+  });
+  h += '</tbody></table>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:14px;border-top:1.5px solid #000">'
+    + '<tr><td style="padding:6px;text-align:right;font-weight:700">Angebotssumme, Netto:</td>'
+    +     '<td style="padding:6px;text-align:right;width:150px;font-variant-numeric:tabular-nums;font-weight:700">'+fmt(z.netto)+' €</td></tr>'
+    + '<tr><td style="padding:6px;text-align:right">zzgl. MwSt. (19,0 %):</td>'
+    +     '<td style="padding:6px;text-align:right;font-variant-numeric:tabular-nums">'+fmt(z.mwst)+' €</td></tr>'
+    + '<tr style="border-top:1.5px solid #000"><td style="padding:8px 6px;text-align:right;font-weight:700;font-size:15px">Angebotssumme, Brutto:</td>'
+    +     '<td style="padding:8px 6px;text-align:right;font-weight:700;font-size:15px;font-variant-numeric:tabular-nums">'+fmt(z.brutto)+' €</td></tr>'
+    + '</table>';
+  if(z.bedarf>0)
+    h += '<div style="font-size:11px;color:#0047c7;margin-top:10px">In eckigen Klammern: Bereiche mit einer Wahlposition. '
+       + 'Diese sind mit Einheitspreis angeboten, zusammen '+fmt(z.bedarf)+' €, und in der Angebotssumme NICHT enthalten.</div>';
+  return h;
+}
+// ===== 1) KOMPAKTE DATEI FUER DIE BESPRECHUNG ============================
+// Erik am 29.08.2026: "Einen, der dir das vollstaendig ausgefuellte LV mit
+// allen Details und berechnungen zusammenfasst in einer komprimierten Datei,
+// damit ich diese hier hochladen kann."
+// Also: alles, was zum Nachvollziehen noetig ist - Rechenwege inklusive -
+// aber ohne die langen LV-Texte, die den Upload sprengen.
+function doExportBesprechung(){
+  if(!(LV.pos && LV.pos.length)){ toast('Kein LV geöffnet'); return; }
+  const sys = LV.system || 'sakret';
+  const z   = lvZusammenfassung();
+  const daten = {
+    zweck:      'Büsing LV-App – kompakte Fassung zum Besprechen',
+    stand:      APP_STAND,
+    lv:         LV.titel || '',
+    lvNr:       LV.id || 0,
+    erstellt:   new Date().toISOString(),
+    stundensatz: LOHN(),
+    system:     sys,
+    zusammenfassung: {
+      gruppen: z.zeilen.map(function(g){
+        return {nr:g.nr, name:g.name, summe:g.summe,
+                bedarf:g.bedarf, nBedarf:g.nBedarf, wahlposition:!!g.wahl};
+      }),
+      netto: z.netto, mwst: z.mwst, brutto: z.brutto, bedarfGesamt: z.bedarf
+    },
+    // Die Kalkulationswerte, die zu diesen Preisen gefuehrt haben
+    werte: (function(){
+      const raus={};
+      try{ werteAlle().forEach(function(g){
+        g[1].forEach(function(w){ raus[w[0]] = w[3](); });
+      }); }catch(e){}
+      return raus;
+    })(),
+    positionen: (LV.pos||[]).filter(function(p){ return p.typ!=='ueberschrift'; }).map(function(p){
+      const zeile = {
+        nr: p.nr||'', titel: p.desc||'', typ: p.typ||'',
+        menge: parseFloat(p.menge)||0, einheit: p.einheit||'',
+        ep: parseFloat(p.ep)||0,
+        gp: Math.round((parseFloat(p.menge)||0)*(parseFloat(p.ep)||0)*100)/100,
+        status: p.status||'', bedarf: istBedarfPos(p)
+      };
+      if(p.notiz)    zeile.hinweis = p.notiz;
+      if(p.fabrikat) zeile.fabrikat = p.fabrikat;
+      if(parseFloat(p.flieseEk)>0) zeile.flieseEk = parseFloat(p.flieseEk);
+      // Der Rechenweg - das Herzstueck zum Nachvollziehen
+      try{
+        const r = berechneEP(p, sys);
+        zeile.rechnung = (r.zeilen||[]).filter(function(x){ return x && x[0]; })
+          .map(function(x){ return [x[0], x[1]===null?'':String(x[1]), (x[2]==null?null:Math.round(x[2]*100)/100)]; });
+        if(r.warn && r.warn.length) zeile.offen = r.warn.map(function(w){
+          const t=String(w), k=t.indexOf('|'); return k>-1?t.slice(k+1):t; });
+      }catch(e){ zeile.rechnung=[['Rechenfehler', String(e&&e.message||e), null]]; }
+      // Was Erik entschieden hat, ohne die langen Texte
+      const ent={};
+      ERBEN_FELDER.concat(['_typHand','_umfangHand','_fabTouched','hinweisOk','laibBreite'])
+        .forEach(function(f){ if(p[f]!==undefined && p[f]!=='' && !(Array.isArray(p[f])&&!p[f].length)) ent[f]=p[f]; });
+      if(Object.keys(ent).length) zeile.entscheidungen = ent;
+      // Vom Langtext nur der Anfang - zum Wiedererkennen, nicht zum Lesen
+      if(p.langtext) zeile.textAnfang = String(p.langtext).replace(/\s+/g,' ').trim().slice(0,180);
+      return zeile;
+    })
+  };
+  const text = JSON.stringify(daten, null, 1);
+  const name = 'LV-kompakt_' + (LV.titel||'LV').replace(/[^A-Za-z0-9_-]+/g,'_').slice(0,40) + '.json';
+  dateiSpeichern(name, text,
+    Math.round(text.length/1024) + ' kB · ' + daten.positionen.length + ' Positionen');
+}
+// Einheitliches Speichern mit Zwischenablage als Notnagel
+function dateiSpeichern(name, text, info){
+  try{
+    const b=new Blob([text], {type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(b); a.download=name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    toast('✓ '+name+' gespeichert · '+(info||''));
+  }catch(e){
+    try{ navigator.clipboard.writeText(text);
+      alert('Die Datei liess sich nicht speichern, der Inhalt liegt in der Zwischenablage.');
+    }catch(e2){ alert('Sichern nicht möglich: '+e.message); }
+  }
+}
 function doExportPDF(){
   document.getElementById('pr-d').textContent=new Date().toLocaleDateString('de-DE');
   document.getElementById('pr-ti').textContent=LV.titel||'LV-Kalkulation';
@@ -7074,7 +7269,73 @@ function doExportPDF(){
   document.getElementById('pr-s').innerHTML='Angebotssumme netto: '+fmt(tot)+' €'
     + (nBedarf ? ('<div style="font-size:11px;font-weight:400;color:#0047c7;margin-top:3px">zzgl. '+nBedarf
                   +' Bedarfsposition(en) '+fmt(totBedarf)+' € – nur Einheitspreis, nicht in der Summe</div>') : '');
+  // Zusammenfassungsblatt auf eigener Seite
+  const zt=document.getElementById('pr-zus-ti'); if(zt) zt.textContent=LV.titel||'';
+  const zb=document.getElementById('pr-zus-b'); if(zb) zb.innerHTML=zusammenfassungHtml();
   window.print();
+}
+
+// ===== 3) LV-EXPORT IM DESIGN DES ORIGINALS ==============================
+// Erik am 29.08.2026: "einen richtigen Export Button, der exakt das Design
+// des hochgeladenen LV's nutzt und dieses dann wie ausgefuellt aussieht."
+// Also die Form des Ausschreibungs-LV: Kopfzeile des Auftraggebers, Titel-
+// und Bereichszeilen, je Position der volle Langtext mit den Bieter-
+// Eintragungen, rechts Menge/EP/GP - und am Ende das Zusammenfassungsblatt.
+function doExportLV(){
+  if(!(LV.pos && LV.pos.length)){ toast('Kein LV geöffnet'); return; }
+  const heute=new Date().toLocaleDateString('de-DE');
+  let tot=0, totBedarf=0, nBedarf=0;
+  const zeilen=(LV.pos||[]).map(function(p){
+    if(p.typ==='ueberschrift'){
+      const t=(p.nr||'').split('.').length;
+      return '<tr><td colspan="4" style="padding:'+(t<=2?'16px 6px 6px':'12px 6px 5px')+';'
+           + 'font-weight:700;font-size:'+(t<=2?'14px':'12.5px')+';border-top:1px solid #000">'
+           + esc(p.nr||'')+'&nbsp;&nbsp;&nbsp;'+(t<=2?'Titel':'Bereich')+'&nbsp;&nbsp;&nbsp;'+esc(p.desc||'')+'</td></tr>';
+    }
+    const menge=parseFloat(p.menge)||0, ep=parseFloat(p.ep)||0, gp=menge*ep;
+    const bedarf=istBedarfPos(p);
+    if(bedarf){ totBedarf+=gp; nBedarf++; } else tot+=gp;
+    return '<tr style="page-break-inside:avoid"><td style="padding:9px 6px;vertical-align:top;width:78px;font-weight:700">'+esc(p.nr||'')+'</td>'
+      + '<td style="padding:9px 6px;vertical-align:top">'
+      +   '<div style="font-weight:700;margin-bottom:3px">'+esc(p.desc||'')
+      +     (bedarf?' <span style="color:#0047c7">– Nur EP –</span>':'')+'</div>'
+      +   (p.langtext?('<div style="font-size:10.5px;line-height:1.5;white-space:pre-wrap;color:#222">'+langtextPrintHtml(p)+'</div>'):'')
+      + '</td>'
+      + '<td style="padding:9px 6px;vertical-align:bottom;text-align:right;white-space:nowrap">'
+      +   '<b>'+(menge?fmt(menge):'')+'</b> '+esc(p.einheit||'')+'</td>'
+      + '<td style="padding:9px 6px;vertical-align:bottom;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums">'
+      +   'EP <b>'+fmt(ep)+'</b><br>GP <b>'+(bedarf?'– nur EP –':fmt(gp))+'</b></td></tr>';
+  }).join('');
+  const w=window.open('', '_blank');
+  if(!w){ alert('Der Browser hat das Fenster blockiert – bitte Pop-ups für diese Seite erlauben.'); return; }
+  w.document.write('<!doctype html><html lang="de"><head><meta charset="utf-8">'
+    + '<title>'+esc(LV.titel||'Leistungsverzeichnis')+'</title>'
+    + '<style>@page{size:A4;margin:16mm 14mm}body{font-family:Arial,Helvetica,sans-serif;color:#000;font-size:11px;margin:0}'
+    + 'table{width:100%;border-collapse:collapse}thead{display:table-header-group}'
+    + '.kopf{border-bottom:1.5px solid #000;padding-bottom:6px;margin-bottom:10px}'
+    + '.fuss{position:fixed;bottom:6mm;left:0;right:0;font-size:9.5px;color:#444;'
+    +   'display:flex;justify-content:space-between;border-top:1px solid #999;padding-top:3px}'
+    + '</style></head><body>'
+    + '<div class="kopf"><div style="font-size:15px;font-weight:700">'+esc(LV.titel||'Leistungsverzeichnis')+'</div>'
+    +   '<div style="font-size:11px;margin-top:2px">Büsing GmbH · Fliesenlegermeister · Barsinghausen'
+    +   ' &nbsp;·&nbsp; Angebot vom '+heute+'</div></div>'
+    + '<table><thead><tr style="border-bottom:1px solid #000;font-size:10px;color:#444">'
+    +   '<th style="text-align:left;padding:3px 6px">Nr.</th>'
+    +   '<th style="text-align:left;padding:3px 6px">Leistungsbeschreibung</th>'
+    +   '<th style="text-align:right;padding:3px 6px">Menge/Einh.</th>'
+    +   '<th style="text-align:right;padding:3px 6px">Preis (EP) / Gesamt (GP)</th></tr></thead>'
+    + '<tbody>'+zeilen+'</tbody></table>'
+    + '<div style="page-break-before:always"><div style="font-size:18px;font-weight:700;margin:0 0 4px">LV-Zusammenfassung</div>'
+    +   '<div style="font-size:11px;color:#444;margin-bottom:12px">'+esc(LV.titel||'')+'</div>'
+    +   zusammenfassungHtml()
+    +   '<div style="margin-top:40px;display:flex;justify-content:space-between;font-size:11px;color:#444">'
+    +     '<div>....................................................<br>Anbieter – Unterschrift</div>'
+    +     '<div style="text-align:right">Stempel</div></div></div>'
+    + '<div class="fuss"><span>Alle Einzelbeträge netto in EUR</span><span>'+heute+' · Büsing GmbH</span></div>'
+    + '</body></html>');
+  w.document.close();
+  setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 350);
+  toast('LV-Export geöffnet – im Druckfenster „Als PDF sichern" wählen');
 }
 
 
