@@ -758,7 +758,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 164';
+const APP_STAND = '29.08.2026 · 167';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1060,6 +1060,10 @@ const WERTE = [
     ['WST_SILIKON_F','Silikon je Stufe','× Stufenlänge',()=>WST_SILIKON_F,v=>WST_SILIKON_F=v],
     ['WST_RAND_F','Randstreifen je Stufe','× Auftritt',()=>WST_RAND_F,v=>WST_RAND_F=v],
     ['WST_RAND_EUR','Randstreifen Preis','€/lfdm',()=>WST_RAND_EUR,v=>WST_RAND_EUR=v],
+  ]],
+  ['Bauplatte (XPS/Wedi)', [
+    ['BPL_ZEIT','Zuschneiden und montieren','h/m²',()=>BPL_ZEIT,v=>BPL_ZEIT=v],
+    ['BPL_KLEBER_KG','Ansetzbinder','kg/m²',()=>BPL_KLEBER_KG,v=>BPL_KLEBER_KG=v],
   ]],
   ['Zulage Stufe', [
     ['ZST_ZEIT','Einfräsen/Einsetzen','h/lfdm',()=>ZST_ZEIT,v=>ZST_ZEIT=v],
@@ -1644,7 +1648,7 @@ const TYPEN = [
   ['grundierung','Grundierung'],['spachtel','Vorspachtel'],['entkopplung','Entkopplung Boden'],['stundenlohn','Stundenlohn'],
   ['profil','Profil/Schiene'],['reservefliesen','Reservefliesen'],['loch','Loch/Anschnitt'],
   ['ablauf','Ablauf anarbeiten'],['ablauf_doppel','Ablauf doppelstöckig'],['hohlkehlsockel','Hohlkehlsockel'],
-  ['rohrkasten','Rohrkasten (lfm)'],['duschelement','Duschelement'],['zulage_gefaelle','Zulage Gefälleverlegung'],['zulage_stufe','Zulage Stufe (lfdm)'],['formteil','Formteil/Ecke (Stück)'],['fliesentausch','Fliesentausch'],['silikon','Silikon/Elast. Fuge'],
+  ['rohrkasten','Rohrkasten (lfm)'],['duschelement','Duschelement'],['zulage_gefaelle','Zulage Gefälleverlegung'],['zulage_stufe','Zulage Stufe (lfdm)'],['formteil','Formteil/Ecke (Stück)'],['bauplatte','Bauplatte (XPS/Wedi)'],['fliesentausch','Fliesentausch'],['silikon','Silikon/Elast. Fuge'],
   ['randfuge','Randfuge'],['schutz','Schutz/Abdeckung'],['reinigung','Reinigung'],
   ['behandlung','Imprägnierung'],['sauberlaufmatte','Sauberlaufmatte'],['sauberlaufrahmen','Sauberlauf-Rahmen'],['baustelle','Baustelleneinrichtung'],
   ['unbekannt','— bitte wählen —'],
@@ -1679,6 +1683,13 @@ const TYP_REGELN = [
   // Profil-Zubehoer nach Stueck - der Profil-Rechner rechnet je Meter und
   // meldete deshalb einen Einheiten-Widerspruch.
   ['formteil',       ['formteil','formteile','eckstueck','eckstück']],
+  // XPS-/Hartschaum-Bauplatte (Wedi, Jackoboard, Lux Elements): liefern,
+  // zuschneiden, montieren. Lief bisher durch den Abdichtungsrechner
+  // (01.03.0010, 29.08.2026). Der Preis kommt aus der Gruppe 'bauplatten'
+  // der Preisdatenbank.
+  ['bauplatte',      ['xps-platte','xps platte','bauplatte','hartschaumplatte','wedi','jackoboard',
+                      'lux elements','zementär beschichtete','zementaer beschichtete',
+                      'glasfaserarmierte']],
   ['zulage_stufe',   ['kontraststreifen','gleitschutzstreifen','gleitschutz durch','pilzprofil',
                       'zulagen stufen','zulage stufen','gleitschutz eingefräst','gleitschutz eingefraest']],
   ['zulage_gefaelle',['zul.verlegung gefälle','zul. verlegung gefälle','zulage verlegung gefälle',
@@ -1770,7 +1781,10 @@ const TYP_REGELN = [
   // Regel im Titel, deshalb entschied der Langtext - und dort steht die
   // Abdichtung des Bades. Zwei Positionen rechneten so 16,43 EUR/m2
   // Abdichtungspreis statt Fliesen legen (Erik 28.08.2026).
-  ['wand',          ['wandbelag','wandfliesen','wandfliese','steingut-wandfliesen','wandkeramik']],
+  // 'Wandbekleidung aus keramischen Riemchen' (Hainhoelzer Str. 8) ist eine
+  // Wandflaeche - das Wort Sockel im Titel meint dort den Gebaeudesockel.
+  ['wand',          ['wandbelag','wandfliesen','wandfliese','steingut-wandfliesen','wandkeramik',
+                     'wandbekleidung','riemchen','verblender','spaltplatte']],
   ['boden',         ['bodenbelag','bodenfliesen','bodenfliese','feinsteinzeug','anarbeiten von bodenfliesen']],
 ];
 // Umlaute einebnen, sonst trifft die Regel "dichtband" nicht auf die
@@ -1790,7 +1804,7 @@ function typNorm(t){
 // abzurechnen ist ein Widerspruch - der faellt sonst niemandem auf.
 const TYP_EINHEIT = {
   flaeche: ['wand','boden','naturstein','betonwerkstein','abdicht_flaeche','entkopplung','grundierung','spachtel',
-            'duschelement','reinigung','behandlung','schutz','reservefliesen'],
+            'duschelement','reinigung','behandlung','schutz','reservefliesen','bauplatte'],
   laenge:  ['dichtband','profil','hohlkehlsockel','sockel','fensterbank','fb_kante','silikon','randfuge','sauberlaufrahmen','rohrkasten','matte_anarbeiten','schraegschnitt','zulage_stufe'],
   zeit:    ['stundenlohn'],
   stueck:  ['manschette','dichtecke','loch','ablauf','ablauf_doppel','fliesentausch','treppenbelag','werksteinstufe','fb_rundung','spiegel','revision','formteil',
@@ -1861,9 +1875,12 @@ const NUR_UEBERSCHRIFT = ['grundierung','profil','silikon','reinigung','randfuge
   // Ablauf-Position. Alle echten Ablauf-Positionen im LV-15 heissen schon in
   // der Ueberschrift "Zulage Bodeneinlauf" (Erik 27.08.2026).
   'ablauf'];
+// Woerter, die eine Wandflaeche beschreiben, auch wenn 'Sockel' danebensteht.
+const WANDBEKLEIDUNG = /wandbekleidung|riemchen|eingangsportal|verblender|klinkerriemchen|fassade|spaltplatte/i;
 function erkenneTyp(desc, langtext, einheit){
   const soll = einheitKlasse(einheit);
   if(soll==='zeit') return 'stundenlohn';
+  const alles = (desc||'') + ' ' + (langtext||'');
   const quellen = [desc, langtext];
   for(let i=0; i<quellen.length; i++){
     const quelle = quellen[i], istUeberschrift = (i===0);
@@ -1887,6 +1904,21 @@ function erkenneTyp(desc, langtext, einheit){
     // die Zulage ist trotzdem die Leistung.
     if(treffer.indexOf('zulage_gefaelle')>-1)
       treffer = treffer.filter(function(t){ return t!=='duschelement' && t!=='boden'; });
+    // 'Sockel' meint nicht immer die Sockelleiste. Im LV Hainhoelzer Str. 8
+    // heisst der GEBAEUDEsockel so: 'Wandbekleidung aus keramischen
+    // Riemchen', 'Einrahmung des Eingangsportals', 'Laibungen und
+    // Fensterbaenke der Kellerfenster' - 22,5 m² Fassade, nicht 22,5 Meter
+    // Sockelleiste. Erik am 29.08.2026: 'Im Langtext steht ja
+    // Wandbekleidung - das ist ja schon ein Konflikt.' Steht eines dieser
+    // Woerter da, ist es Wandflaeche.
+    // WICHTIG gegen den GANZEN Text pruefen, nicht nur gegen die gerade
+    // gepruefte Quelle: 'Sockelfliese' steht in der Ueberschrift,
+    // 'Wandbekleidung aus keramischen Riemchen' erst im Langtext.
+    if(treffer.indexOf('sockel')>-1 && WANDBEKLEIDUNG.test(alles))
+      treffer = treffer.filter(function(t){ return t!=='sockel'; });
+    // Bleibt nach dem Aussortieren nichts uebrig, in der naechsten Quelle
+    // weitersuchen. Ohne diese Zeile gab erkenneTyp undefined zurueck.
+    if(!treffer.length) continue;
     if(soll){
       const passend = treffer.find(function(t){ const k=typKlasse(t); return k && k===soll; });
       if(passend) return passend;
@@ -3785,6 +3817,66 @@ function epReinigung(p){
   zeilen.push([REIN_LABEL[art], (reinZeit(art)*60).toFixed(2).replace('.',',')+' min × '+fmt(LOHN())+'/h', lohn]);
   return {ep: reinPreis(art), zeilen, warn:[]};
 }
+// ===== BAUPLATTE (XPS / Wedi / Jackoboard) ===============================
+// Liefern, zuschneiden, montieren. Der Plattenpreis kommt aus der Gruppe
+// 'bauplatten' der Preisdatenbank - Erik am 29.08.2026: "XPS kann in
+// Bauplatten Kategorie". Die Staerke steht meist im Text ("bis 20mm").
+let BPL_ZEIT     = 25/60;   // h je m² zuschneiden und montieren
+let BPL_KLEBER_KG = 4.0;    // kg je m² Ansetzbinder
+function bauplatteStaerke(p){
+  const m=((p.desc||'')+' '+(p.langtext||'')).match(/(\d{1,3})\s*mm/);
+  return m ? parseInt(m[1],10) : 0;
+}
+function bauplatteKandidaten(){
+  return (PREISE||[]).filter(function(x){
+    const e=String(x.eu||'').toLowerCase().replace(/^\//,'');
+    return (x.kat==='bauplatten' || /bauplatte|xps|wedi|jackoboard/i.test(x.name||''))
+        && (e==='m2'||e==='m²');
+  }).sort(function(a,b){ return alphabetisch(a.name,b.name); });
+}
+function bauplatteArtikel(p){
+  if(p.bplArt) return (PREISE||[]).find(function(x){ return x.name===p.bplArt; }) || null;
+  const k=bauplatteKandidaten();
+  if(!k.length) return null;
+  // Ohne Wahl die Platte nehmen, deren Staerke im Namen zur Textangabe passt
+  const mm=bauplatteStaerke(p);
+  if(mm){
+    const t=k.find(function(x){
+      const n=(x.name||'').match(/(\d{1,3})\s*mm|(\d{1,2})\s*cm/);
+      if(!n) return false;
+      const w=n[1]?parseInt(n[1],10):parseInt(n[2],10)*10;
+      return Math.abs(w-mm)<=2;
+    });
+    if(t) return t;
+  }
+  return null;
+}
+function epBauplatte(p, system){
+  const warn=[], zeilen=[];
+  const a=bauplatteArtikel(p);
+  const mm=bauplatteStaerke(p);
+  let mat=0;
+  if(a){
+    mat=parseFloat(a.ek)||0;
+    zeilen.push([a.name.slice(0,44), fmt(mat)+' €/m²'+(mm?(' · Text: bis '+mm+' mm'):''), mat]);
+  } else {
+    warn.push('EINGABE|Bauplatte aus der Preisdatenbank wählen'+(mm?(' – im Text steht bis '+mm+' mm'):''));
+    zeilen.push(['Bauplatte','—',0]);
+  }
+  const sys=SYSTEME[system]||SYSTEME.sakret, kCfg=sys.kleber_klein;
+  const kA=findArtikel(kCfg.name, kCfg.nicht);
+  let kleber=0;
+  if(kA){ kleber=preisJe(kA,kCfg.gebinde)*BPL_KLEBER_KG;
+          zeilen.push(['Ansetzbinder '+BPL_KLEBER_KG.toFixed(1).replace('.',',')+' kg',
+                       preisTxt(kA,kCfg.gebinde,'kg')+' × '+BPL_KLEBER_KG.toFixed(1).replace('.',','), kleber]); }
+  else  { warn.push('ARTIKEL|'+kCfg.name); zeilen.push(['Ansetzbinder','fehlt',0]); }
+  const kalk=(mat+kleber)*1.20;
+  zeilen.push(['Material × 1,20','',kalk]);
+  const lohn=BPL_ZEIT*LOHN();
+  zeilen.push(['Zuschneiden und montieren',
+               (BPL_ZEIT*60).toFixed(0)+' min/m² × '+fmt(LOHN())+'/h', lohn]);
+  return {ep: Math.round((kalk+lohn)*100)/100, zeilen, warn};
+}
 // ===== ZULAGE STUFE (Kontrast-/Gleitschutzstreifen) ======================
 // Streifen an der Stufenvorderkante, je laufendem Meter. Das Material steht
 // in den Lieferantenangeboten (Keramundo: Kontraststreifen 55,65 EUR/lfm,
@@ -4904,6 +4996,7 @@ function berechneEPKern(p, system){
   if(t==='laibung') return epLaibung(p, system);
   if(t==='zulage_gefaelle') return epZulageGefaelle(p);
   if(t==='zulage_stufe') return epZulageStufe(p);
+  if(t==='bauplatte') return epBauplatte(p, system);
   if(t==='abdicht_flaeche') return epAbdichtFlaeche(p, system);
   if(t==='dichtband') return epDichtband(p, system);
   if(t==='manschette'||t==='dichtecke') return epStueckAbdicht(p, system, t);
@@ -4966,6 +5059,17 @@ function autoEP(p, system){
     p.ep = 0; p.status = 'rot';
     p.notiz = 'Typ nicht erkannt – bitte Typ wählen';
     return p;
+  }
+  // Nach Stueck ausgeschriebene Einzelteile: 'Materialtrennschiene 3 St'
+  // (01.02.0070) und 'Sonderfliese Eingangsportal 75 St' (02.0030). Der
+  // Profil- und der Fliesenrechner arbeiten je Meter bzw. je m² und meldeten
+  // deshalb einen Einheiten-Widerspruch. Erik am 29.08.2026 - hier ist die
+  // Stueckzahl richtig, nicht der Typ falsch: die Position wird zum
+  // Formteil/Stueckpreis und fragt nach dem Preis, statt rot zu blockieren.
+  if(einheitKlasse(p.einheit)==='stueck'
+     && ['profil','wand','boden','laibung'].indexOf(p.typ)>-1 && !p._typHand){
+    p.typ='formteil';
+    p.notiz='nach Stück ausgeschrieben – als Einzelteil gerechnet';
   }
   // Einheit gegen Typ pruefen: eine Flaeche in "m" oder ein Profil in "m²"
   // ist ein Widerspruch und meist ein Zeichen fuer den falschen Typ.
@@ -5197,7 +5301,7 @@ function importPos(roh){
 // 'passend zu den Flurbelag (60x30 cm)' (15.04.8) ist ebenfalls ein
 // ausdruecklicher Bezug - nur ohne das Wort 'zuvor'. Jedes 'passend zu ...
 // belag' zaehlt.
-const WIE_VOR = /\b(wie\s+(vor|zuvor|vorstehend|oben|beschrieben)|wie\s+pos(ition)?\.?\s*[0-9]|gleichen?\s+material\s+wie|material\s+(und\s+fuge\s*:?\s*)?wie|wie\s+(die\s+)?(wand|boden)(fliesen?|belag)|(der\s+)?pos\.?\s*zuvor|belag\s+zuvor|passend\s+zu[a-zä]*\s+(den\s+|dem\s+|der\s+)?[a-zäöüß]*belag)/i;
+const WIE_VOR = /\b(wie\s+(vor|zuvor|vorstehend|oben|beschrieben)|wie\s+pos(ition)?\.?\s*(nr\.?\s*)?[0-9]|gleichen?\s+material\s+wie|material\s+(und\s+fuge\s*:?\s*)?wie|wie\s+(die\s+)?(wand|boden)(fliesen?|belag)|(der\s+)?pos\.?\s*zuvor|belag\s+zuvor|passend\s+zu[a-zä]*\s+(den\s+|dem\s+|der\s+)?[a-zäöüß]*belag)/i;
 function wieVorKopf(p){
   return ((p.desc||'')+' '+(p.langtext||'')).slice(0,220).toLowerCase()
          .replace(/euvor/g,'zuvor');   // Tippfehler im LV-Original
@@ -5222,7 +5326,7 @@ function wieVorZiel(p){
 }
 // Alles, was eine Entscheidung an der Position festhaelt. Wird von "wie vor"
 // geerbt.
-const ERBEN_FELDER = ['behandlungArt','sockelArt','stufeArt','profilArt','zstArt','abdichtArt','wKlasse',
+const ERBEN_FELDER = ['behandlungArt','sockelArt','stufeArt','profilArt','zstArt','bplArt','abdichtArt','wKlasse',
   'spachtelModus','spachtelArt','entkopplungArt','entkopplungBandM','rektifiziert','reinigungArt',
   'grundArt','umfang','oberflaeche','stufe','untergrund','silikonArt','schutzArt',
   'flieseEk','fabrikat','stufeLaenge','stufeTiefeW','sockelQm','spiegelEk','bieterFelder'];
@@ -5313,6 +5417,19 @@ function wieVorUebernehmen(liste){
     // Vorbild ist die naechste VORHERIGE Position des ZIEL-Typs - bei
     // "wie die Wandfliesen der Pos. zuvor" die Wand, nicht die vorherige
     // Laibung. Bevorzugt eine, an der die Fliese schon gewaehlt ist.
+    // 'wie Position Nr. 10, jedoch in Kleinflaechen ...' (02.0020) sagt nicht,
+    // WAS gemacht wird - das steht in der Bezugsposition. Ist der eigene Typ
+    // unbekannt, wird er von dort uebernommen (29.08.2026).
+    if(p.typ==='unbekannt' || !p.typ){
+      for(let j=i-1;j>=0;j--){
+        const q=liste[j];
+        if(q.typ && q.typ!=='unbekannt' && q.typ!=='ueberschrift'){
+          p.typ=q.typ;
+          p.notiz=(p.notiz?p.notiz+' · ':'')+'Typ von Pos. '+(q.nr||'?')+' übernommen („wie vor")';
+          break;
+        }
+      }
+    }
     const ziel = wieVorZiel(p);
     let v=null;
     for(let j=i-1;j>=0;j--){
@@ -5408,7 +5525,7 @@ function renderCalcOut(i){
 }
 function renderCalcHTML(i){
   const p=LV.pos[i];
-  const SUP=['wand','boden','laibung','zulage_gefaelle','zulage_stufe','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','treppenbelag','werksteinstufe','sockel','fensterbank','fb_rundung','fb_kante','spiegel','revision','matte_anarbeiten','schraegschnitt','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
+  const SUP=['wand','boden','laibung','zulage_gefaelle','zulage_stufe','bauplatte','abdicht_flaeche','dichtband','manschette','dichtecke','grundierung','spachtel','entkopplung','stundenlohn','profil','naturstein','betonwerkstein','treppenbelag','werksteinstufe','sockel','fensterbank','fb_rundung','fb_kante','spiegel','revision','matte_anarbeiten','schraegschnitt','duschelement','loch','ablauf','ablauf_doppel','fliesentausch','reservefliesen','hohlkehlsockel','silikon','randfuge','reinigung','behandlung','schutz','sauberlaufmatte','sauberlaufrahmen','baustelle'];
   if(SUP.indexOf(p.typ)<0){
     const lbl=(TYPEN.find(t=>t[0]===p.typ)||['','dieser Typ'])[1];
     return '<div style="font-size:12px;color:var(--muted);padding:12px 0">EP-Rechner für „'+lbl+'" ist noch nicht gebaut. Kommt Schritt für Schritt dazu.</div>';
@@ -5605,6 +5722,19 @@ function renderCalcHTML(i){
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Spiegel €/Stück (dein EK)</div>'
       +'<input type="number" step="0.01" value="'+(p.spiegelEk||'')+'" placeholder="'+SPIEGEL_EK.toFixed(2)+'" '
       +'oninput="setSpiegel('+i+',this.value)" style="width:120px;padding:6px 8px"></div>';
+  }
+  if(p.typ==='bauplatte'){
+    const bk=bauplatteKandidaten();
+    const jetzt=bauplatteArtikel(p);
+    let inner='<option value="">– Bauplatte wählen –</option>';
+    bk.forEach(function(x){
+      inner+='<option value="'+esc(x.name)+'"'+((jetzt&&jetzt.name===x.name)?' selected':'')+'>'
+           + esc(liefKurz(x.lief)||'?')+' · '+fmt(x.ek)+' €/m² · '+esc(x.name.slice(0,44))+'</option>';
+    });
+    const mm=bauplatteStaerke(p);
+    felder += '<div style="min-width:320px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Bauplatte</div>'
+      +'<select onchange="waehleBauplatte('+i+',this.value)" style="width:100%;padding:6px 8px;font-size:12px">'+inner+'</select>'
+      +(mm?('<div style="font-size:11px;color:var(--muted);margin-top:3px">im LV-Text: bis '+mm+' mm</div>'):'')+'</div>';
   }
   if(p.typ==='zulage_stufe'){
     const zk=zulageStufeKandidaten();
@@ -6419,6 +6549,11 @@ function waehleProfil(i, name){
     p.profilArt=name;
     fabrikatSetzen(p, name);
   }
+  calcGeaendert(i);
+}
+function waehleBauplatte(i, name){
+  const p=LV.pos[i];
+  if(!name){ delete p.bplArt; } else { p.bplArt=name; fabrikatSetzen(p, name); }
   calcGeaendert(i);
 }
 function waehleZulageStufe(i, name){
