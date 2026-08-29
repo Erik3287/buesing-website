@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 156';
+const APP_STAND = '29.08.2026 · 157';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -3756,7 +3756,11 @@ function epReinigung(p){
 // Mehrkosten fuer das Verlegen im Gefaelle statt auf ebener Flaeche: vier
 // Richtungen, Kreuzgefaelle, Diagonalschnitte - reiner Mehr-Lohn, das
 // Material steckt in der Grundposition.
-let GEF_ZEIT = 20/60;   // h je m² Mehraufwand, im Kalkulator einstellbar
+// Erik am 29.08.2026, nachdem er es an 15.06.01.16 selbst nachgerechnet hat:
+// "ich habe das jetzt selbst so korrigiert - so soll es fest hinterlegt
+// werden: 90 min/m²". Vierseitiges Kreuzgefaelle heisst jede Fliese einzeln
+// einpassen und diagonal schneiden - meine 20 Minuten waren Schreibtisch.
+let GEF_ZEIT = 90/60;   // h je m² Mehraufwand, im Kalkulator einstellbar
 function epZulageGefaelle(p){
   const lohn=GEF_ZEIT*LOHN();
   return {ep: Math.round(lohn*100)/100,
