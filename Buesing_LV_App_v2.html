@@ -746,7 +746,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 152';
+const APP_STAND = '29.08.2026 · 153';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -8308,6 +8308,19 @@ async function ladeLV(id){
         if(q.typ==='ueberschrift') return;
         try{ autoEP(q, LV.system||'sakret'); }catch(e){}
       });
+      // Doppelte Positionsnummern sind ein Importfehler - 15.06.01.11 lag
+      // zweimal im LV, einmal als Fragment mit Menge 0 (29.08.2026). Beide
+      // bekommen einen unuebersehbaren Vermerk; Erik loescht das Fragment.
+      (function(){
+        const zaehl = {};
+        LV.pos.forEach(function(q){ const n=(q.nr||'').trim(); if(n) zaehl[n]=(zaehl[n]||0)+1; });
+        LV.pos.forEach(function(q){
+          const n=(q.nr||'').trim();
+          if(n && zaehl[n]>1 && q.typ!=='ueberschrift')
+            q.notiz='⚠ Nr. '+n+' steht '+zaehl[n]+'× im LV – Duplikat prüfen und eines löschen'
+                   +(q.notiz?' · '+q.notiz:'');
+        });
+      })();
       // Ausdrueckliche "wie vor"-Bezuege aufloesen: die Wandfliese wird oft
       // erst nach dem Import gewaehlt - beim naechsten Oeffnen zieht die
       // Laibung sie nach. Fuellt nur leere Felder, ist also gefahrlos.
