@@ -762,7 +762,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 182';
+const APP_STAND = '30.08.2026 · 183';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -6698,10 +6698,14 @@ function renderCalcHTML(i){
       pk.forEach(function(x){ const g=x.format||'weitere Profile'; (gruppen[g]=gruppen[g]||[]).push(x); });
       const st=fliesenstaerke(p);
       const stdP = profilStandard(p);
-      let inner='<option value="">– Standard: '
-        + esc(stdP.treppe ? (stdP.artikel?stdP.artikel.name:'Treppenprofil TS-B30')
-                          : ('Oberfläche '+(PROFILE[p.oberflaeche]||PROFILE.glaenzend).label))
-        + ' –</option>';
+      // "Standard" war missverstaendlich - Erik am 30.08.2026: "was heisst
+      // standard? Fuer Treppen mit Gummieinlage oder was?" Gemeint ist der
+      // Artikel, mit dem die App rechnet, solange er keinen anderen waehlt.
+      let inner='<option value="">'
+        + (stdP.treppe
+            ? ('– Treppenprofil erkannt → '+esc(stdP.artikel?stdP.artikel.name:'TS-B30')+' –')
+            : ('– automatisch: Oberfläche '+esc((PROFILE[p.oberflaeche]||PROFILE.glaenzend).label)+' –'))
+        + '</option>';
       Object.keys(gruppen).sort(function(a,b){ return a.localeCompare(b,'de'); }).forEach(function(g){
         // Passende Hoehe zuerst und gekennzeichnet
         const sortiert = gruppen[g].slice().sort(function(a,b){
@@ -6727,7 +6731,11 @@ function renderCalcHTML(i){
         +'<select onchange="waehleProfil('+i+',this.value)" style="width:100%;padding:6px 8px;font-size:12px">'+inner+'</select>'
         +'<div style="font-size:11px;margin-top:3px">'
         + (gew ? '<span style="color:#1a9e4b">🟢 '+esc(gew.name)+' · '+fmt(gew.ek)+' €/m</span>'
-               : '<span style="color:var(--muted)">nichts gewählt – es rechnet der Standard</span>')
+               : (stdP.treppe
+                   ? ('<span style="color:#1a9e4b">🟢 Treppenprofil erkannt – es rechnet '
+                      + esc(stdP.artikel?stdP.artikel.name:'TS-B30')
+                      + (stdP.artikel?(' · '+fmt(stdP.artikel.ek)+' €/m'):'')+'</span>')
+                   : '<span style="color:var(--muted)">nichts gewählt – es rechnet die Oberfläche</span>'))
         + (st.mm
             ? ('<div style="color:var(--muted);margin-top:2px">Fliese '+hoeheTxt(st.mm)+' mm '+esc(st.quelle)
                +' → '+Math.round(st.mm*10)+'er Profil</div>')
