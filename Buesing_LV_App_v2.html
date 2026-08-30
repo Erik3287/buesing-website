@@ -758,7 +758,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '29.08.2026 · 168';
+const APP_STAND = '30.08.2026 · 169';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -8946,6 +8946,16 @@ function lvKomplettPruefen(){
   // unangetastet.
   LV.pos.forEach(function(q){
     if(q.typ==='ueberschrift') return;
+    // WER EINEN PREIS HAT, IST FERTIG. Erik am 30.08.2026: "gestern war das
+    // ganze LV fertig. heute oeffne ich die datei 33 Schaetzungen / 27
+    // offen!!!" - jede neue Regel, die ich einbaue, riss sein
+    // durchgearbeitetes LV wieder auf, weil die Nachpruefung Typen umstellte
+    // und neu rechnete. Das ist der falsche Ort dafuer: die Nachpruefung
+    // heilt nur noch, was NOCH KEINEN Preis hat. Alles Fertige bleibt
+    // unangetastet - Preis, Typ und Ampel so, wie Erik es verlassen hat.
+    // Bewusst neu rechnen laesst sich weiterhin ueber die Knoepfe
+    // "Typen neu erkennen" und "Alle EP neu berechnen".
+    if(parseFloat(q.ep) > 0) return;
     if(q.status==='gruen' && !q.gruenAuto) return;   // Eriks Gruen ist gesperrt
     if(q._epHand && parseFloat(q.ep)>0) return;      // von Hand eingetragener Preis
     // Auch der TYP wird beim Oeffnen neu geprueft - ein falsch
