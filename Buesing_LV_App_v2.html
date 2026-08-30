@@ -760,7 +760,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 172';
+const APP_STAND = '30.08.2026 · 173';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1327,23 +1327,20 @@ function werteAllesZurueck(){
 
 // ============================================================
 // KALKULATION DIESES LV
-// Erik am 30.08.2026: "Koennen wir fuer jedes LV eine Gesamt-Kalkulations-
-// uebersicht bauen? Dann wuerde ich da rein gehen, den Verlegepreis von 0,95
-// auf 1,1 aendern und automatisch aendern sich alle Verlegepositionen ...
-// Der alte Kalkulator bleibt und ist die Grundlage fuer ein NEU HOCHGELADENES
-// LV."
+// Erik am 30.08.2026: "LV wird mit den Werten aus dem Haupt-Kalkulator
+// vorausgefuellt - man geht in den kleinen Kalkulator und aendert wegen
+// speziellen Gegebenheiten einige Faktoren, die sich dann auf das gesamte
+// neue LV auswirken - fertig."
 //
-// Also zwei Ebenen:
-//   Haupt-Kalkulator  = die Vorlage. Gilt fuer alles, was neu hochgeladen wird.
-//   LV.werte          = die Werte, mit denen NUR dieses LV rechnet.
+// Genau so: Wert aendern, das LV rechnet nach. Keine Haken, keine Liste,
+// keine Rueckfrage. Der Haupt-Kalkulator bleibt die Vorlage fuer jedes neu
+// hochgeladene LV und wird hier nicht angefasst.
 //
-// Ein abgegebenes Angebot darf sich nicht nachtraeglich aendern, nur weil im
-// Haupt-Kalkulator eine Zeit hochgesetzt wurde. Deshalb bekommt jedes LV beim
-// ersten Oeffnen eine eigene Kopie der Werte.
-//
-// Und: KEIN Preis aendert sich von allein. Eine Wertaenderung zeigt zuerst
-// eine Liste - Position fuer Position, alt gegen neu, mit Summe. Erst der
-// Klick auf "Uebernehmen" schreibt sie ins LV.
+// Nur eines bleibt stehen: ein Preis, den Erik SELBST eingetragen hat. Woran
+// die App das erkennt, ohne ihn zu fragen: sie rechnet die Position mit den
+// bisherigen Werten nach. Kommt derselbe Preis heraus, stammt er aus der
+// Rechnung und wird nachgezogen. Kommt etwas anderes heraus, hat Erik den
+// Preis bestimmt - der bleibt.
 // ============================================================
 function werteJetzt(){
   const o={};
@@ -1361,54 +1358,61 @@ function werteObjektAnwenden(obj){
   }); });
 }
 function lvWerteHat(){ return !!(LV && LV.werte && typeof LV.werte==='object'); }
-// Werte dieses LV - beim ersten Zugriff eine Kopie der aktuellen Vorlage.
+// Werte dieses LV - beim ersten Oeffnen eine Kopie aus dem Haupt-Kalkulator.
+// werteStart haelt fest, womit das LV angefangen hat (fuer das ↩ je Wert).
 function lvWerte(){
   if(!(LV && LV.pos && LV.pos.length)) return null;
-  if(!lvWerteHat()) LV.werte = werteJetzt();
+  if(!lvWerteHat()){
+    LV.werte = werteJetzt();
+    LV.werteStart = JSON.parse(JSON.stringify(LV.werte));
+  }
+  if(!LV.werteStart) LV.werteStart = JSON.parse(JSON.stringify(LV.werte));
   return LV.werte;
 }
-let WERTE_IN_LV = false;
-function mitLVWerten(fn){
-  if(!lvWerteHat() || WERTE_IN_LV) return fn();
+let WERTE_TIEFE = 0;
+// Fuehrt fn() so aus, als staenden die uebergebenen Werte im Kalkulator, und
+// stellt danach den vorherigen Stand wieder her.
+function mitWerten(obj, fn){
+  if(!obj || WERTE_TIEFE) return fn();
   const vorher = werteJetzt();
-  WERTE_IN_LV = true;
-  try{ werteObjektAnwenden(LV.werte); return fn(); }
-  finally{ WERTE_IN_LV = false; werteObjektAnwenden(vorher); }
+  WERTE_TIEFE++;
+  try{ werteObjektAnwenden(obj); return fn(); }
+  finally{ WERTE_TIEFE--; werteObjektAnwenden(vorher); }
 }
-// --- Vorschau: was wuerde sich aendern? -------------------------------
-let LVK_LISTE = [];
-let LVK_AUS   = {};   // von Erik abgewaehlt
-let LVK_AN    = {};   // von Erik zusaetzlich angehakt (Hand-Preise)
-function lvkSchluessel(x){ return String(x.nr||'')+'#'+x.i; }
-function lvkGewaehlt(x){
-  const k=lvkSchluessel(x);
-  if(LVK_AUS[k]) return false;
-  if(LVK_AN[k])  return true;
-  return !x.hand;     // von Hand eingetragene Preise sind NICHT vorausgewaehlt
-}
-function lvkUmschalten(k){
-  if(LVK_AUS[k]){ delete LVK_AUS[k]; LVK_AN[k]=true; }
-  else if(LVK_AN[k]){ delete LVK_AN[k]; LVK_AUS[k]=true; }
-  else { LVK_AUS[k]=true; }
-  lvKalkOeffnen();
-}
-function lvKalkVorschau(){
-  const liste=[];
-  if(!(LV && LV.pos)) return liste;
-  LV.pos.forEach(function(p,i){
+function mitLVWerten(fn){ return lvWerteHat() ? mitWerten(LV.werte, fn) : fn(); }
+
+// Das LV auf die Werte nachziehen. altWerte = womit bisher gerechnet wurde.
+function lvNachrechnen(altWerte){
+  let n=0, delta=0, eigene=0;
+  (LV.pos||[]).forEach(function(p){
     if(p.typ==='ueberschrift') return;
-    let k;
-    try{ k=JSON.parse(JSON.stringify(p)); }catch(e){ return; }
-    delete k._epHand;                 // sonst rechnet autoEP gar nicht erst
-    try{ autoEP(k, LV.system||'sakret'); }catch(e){ return; }
-    const neu=Math.round((parseFloat(k.ep)||0)*100)/100;
     const alt=parseFloat(p.ep)||0;
-    if(!(neu>0)) return;              // nicht rechenbar - dann auch kein Vorschlag
-    if(Math.abs(neu-alt)<=0.005) return;
-    liste.push({i:i, nr:p.nr||'', desc:p.desc||'', menge:parseFloat(p.menge)||0,
-                alt:alt, neu:neu, hand:!!p._epHand});
+    let probe;
+    try{ probe=JSON.parse(JSON.stringify(p)); }catch(e){ return; }
+    delete probe._epHand;
+    let alterRechenwert=0;
+    try{
+      mitWerten(altWerte, function(){ autoEPRoh(probe, LV.system||'sakret'); });
+      alterRechenwert=Math.round((parseFloat(probe.ep)||0)*100)/100;
+    }catch(e){ return; }
+    // Preis passt nicht zur Rechnung -> Erik hat ihn selbst bestimmt.
+    if(Math.abs(alterRechenwert-alt) > 0.005){ if(alt>0) eigene++; return; }
+    const warGruen=(p.status==='gruen');
+    delete p._epHand;
+    try{ autoEP(p, LV.system||'sakret'); }catch(e){ return; }
+    if(warGruen){ p.status='gruen'; delete p.gruenAuto; }
+    const neu=parseFloat(p.ep)||0;
+    if(Math.abs(neu-alt)>0.005){ n++; delta += (neu-alt)*(parseFloat(p.menge)||0); }
   });
-  return liste;
+  return {n:n, delta:delta, eigene:eigene};
+}
+function lvSummeNetto(){
+  let s=0;
+  (LV.pos||[]).forEach(function(p){
+    if(p.typ==='ueberschrift' || istBedarfPos(p)) return;
+    s += (parseFloat(p.menge)||0)*(parseFloat(p.ep)||0);
+  });
+  return s;
 }
 // --- Fenster ----------------------------------------------------------
 function kalkBoxZu(){ const d=document.getElementById('kalk-box'); if(d&&d.parentNode) d.parentNode.removeChild(d); }
@@ -1419,135 +1423,63 @@ function kalkBoxAuf(titel, inhalt){
   d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900;display:flex;'
                  +'align-items:center;justify-content:center;padding:20px';
   d.onclick=function(e){ if(e.target===d) kalkBoxZu(); };
-  d.innerHTML='<div style="background:#fff;border-radius:10px;max-width:980px;width:100%;'
+  d.innerHTML='<div style="background:#fff;border-radius:10px;max-width:760px;width:100%;'
     +'max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.3)">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)">'
     +'<b style="font-size:14px">'+titel+'</b>'
     +'<button class="bg sm" style="padding:2px 9px" onclick="kalkBoxZu()">✕</button></div>'
-    +'<div style="padding:12px 16px;overflow:auto">'+inhalt+'</div></div>';
+    +'<div id="kalk-inhalt" style="padding:12px 16px;overflow:auto">'+inhalt+'</div></div>';
   document.body.appendChild(d);
 }
 function lvKalkOeffnen(){
   if(!(LV && LV.pos && LV.pos.length)){ toast('Kein LV geöffnet'); return; }
   lvWerte();
-  const vorlage = werteJetzt();                 // Haupt-Kalkulator
-  LVK_LISTE = lvKalkVorschau();
-  let abw=0;
-  let h='';
-  // --- Werte ---
+  let h='<div style="font-size:13px;color:var(--muted);margin-bottom:2px">'
+       +'Diese Werte gelten nur für <b style="color:var(--text)">'+esc(LV.titel||'dieses LV')+'</b>. '
+       +'Änderst du einen Wert, rechnet das LV sofort nach.</div>'
+       +'<div style="font-size:13px;margin-bottom:4px">Angebotssumme netto: '
+       +'<b style="color:var(--accent);font-size:15px">'+fmt(lvSummeNetto())+' €</b></div>';
   werteAlle().forEach(function(g){
     let zeilen='';
     g[1].forEach(function(e){
       const key=e[0];
-      const wert = isFinite(parseFloat(LV.werte[key])) ? parseFloat(LV.werte[key]) : vorlage[key];
-      const vgl  = vorlage[key];
-      const ab   = isFinite(vgl) && Math.abs(wert-vgl)>1e-9;
-      if(ab) abw++;
+      const wert  = parseFloat(LV.werte[key]);
+      const start = parseFloat(LV.werteStart ? LV.werteStart[key] : NaN);
+      const ab    = isFinite(start) && isFinite(wert) && Math.abs(wert-start)>1e-9;
       zeilen+='<tr style="border-top:1px solid var(--line)">'
-        +'<td style="padding:4px 8px 4px 0">'+esc(e[1])+'</td>'
-        +'<td style="padding:4px 8px;white-space:nowrap;text-align:right">'
-        +'<input type="number" step="0.01" value="'+String(wert)+'" style="width:95px;padding:3px 6px;text-align:right'
-        +(ab?';border-color:var(--accent);font-weight:700':'')+'" '
-        +'onchange="lvWertSetzen(\''+key+'\',this.value)"> <span style="color:var(--muted)">'+esc(e[2])+'</span></td>'
-        +'<td style="padding:4px 0 4px 8px;white-space:nowrap;color:var(--muted);font-size:11.5px">'
-        +(ab ? ('Kalkulator '+String(vgl)+' <button class="bg sm" style="padding:1px 7px;font-size:11px" '
+        +'<td style="padding:5px 8px 5px 0">'+esc(e[1])+'</td>'
+        +'<td style="padding:5px 0;white-space:nowrap;text-align:right">'
+        +'<input type="number" step="0.01" value="'+(isFinite(wert)?String(wert):'')+'" '
+        +'style="width:100px;padding:4px 6px;text-align:right'+(ab?';border-color:var(--accent);font-weight:700':'')+'" '
+        +'onchange="lvWertSetzen(\''+key+'\',this.value)"> <span style="color:var(--muted)">'+esc(e[2])+'</span>'
+        +(ab ? (' <button class="bg sm" style="padding:1px 7px;font-size:11px" title="zurück auf '+String(start)+'" '
                 +'onclick="lvWertZurueck(\''+key+'\')">↩</button>') : '')
         +'</td></tr>';
     });
-    h+='<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;'
+    h+='<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;'
       +'letter-spacing:.5px;color:var(--accent);margin-bottom:4px">'+esc(g[0])+'</div>'
-      +'<table style="width:100%;border-collapse:collapse;font-size:12.5px">'+zeilen+'</table></div>';
+      +'<table style="width:100%;border-collapse:collapse;font-size:13px">'+zeilen+'</table></div>';
   });
-  // --- Kopf ---
-  let kopf='<div style="font-size:12.5px;color:var(--muted);line-height:1.7;margin-bottom:6px">'
-    +'Diese Werte gelten <b>nur für dieses LV</b>. Der Haupt-Kalkulator bleibt unberührt – '
-    +'er ist die Vorlage für jedes neu hochgeladene LV.<br>'
-    +(abw ? ('<b style="color:var(--accent)">'+abw+' Wert(e) weichen vom Haupt-Kalkulator ab.</b>')
-          : 'Alle Werte wie im Haupt-Kalkulator.')
-    +' <button class="bg sm" style="margin-left:6px;padding:2px 9px" onclick="lvWerteVomKalkulator()">'
-    +'Werte aus dem Haupt-Kalkulator holen</button></div>';
-  // --- Vorschau ---
-  let vor='';
-  if(LVK_LISTE.length){
-    let summe=0, n=0;
-    let zeilen='';
-    LVK_LISTE.forEach(function(x){
-      const k=lvkSchluessel(x), an=lvkGewaehlt(x);
-      const diff=(x.neu-x.alt)*x.menge;
-      if(an){ summe+=diff; n++; }
-      zeilen+='<tr style="border-top:1px solid var(--line)'+(an?'':';opacity:.5')+'">'
-        +'<td style="padding:4px 6px"><input type="checkbox"'+(an?' checked':'')
-        +' onchange="lvkUmschalten(\''+k.replace(/'/g,"\\'")+'\')"></td>'
-        +'<td style="padding:4px 6px;white-space:nowrap"><b>'+esc(x.nr)+'</b></td>'
-        +'<td style="padding:4px 6px;font-size:11.5px;color:var(--muted)">'+esc(x.desc.slice(0,52))
-        +(x.hand?' <span style="color:var(--red)">· Preis von Hand</span>':'')+'</td>'
-        +'<td style="padding:4px 6px;text-align:right;white-space:nowrap">'+fmt(x.menge)+'</td>'
-        +'<td style="padding:4px 6px;text-align:right;white-space:nowrap">'+fmt(x.alt)+'</td>'
-        +'<td style="padding:4px 6px;text-align:right;white-space:nowrap;font-weight:700">'+fmt(x.neu)+'</td>'
-        +'<td style="padding:4px 6px;text-align:right;white-space:nowrap;color:'
-        +(diff>=0?'var(--green)':'var(--red)')+'">'+(diff>=0?'+':'')+fmt(diff)+' €</td></tr>';
-    });
-    vor='<div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--line)">'
-      +'<div style="font-size:13px;font-weight:700;margin-bottom:4px">'+LVK_LISTE.length
-      +' Position(en) würden sich ändern</div>'
-      +'<div style="font-size:12px;color:var(--muted);margin-bottom:8px">'
-      +'Von Hand eingetragene Preise sind <b>nicht</b> vorausgewählt – die änderst du nur, wenn du den Haken setzt.</div>'
-      +'<table style="width:100%;border-collapse:collapse;font-size:12.5px">'
-      +'<thead><tr style="color:var(--muted);font-size:11px">'
-      +'<th></th><th style="text-align:left;padding:3px 6px">Pos.</th><th style="text-align:left;padding:3px 6px">Beschreibung</th>'
-      +'<th style="text-align:right;padding:3px 6px">Menge</th><th style="text-align:right;padding:3px 6px">jetzt</th>'
-      +'<th style="text-align:right;padding:3px 6px">neu</th><th style="text-align:right;padding:3px 6px">Differenz</th>'
-      +'</tr></thead><tbody>'+zeilen+'</tbody></table>'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">'
-      +'<div style="font-size:13px"><b>'+n+' ausgewählt</b> · Angebotssumme <b style="color:'
-      +(summe>=0?'var(--green)':'var(--red)')+'">'+(summe>=0?'+':'')+fmt(summe)+' €</b></div>'
-      +'<button class="btn sm" onclick="lvKalkUebernehmen()">Ausgewählte übernehmen</button></div></div>';
-  } else {
-    vor='<div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--line);'
-      +'font-size:12.5px;color:var(--muted)">Kein Preis im LV würde sich mit diesen Werten ändern.</div>';
-  }
-  kalkBoxAuf('Kalkulation dieses LV · '+esc(LV.titel||''), kopf + vor + h);
+  kalkBoxAuf('Kalkulation dieses LV', h);
+}
+// Ein Wert wurde geaendert: LV nachrechnen, Ergebnis melden, fertig.
+function lvWertUebernehmen(key, wert){
+  lvWerte();
+  const alt = JSON.parse(JSON.stringify(LV.werte));
+  if(isFinite(wert) && wert>=0) LV.werte[key]=wert; else return;
+  const r = lvNachrechnen(alt);
+  renderLV(); scheduleSave(); lvKalkOeffnen();
+  if(!r.n){ toast('Kein Preis im LV ändert sich dadurch'); return; }
+  toast(r.n+(r.n===1?' Position':' Positionen')+' neu gerechnet · '
+        + (r.delta>=0?'+':'')+fmt(r.delta)+' €'
+        + (r.eigene ? (' · '+r.eigene+(r.eigene===1?' eigener Preis':' eigene Preise')+' unverändert') : ''));
 }
 function lvWertSetzen(key, roh){
-  lvWerte();
-  const v=parseFloat(String(roh).replace(',','.'));
-  if(isFinite(v) && v>=0) LV.werte[key]=v; else delete LV.werte[key];
-  scheduleSave();
-  lvKalkOeffnen();
+  lvWertUebernehmen(key, parseFloat(String(roh).replace(',','.')));
 }
 function lvWertZurueck(key){
   lvWerte();
-  const vorlage=werteJetzt();
-  if(isFinite(vorlage[key])) LV.werte[key]=vorlage[key]; else delete LV.werte[key];
-  scheduleSave();
-  lvKalkOeffnen();
-}
-function lvWerteVomKalkulator(){
-  if(!confirm('Alle Werte dieses LV auf den Stand des Haupt-Kalkulators setzen?\n\n'
-            + 'Die Preise im LV ändern sich dadurch noch nicht – die Liste zeigt dir erst, was passieren würde.')) return;
-  LV.werte = werteJetzt();
-  scheduleSave();
-  lvKalkOeffnen();
-  toast('Werte aus dem Haupt-Kalkulator geholt');
-}
-function lvKalkUebernehmen(){
-  const nehmen = LVK_LISTE.filter(lvkGewaehlt);
-  if(!nehmen.length){ toast('Nichts ausgewählt'); return; }
-  let n=0;
-  nehmen.forEach(function(x){
-    const p=LV.pos[x.i];
-    if(!p) return;
-    const warGruen = (p.status==='gruen');
-    delete p._epHand;                  // der Preis kommt jetzt aus der Rechnung
-    try{ autoEP(p, LV.system||'sakret'); }catch(e){ return; }
-    // Eine gepruefte Position bleibt geprueft - nur der Preis ist neu.
-    if(warGruen){ p.status='gruen'; delete p.gruenAuto; }
-    n++;
-  });
-  LVK_AUS={}; LVK_AN={};
-  renderLV(); scheduleSave();
-  lvKalkOeffnen();
-  toast(n+' Position(en) neu gerechnet');
+  lvWertUebernehmen(key, parseFloat(LV.werteStart ? LV.werteStart[key] : NaN));
 }
 function renderWerte(){
   const box=document.getElementById('werte-box');
