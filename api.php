@@ -296,6 +296,110 @@ switch ($action) {
         }
         break;
 
+    // ===== PRODUKTDATENBLAETTER: LISTE =====
+    case 'get_datenblaetter':
+        datenblatt_tabelle($pdo);
+        $rows = $pdo->query("SELECT id, titel, lieferant, datei, groesse, zuordnung, nutzer, created_at
+                             FROM datenblaetter ORDER BY lieferant, titel")->fetchAll();
+        foreach ($rows as &$r) {
+            $z = json_decode($r['zuordnung'] ?? '[]', true);
+            $r['zuordnung'] = is_array($z) ? $z : [];
+        }
+        echo json_encode(['ok' => true, 'blaetter' => $rows]);
+        break;
+
+    // ===== PRODUKTDATENBLATT: HOCHLADEN =====
+    case 'datenblatt_upload':
+        if (!datenblatt_ordner()) {
+            echo json_encode(['ok' => false, 'error' =>
+                'Der Ordner datenblaetter/ laesst sich nicht anlegen oder ist schreibgeschuetzt.']);
+            break;
+        }
+        if (empty($_FILES['datei']) || $_FILES['datei']['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(['ok' => false, 'error' => 'Keine Datei angekommen (Code '
+                . ($_FILES['datei']['error'] ?? '?') . ') – groesser als das Serverlimit?']);
+            break;
+        }
+        $tmp  = $_FILES['datei']['tmp_name'];
+        $roh  = $_FILES['datei']['name'];
+        $size = (int)$_FILES['datei']['size'];
+        if ($size > 25 * 1024 * 1024) {
+            echo json_encode(['ok' => false, 'error' => 'Die Datei ist groesser als 25 MB.']);
+            break;
+        }
+        // Wirklich ein PDF? Der Dateianfang entscheidet, nicht die Endung.
+        $kopf = @file_get_contents($tmp, false, null, 0, 5);
+        if ($kopf !== '%PDF-') {
+            echo json_encode(['ok' => false, 'error' => 'Das ist keine PDF-Datei.']);
+            break;
+        }
+        datenblatt_tabelle($pdo);
+        $basis = datenblatt_dateiname($roh);
+        $datei = $basis . '-' . substr(bin2hex(random_bytes(4)), 0, 8) . '.pdf';
+        if (!@move_uploaded_file($tmp, DB_ORDNER . '/' . $datei)) {
+            echo json_encode(['ok' => false, 'error' => 'Die Datei konnte nicht gespeichert werden.']);
+            break;
+        }
+        $titel = trim($_POST['titel'] ?? '') !== '' ? trim($_POST['titel']) : pathinfo($roh, PATHINFO_FILENAME);
+        $stmt = $pdo->prepare("INSERT INTO datenblaetter (titel, lieferant, datei, groesse, zuordnung, nutzer)
+                               VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$titel, trim($_POST['lieferant'] ?? ''), $datei, $size,
+                        $_POST['zuordnung'] ?? '[]', trim($_POST['nutzer'] ?? '')]);
+        echo json_encode(['ok' => true, 'id' => $pdo->lastInsertId(), 'datei' => $datei, 'titel' => $titel]);
+        break;
+
+    // ===== PRODUKTDATENBLATT: ANZEIGEN =====
+    case 'datenblatt':
+        $id = intval($_GET['id'] ?? 0);
+        datenblatt_tabelle($pdo);
+        $st = $pdo->prepare("SELECT titel, datei FROM datenblaetter WHERE id = ?");
+        $st->execute([$id]);
+        $b = $st->fetch();
+        $pfad = $b ? DB_ORDNER . '/' . basename($b['datei']) : '';
+        if (!$b || !is_file($pfad)) {
+            header('Content-Type: text/plain; charset=utf-8');
+            http_response_code(404);
+            echo 'Datenblatt nicht gefunden.';
+            exit;
+        }
+        header('Content-Type: application/pdf');
+        header('Content-Length: ' . filesize($pfad));
+        header('Content-Disposition: inline; filename="' . basename($b['datei']) . '"');
+        header('X-Content-Type-Options: nosniff');
+        readfile($pfad);
+        exit;
+
+    // ===== PRODUKTDATENBLATT: ZUORDNUNG UND TITEL AENDERN =====
+    case 'datenblatt_zuordnen':
+        $d = json_decode(file_get_contents('php://input'), true);
+        $id = intval($d['id'] ?? 0);
+        datenblatt_tabelle($pdo);
+        $felder = []; $werte = [];
+        if (isset($d['zuordnung'])) { $felder[] = 'zuordnung=?'; $werte[] = json_encode(array_values((array)$d['zuordnung'])); }
+        if (isset($d['titel']))     { $felder[] = 'titel=?';     $werte[] = (string)$d['titel']; }
+        if (isset($d['lieferant'])) { $felder[] = 'lieferant=?'; $werte[] = (string)$d['lieferant']; }
+        if (!$felder || !$id) { echo json_encode(['ok' => false, 'error' => 'Nichts zu aendern.']); break; }
+        $werte[] = $id;
+        $stmt = $pdo->prepare("UPDATE datenblaetter SET " . implode(', ', $felder) . " WHERE id=?");
+        $stmt->execute($werte);
+        echo json_encode(['ok' => true]);
+        break;
+
+    // ===== PRODUKTDATENBLATT: LOESCHEN =====
+    case 'delete_datenblatt':
+        $id = intval($_GET['id'] ?? 0);
+        datenblatt_tabelle($pdo);
+        $st = $pdo->prepare("SELECT datei FROM datenblaetter WHERE id = ?");
+        $st->execute([$id]);
+        $b = $st->fetch();
+        if ($b) {
+            $pfad = DB_ORDNER . '/' . basename($b['datei']);
+            if (is_file($pfad)) @unlink($pfad);
+            $pdo->prepare("DELETE FROM datenblaetter WHERE id = ?")->execute([$id]);
+        }
+        echo json_encode(['ok' => true]);
+        break;
+
     // ===== VERSIONSGESCHICHTE EINES LV =====
     case 'get_verlauf':
         $id = intval($_GET['id'] ?? 0);
@@ -594,6 +698,52 @@ function lv_sichern($pdo, $id, $neueListe) {
     } catch (Exception $e) {
         return null;   // Eine Sicherung darf das Speichern nie blockieren
     }
+}
+
+
+// ============================================================
+// PRODUKTDATENBLAETTER
+// Erik am 30.08.2026: "koennen wir das PDF von Rinklake in der
+// Preisdatenbank integrieren? Evtl. als eigenen Reiter mit eigenem
+// Drag&drop feld ... Hier koennte man dann auch gleich die
+// Produktdatenblaetter der Abdichtungsartikel erfassen."
+// Die kleinen Zeichnungen in der Preisliste sind nur 190 Pixel breit -
+// fuer Masse und Materialangaben reicht das nicht.
+//
+// Die PDFs liegen als DATEI auf dem Webspace, nicht in der Datenbank:
+// ein Preisblatt kann 15 MB haben, das sprengt jede DB-Antwort. In der
+// Datenbank steht nur, wie die Datei heisst und zu welchen Artikeln sie
+// gehoert.
+// ============================================================
+define('DB_ORDNER', __DIR__ . '/datenblaetter');
+function datenblatt_ordner() {
+    if (!is_dir(DB_ORDNER)) { @mkdir(DB_ORDNER, 0755, true); }
+    // Nichts in diesem Ordner darf ausgefuehrt werden.
+    $ht = DB_ORDNER . '/.htaccess';
+    if (is_dir(DB_ORDNER) && !file_exists($ht)) {
+        @file_put_contents($ht, "php_flag engine off\nOptions -Indexes\n");
+    }
+    return is_dir(DB_ORDNER) && is_writable(DB_ORDNER);
+}
+function datenblatt_tabelle($pdo) {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS datenblaetter (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        titel VARCHAR(255) DEFAULT '',
+        lieferant VARCHAR(120) DEFAULT '',
+        datei VARCHAR(255) NOT NULL,
+        groesse INT DEFAULT 0,
+        zuordnung TEXT,
+        nutzer VARCHAR(100) DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+// Aus "Rinklake Preisliste 2026.pdf" wird "Rinklake-Preisliste-2026.pdf"
+function datenblatt_dateiname($roh) {
+    $name = pathinfo($roh, PATHINFO_FILENAME);
+    $name = preg_replace('/[^A-Za-z0-9._-]+/', '-', $name);
+    $name = trim($name, '-');
+    if ($name === '') $name = 'datenblatt';
+    return substr($name, 0, 80);
 }
 
 
