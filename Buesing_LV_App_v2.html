@@ -760,7 +760,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 174';
+const APP_STAND = '30.08.2026 · 175';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1123,6 +1123,8 @@ const WERTE = [
     ['GRU_L_NSAUG','Verbrauch nicht saugend','L/m²',()=>GRU_L_NSAUG,v=>GRU_L_NSAUG=v],
     ['GRU_L_HOLZ','Verbrauch Holzuntergrund','L/m²',()=>GRU_L_HOLZ,v=>GRU_L_HOLZ=v],
     ['GRU_L_METALL','Verbrauch Metalluntergrund','L/m²',()=>GRU_L_METALL,v=>GRU_L_METALL=v],
+    ['GRU_EK_HOLZ','EK PCI Wadian (Holz)','€/L',()=>GRU_EK_HOLZ,v=>GRU_EK_HOLZ=v],
+    ['GRU_EK_METALL','EK PCI Gisogrund 404 (Metall)','€/L',()=>GRU_EK_METALL,v=>GRU_EK_METALL=v],
     ['GRU_ZEIT','Zeit Auftragen','h/m²',()=>GRU_ZEIT,v=>GRU_ZEIT=v],
   ]],
   ['Abdichtung', [
@@ -1422,7 +1424,10 @@ function lvSummeNetto(){
   return s;
 }
 // --- Fenster ----------------------------------------------------------
-function kalkBoxZu(){ const d=document.getElementById('kalk-box'); if(d&&d.parentNode) d.parentNode.removeChild(d); }
+function kalkBoxZu(){
+  if(KALK_TIMER) lvKalkRechnen();      // Ausstehendes nicht verschlucken
+  const d=document.getElementById('kalk-box'); if(d&&d.parentNode) d.parentNode.removeChild(d);
+}
 function kalkBoxAuf(titel, inhalt){
   kalkBoxZu();
   const d=document.createElement('div');
@@ -1445,7 +1450,7 @@ function lvKalkOeffnen(){
        +'Diese Werte gelten nur für <b style="color:var(--text)">'+esc(LV.titel||'dieses LV')+'</b>. '
        +'Änderst du einen Wert, rechnet das LV sofort nach.</div>'
        +'<div style="font-size:13px;margin-bottom:4px">Angebotssumme netto: '
-       +'<b style="color:var(--accent);font-size:15px">'+fmt(lvSummeNetto())+' €</b></div>';
+       +'<b id="kalk-summe" style="color:var(--accent);font-size:15px">'+fmt(lvSummeNetto())+' €</b></div>';
   werteAlle().forEach(function(g){
     let zeilen='';
     g[1].forEach(function(e){
@@ -1456,12 +1461,13 @@ function lvKalkOeffnen(){
       zeilen+='<tr style="border-top:1px solid var(--line)">'
         +'<td style="padding:5px 8px 5px 0">'+esc(e[1])+'</td>'
         +'<td style="padding:5px 0;white-space:nowrap;text-align:right">'
-        +'<input type="number" step="0.01" value="'+(isFinite(wert)?String(wert):'')+'" '
+        +'<input id="kalkfeld-'+key+'" type="number" step="0.01" value="'+(isFinite(wert)?String(wert):'')+'" '
         +'style="width:100px;padding:4px 6px;text-align:right'+(ab?';border-color:var(--accent);font-weight:700':'')+'" '
         +'onchange="lvWertSetzen(\''+key+'\',this.value)"> <span style="color:var(--muted)">'+esc(e[2])+'</span>'
+        +'<span id="kalkzurueck-'+key+'">'
         +(ab ? (' <button class="bg sm" style="padding:1px 7px;font-size:11px" title="zurück auf '+String(start)+'" '
                 +'onclick="lvWertZurueck(\''+key+'\')">↩</button>') : '')
-        +'</td></tr>';
+        +'</span></td></tr>';
     });
     h+='<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;'
       +'letter-spacing:.5px;color:var(--accent);margin-bottom:4px">'+esc(g[0])+'</div>'
@@ -1469,24 +1475,63 @@ function lvKalkOeffnen(){
   });
   kalkBoxAuf('Kalkulation dieses LV', h);
 }
-// Ein Wert wurde geaendert: LV nachrechnen, Ergebnis melden, fertig.
-function lvWertUebernehmen(key, wert){
+// Ein Wert wurde geaendert. Das Fenster wird dabei NICHT neu gezeichnet -
+// Erik am 30.08.2026: "wenn man im Mengenfeld mittels der Pfeiltasten den Wert
+// veraendert, springt man sofort wieder ganz nach oben ... die seite muss fest
+// stehen bleiben und sich nur veraendern, wenn ich mit der maus scrolle."
+// Also: nur die eine Zeile und die Summe werden nachgezogen, und das
+// Nachrechnen des LV wartet einen Moment ab, damit mehrere Klicks
+// hintereinander nicht jedes Mal alles neu rechnen.
+let KALK_TIMER = null;
+let KALK_ALT   = null;   // Werte, mit denen bisher gerechnet wurde
+function kalkZeileAktualisieren(key){
+  const feld=document.getElementById('kalkfeld-'+key);
+  const box =document.getElementById('kalkzurueck-'+key);
+  if(!feld) return;
+  const wert  = parseFloat(LV.werte[key]);
+  const start = parseFloat(LV.werteStart ? LV.werteStart[key] : NaN);
+  const ab    = isFinite(start) && isFinite(wert) && Math.abs(wert-start)>1e-9;
+  if(document.activeElement!==feld) feld.value = isFinite(wert)?String(wert):'';
+  feld.style.borderColor = ab ? 'var(--accent)' : '';
+  feld.style.fontWeight  = ab ? '700' : '';
+  if(box) box.innerHTML = ab
+    ? (' <button class="bg sm" style="padding:1px 7px;font-size:11px" title="zurück auf '+String(start)+'" '
+       +'onclick="lvWertZurueck(\''+key+'\')">↩</button>')
+    : '';
+}
+function kalkSummeAktualisieren(){
+  const el=document.getElementById('kalk-summe');
+  if(el) el.textContent = fmt(lvSummeNetto())+' €';
+}
+function lvWertSetzen(key, roh){
   lvWerte();
-  const alt = JSON.parse(JSON.stringify(LV.werte));
-  if(isFinite(wert) && wert>=0) LV.werte[key]=wert; else return;
-  const r = lvNachrechnen(alt);
-  renderLV(); scheduleSave(); lvKalkOeffnen();
+  const v=parseFloat(String(roh).replace(',','.'));
+  if(!(isFinite(v) && v>=0)) return;
+  if(!KALK_ALT) KALK_ALT = JSON.parse(JSON.stringify(LV.werte));
+  LV.werte[key]=v;
+  kalkZeileAktualisieren(key);
+  clearTimeout(KALK_TIMER);
+  KALK_TIMER=setTimeout(lvKalkRechnen, 400);
+}
+function lvKalkRechnen(){
+  clearTimeout(KALK_TIMER); KALK_TIMER=null;
+  if(!KALK_ALT) return;
+  const alt=KALK_ALT; KALK_ALT=null;
+  const r=lvNachrechnen(alt);
+  renderLV(); scheduleSave();
+  kalkSummeAktualisieren();
   if(!r.n){ toast('Kein Preis im LV ändert sich dadurch'); return; }
   toast(r.n+(r.n===1?' Position':' Positionen')+' neu gerechnet · '
         + (r.delta>=0?'+':'')+fmt(r.delta)+' €'
         + (r.eigene ? (' · '+r.eigene+(r.eigene===1?' eigener Preis':' eigene Preise')+' unverändert') : ''));
 }
-function lvWertSetzen(key, roh){
-  lvWertUebernehmen(key, parseFloat(String(roh).replace(',','.')));
-}
 function lvWertZurueck(key){
   lvWerte();
-  lvWertUebernehmen(key, parseFloat(LV.werteStart ? LV.werteStart[key] : NaN));
+  const start = parseFloat(LV.werteStart ? LV.werteStart[key] : NaN);
+  if(!isFinite(start)) return;
+  const feld=document.getElementById('kalkfeld-'+key);
+  if(feld) feld.value=String(start);
+  lvWertSetzen(key, String(start));
 }
 function renderWerte(){
   const box=document.getElementById('werte-box');
@@ -2253,27 +2298,34 @@ const ABDICHT = {
 // Kalkulationswerten - Erik kann ihn dort je Untergrund einstellen.
 // Erik am 30.08.2026: "wir haben aktuell 'saugend' und 'nicht saugend'.
 // Wir erweitern das bitte auf 'Holzuntergrund' und 'Metalluntergrund'."
-// Fuer Holz und Metall steht bis auf Weiteres derselbe Haftgrund wie bei
-// nicht saugendem Untergrund - in der Preisdatenbank gibt es (Stand
-// 30.08.2026) kein eigenes Produkt dafuer. Ueber die Materialauswahl in der
-// Position laesst sich jederzeit ein anderer Artikel waehlen.
+// Holz und Metall bekommen Spezialgrundierungen - die haengen NICHT am
+// System (Sakret/RAW), Erik holt sie bei Keramundo:
+//   Holz:   PCI Wadian gelb          · Art. 510105 · 1-l-Flasche · 27,61 €/l
+//   Metall: PCI Gisogrund 404 violett· Art. 225804 · 1-l-Tuete   · 25,13 €/l
+// Beide stehen (Stand 30.08.2026) nicht in der Preisdatenbank. Deshalb ist
+// der Literpreis hier hinterlegt und in den Kalkulationswerten aenderbar.
+// Sobald der Artikel in der Preisdatenbank auftaucht, gilt der Preis von dort.
 let GRU_L_SAUG   = 0.21;   // L/m² saugender Untergrund
 let GRU_L_NSAUG  = 0.125;  // L/m² nicht saugender Untergrund
-let GRU_L_HOLZ   = 0.125;  // L/m² Holzuntergrund
-let GRU_L_METALL = 0.125;  // L/m² Metalluntergrund
+let GRU_L_HOLZ   = 0.18;   // L/m² Holz   - Erik am 30.08.2026: holz = 0,18 Liter pro qm
+let GRU_L_METALL = 0.15;   // L/m² Metall - Erik am 30.08.2026: metall = 0,15 Liter
+let GRU_EK_HOLZ  = 27.61;  // €/L PCI Wadian
+let GRU_EK_METALL= 25.13;  // €/L PCI Gisogrund 404
 let GRU_ZEIT     = 0.05;   // h/m² Auftragen, alle Untergruende
+const GRU_HOLZ   = {name:'PCI Wadian gelb',           gebinde:1, ek:function(){ return GRU_EK_HOLZ;   }};
+const GRU_METALL = {name:'PCI Gisogrund 404 violett', gebinde:1, ek:function(){ return GRU_EK_METALL; }};
 const GRUND = {
   sakret: {
     saugend:      {name:'Sakret Universalgrundierung', gebinde:20},
     nichtsaugend: {name:'Sakret Schnellhaftgrund',     gebinde:5 },
-    holz:         {name:'Sakret Schnellhaftgrund',     gebinde:5 },
-    metall:       {name:'Sakret Schnellhaftgrund',     gebinde:5 },
+    holz:         GRU_HOLZ,
+    metall:       GRU_METALL,
   },
   raw: {
     saugend:      {name:'RAW Grundierung universal Konzentrat', gebinde:20},
     nichtsaugend: {name:'RAW Haftgrund schnell',                gebinde:5 },
-    holz:         {name:'RAW Haftgrund schnell',                gebinde:5 },
-    metall:       {name:'RAW Haftgrund schnell',                gebinde:5 },
+    holz:         GRU_HOLZ,
+    metall:       GRU_METALL,
   }
 };
 // Die vier Untergruende an einer Stelle: Schluessel, Beschriftung, Verbrauch.
@@ -3652,7 +3704,12 @@ function epGrundierung(p, system){
   const mtxt=u[1];
   let mat=0;
   const geb = gebindeAusArtikel(a, cfg.gebinde) || cfg.gebinde;
-  if(a){ mat=preisJe(a,geb)*liter; zeilen.push(['Grundierung '+ltxt+' L ('+mtxt+')', preisTxt(a,geb,'L')+' × '+ltxt, mat]); }
+  if(a){ mat=preisJe(a,geb)*liter; zeilen.push([cfg.name+' '+ltxt+' L ('+mtxt+')', preisTxt(a,geb,'L')+' × '+ltxt, mat]); }
+  else if(typeof cfg.ek==='function' && cfg.ek()>0){
+    // Spezialgrundierung mit hinterlegtem Literpreis - kein Fehler.
+    mat=cfg.ek()*liter;
+    zeilen.push([cfg.name+' '+ltxt+' L ('+mtxt+')', fmt(cfg.ek())+' €/L × '+ltxt+' · hinterlegt', mat]);
+  }
   else { warn.push('ARTIKEL|'+cfg.name); zeilen.push(['Grundierung '+ltxt+' L ('+mtxt+')','fehlt',0]); }
   const kalk=mat*1.20;
   zeilen.push(['Material × 1,20','',kalk]);
