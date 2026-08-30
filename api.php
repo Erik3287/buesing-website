@@ -336,7 +336,7 @@ switch ($action) {
         datenblatt_tabelle($pdo);
         $basis = datenblatt_dateiname($roh);
         $datei = $basis . '-' . substr(bin2hex(random_bytes(4)), 0, 8) . '.pdf';
-        if (!@move_uploaded_file($tmp, DB_ORDNER . '/' . $datei)) {
+        if (!@move_uploaded_file($tmp, db_ordner() . '/' . $datei)) {
             echo json_encode(['ok' => false, 'error' => 'Die Datei konnte nicht gespeichert werden.']);
             break;
         }
@@ -355,7 +355,7 @@ switch ($action) {
         $st = $pdo->prepare("SELECT titel, datei FROM datenblaetter WHERE id = ?");
         $st->execute([$id]);
         $b = $st->fetch();
-        $pfad = $b ? DB_ORDNER . '/' . basename($b['datei']) : '';
+        $pfad = $b ? db_ordner() . '/' . basename($b['datei']) : '';
         if (!$b || !is_file($pfad)) {
             header('Content-Type: text/plain; charset=utf-8');
             http_response_code(404);
@@ -393,7 +393,7 @@ switch ($action) {
         $st->execute([$id]);
         $b = $st->fetch();
         if ($b) {
-            $pfad = DB_ORDNER . '/' . basename($b['datei']);
+            $pfad = db_ordner() . '/' . basename($b['datei']);
             if (is_file($pfad)) @unlink($pfad);
             $pdo->prepare("DELETE FROM datenblaetter WHERE id = ?")->execute([$id]);
         }
@@ -715,15 +715,21 @@ function lv_sichern($pdo, $id, $neueListe) {
 // Datenbank steht nur, wie die Datei heisst und zu welchen Artikeln sie
 // gehoert.
 // ============================================================
-define('DB_ORDNER', __DIR__ . '/datenblaetter');
+// Der Pfad steckt in einer FUNKTION, nicht in einer Konstanten. Eine Konstante
+// entsteht erst, wenn ihre Zeile ausgefuehrt wird - und diese Zeilen stehen am
+// Dateiende, also NACH dem switch. Beim Hochladen kam deshalb
+// "Undefined constant" (Erik am 30.08.2026). Funktionen kennt PHP dagegen von
+// Anfang an, egal an welcher Stelle der Datei sie stehen.
+function db_ordner() { return __DIR__ . '/datenblaetter'; }
 function datenblatt_ordner() {
-    if (!is_dir(DB_ORDNER)) { @mkdir(DB_ORDNER, 0755, true); }
+    $o = db_ordner();
+    if (!is_dir($o)) { @mkdir($o, 0755, true); }
     // Nichts in diesem Ordner darf ausgefuehrt werden.
-    $ht = DB_ORDNER . '/.htaccess';
-    if (is_dir(DB_ORDNER) && !file_exists($ht)) {
+    $ht = $o . '/.htaccess';
+    if (is_dir($o) && !file_exists($ht)) {
         @file_put_contents($ht, "php_flag engine off\nOptions -Indexes\n");
     }
-    return is_dir(DB_ORDNER) && is_writable(DB_ORDNER);
+    return is_dir($o) && is_writable($o);
 }
 function datenblatt_tabelle($pdo) {
     $pdo->exec("CREATE TABLE IF NOT EXISTS datenblaetter (
