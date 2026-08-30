@@ -784,7 +784,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 188';
+const APP_STAND = '30.08.2026 · 189';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4101,13 +4101,161 @@ function fliesenstaerke(p){
   }
   return {mm:0, quelle:''};
 }
-function profilKandidaten(){
+// ============================================================
+// PROFIL-FILTER
+// Erik am 30.08.2026: "koennen wir fuer die schienen einen kleinen Filter
+// bauen? ... Winkel-Profile, Quadec-Profile, Treppen-Profile,
+// Uebergangsprofile, Ecken und Wuerfel ... glaenzend, matt,
+// pulverbeschichtet ... evtl. noch Laenge ... Am besten zum ankreuzen."
+//
+// Die Merkmale werden NICHT fest eingetragen, sondern aus dem Namen und der
+// Produktgruppe jedes Artikels gelesen. So taucht ein neu importiertes Profil
+// von selbst im richtigen Kaestchen auf - genauso wie bei der alphabetischen
+// Sortierung, die Erik am 28.08.2026 verlangt hat.
+// ============================================================
+function profilText(a){ return String((a&&a.format)||'')+' '+String((a&&a.name)||''); }
+function profilBauart(a){
+  const t=profilText(a).toLowerCase();
+  if(/treppenstufenprofil|treppenprofil|stufenprofil/.test(t)) return 'Treppenprofile';
+  if(/übergangsprofil|uebergangsprofil/.test(t))               return 'Übergangsprofile';
+  if(/eckschutz|kantenschutz/.test(t))                          return 'Eckschutz';
+  if(/dehnungsfug|bewegungsfug/.test(t))                        return 'Dehnungsfugenprofile';
+  if(/quadratisch|q-form|quadec|würfel|wuerfel/.test(t))        return 'Quadratprofile (Q-Form)';
+  if(/rundes profil|rundprofil|rundung/.test(t))                return 'Rundprofile';
+  if(/winkel/.test(t))                                          return 'Winkelprofile (L-Form)';
+  if(/fliesenschiene|trennschiene|schiene/.test(t))             return 'Fliesen-/Trennschienen';
+  return 'Sonstige Profile';
+}
+function profilMaterial(a){
+  const t=profilText(a).toLowerCase();
+  if(/edelstahl|v2a|v4a/.test(t))          return 'Edelstahl';
+  if(/aluminium|\balu\b/.test(t))          return 'Aluminium';
+  if(/kunststoff|\bpvc\b/.test(t))         return 'Kunststoff';
+  if(/messing/.test(t))                    return 'Messing';
+  return 'ohne Angabe';
+}
+function profilOberflaeche(a){
+  const t=profilText(a).toLowerCase();
+  if(/gebürstet|gebuerstet|geschliffen|\bmatt\b/.test(t)) return 'gebürstet / matt';
+  if(/pulverbeschicht|beschichtet|jolly|brillantweiß|brillantweiss/.test(t)) return 'pulverbeschichtet';
+  if(/eloxiert/.test(t))                    return 'eloxiert';
+  if(/brillantchrom/.test(t))               return 'brillantchrom';
+  if(/natur\b/.test(t))                     return 'natur';
+  return 'glänzend';
+}
+// Stangenlaenge, wenn sie im Text steht. Millimeter unter 100 sind die HOEHE
+// des Profils, nicht seine Laenge - die zaehlen hier nicht.
+function profilLaenge(a){
+  const t=profilText(a);
+  let m=t.match(/(?:à|a|je|pro)\s*(\d+(?:[.,]\d+)?)\s*m\b/i);
+  if(m) return Math.round(parseFloat(m[1].replace(',','.'))*100)/100;
+  m=t.match(/(\d(?:[.,]\d+)?)\s*m\b(?!m)/);
+  if(m){ const v=parseFloat(m[1].replace(',','.')); if(v>=1 && v<=6) return Math.round(v*100)/100; }
+  m=t.match(/(\d{4})\s*mm\b/);
+  if(m){ const v=parseInt(m[1])/1000; if(v>=1 && v<=6) return Math.round(v*100)/100; }
+  return null;
+}
+function laengeTxt(l){ return String(l).replace('.',',')+' m'; }
+// Der aktuelle Filter, gilt fuer alle Positionen dieser Sitzung.
+let PROFIL_FILTER = {bauart:[], material:[], oberflaeche:[], laenge:[]};
+function profilFilterAn(){
+  return PROFIL_FILTER.bauart.length || PROFIL_FILTER.material.length
+      || PROFIL_FILTER.oberflaeche.length || PROFIL_FILTER.laenge.length;
+}
+function profilPasstFilter(a){
+  const f=PROFIL_FILTER;
+  if(f.bauart.length      && f.bauart.indexOf(profilBauart(a))<0) return false;
+  if(f.material.length    && f.material.indexOf(profilMaterial(a))<0) return false;
+  if(f.oberflaeche.length && f.oberflaeche.indexOf(profilOberflaeche(a))<0) return false;
+  if(f.laenge.length){
+    const l=profilLaenge(a);
+    if(l===null || f.laenge.indexOf(laengeTxt(l))<0) return false;
+  }
+  return true;
+}
+function profilFilterSetzen(feld, wert, i){
+  const liste=PROFIL_FILTER[feld]; if(!liste) return;
+  const k=liste.indexOf(wert);
+  if(k>-1) liste.splice(k,1); else liste.push(wert);
+  profilFilterNeuZeichnen(i);
+}
+function profilFilterLeeren(i){
+  PROFIL_FILTER={bauart:[], material:[], oberflaeche:[], laenge:[]};
+  profilFilterNeuZeichnen(i);
+}
+// Nur den Rechner DIESER Position neu zeichnen - die Seite bleibt stehen.
+function profilFilterNeuZeichnen(i){
+  if(!(LV && LV.pos && LV.pos[i])) return;
+  const row=document.getElementById('calc-'+i);
+  if(row && row.querySelector('td')) row.querySelector('td').innerHTML=renderCalcHTML(i);
+}
+// Die Kaestchen. Jedes zeigt, wie viele Profile es gerade trifft.
+function profilFilterHtml(i){
+  const alle=profilKandidatenRoh();
+  if(alle.length<6) return '';
+  const achsen=[
+    ['bauart',      'Bauart',     profilBauart],
+    ['material',    'Material',   profilMaterial],
+    ['oberflaeche', 'Oberfläche', profilOberflaeche],
+  ];
+  let h='';
+  achsen.forEach(function(ax){
+    const zaehl={};
+    alle.forEach(function(a){ const w=ax[2](a); zaehl[w]=(zaehl[w]||0)+1; });
+    const werte=Object.keys(zaehl).sort(function(x,y){ return x.localeCompare(y,'de'); });
+    if(werte.length<2) return;
+    h+='<div style="margin-bottom:5px"><span style="font-size:10.5px;font-weight:700;text-transform:uppercase;'
+      +'letter-spacing:.4px;color:var(--muted);margin-right:8px">'+ax[1]+'</span>'
+      + werte.map(function(w){
+          const an=PROFIL_FILTER[ax[0]].indexOf(w)>-1;
+          return '<label style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;'
+            +'font-size:12px;cursor:pointer'+(an?';font-weight:700;color:var(--accent)':'')+'">'
+            +'<input type="checkbox"'+(an?' checked':'')+' style="margin:0" '
+            +'onchange="profilFilterSetzen(\''+ax[0]+'\',\''+esc(w).replace(/'/g,"\\'")+'\','+i+')">'
+            +esc(w)+' <span style="color:var(--muted)">'+zaehl[w]+'</span></label>';
+        }).join('')
+      +'</div>';
+  });
+  // Laengen nur, wenn es ueberhaupt verschiedene gibt
+  const lz={};
+  alle.forEach(function(a){ const l=profilLaenge(a); if(l!==null) lz[laengeTxt(l)]=(lz[laengeTxt(l)]||0)+1; });
+  const lw=Object.keys(lz).sort(function(x,y){ return parseFloat(x.replace(',','.'))-parseFloat(y.replace(',','.')); });
+  if(lw.length>=2){
+    h+='<div style="margin-bottom:5px"><span style="font-size:10.5px;font-weight:700;text-transform:uppercase;'
+      +'letter-spacing:.4px;color:var(--muted);margin-right:8px">Länge</span>'
+      + lw.map(function(w){
+          const an=PROFIL_FILTER.laenge.indexOf(w)>-1;
+          return '<label style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;'
+            +'font-size:12px;cursor:pointer'+(an?';font-weight:700;color:var(--accent)':'')+'">'
+            +'<input type="checkbox"'+(an?' checked':'')+' style="margin:0" '
+            +'onchange="profilFilterSetzen(\'laenge\',\''+esc(w)+'\','+i+')">'
+            +esc(w)+' <span style="color:var(--muted)">'+lz[w]+'</span></label>';
+        }).join('')
+      +'</div>';
+  }
+  if(!h) return '';
+  const treffer=alle.filter(profilPasstFilter).length;
+  return '<div style="flex-basis:100%;background:#f7f7f9;border:1px solid var(--line);border-radius:8px;'
+    +'padding:8px 11px">'+h
+    +'<div style="font-size:11.5px;color:var(--muted);margin-top:2px">'
+    + (profilFilterAn()
+        ? ('<b style="color:var(--accent)">'+treffer+' von '+alle.length+' Profilen</b> in der Auswahl '
+           +'<button class="bg sm" style="padding:1px 8px;font-size:11px;margin-left:6px" '
+           +'onclick="profilFilterLeeren('+i+')">Filter aus</button>')
+        : ('alle '+alle.length+' Profile in der Auswahl – zum Eingrenzen ankreuzen'))
+    +'</div></div>';
+}
+function profilKandidatenRoh(){
   return (PREISE||[]).filter(function(x){
     if(x.kat!=='profile') return false;
     if(/^Rinklake\s+TS-FAE?\s/i.test(String(x.name||''))) return false;   // Alu - baut Erik nicht ein
     const e=String(x.eu||'').toLowerCase().replace(/^\//,'');
     return e==='m' || e==='lfm' || e==='mtr';
   }).sort(function(a,b){ return alphabetisch(a.name, b.name); });
+}
+// Was im Auswahlfeld steht: alles, was durch den Filter passt.
+function profilKandidaten(){
+  return profilKandidatenRoh().filter(profilPasstFilter);
 }
 function profilArtikel(p){
   if(!p || !p.profilArt) return null;
@@ -4161,7 +4309,8 @@ const TREPPENREIHEN = [
   {key:'et',  suche:/TS-?ET\b/i,    wort:'rutschhemmend', text:'Edelstahl, rutschhemmend, ohne Gummieinlage'},
   {key:'fe',  suche:/TS-?FE\b/i,    wort:'glatt',         text:'Edelstahl, ohne rutschhemmenden Bereich'},
 ];
-const TREPPE_EINLAGE = /gummi|einlage|einleger|auswechselbar|profileinsatz/i;
+// "auswechselbare Trittflaeche" steht so in der Rinklake-Liste bei TS-B30.
+const TREPPE_EINLAGE = /gummi|einlage|einleger|auswechselbar|profileinsatz|trittfl(ä|ae)che/i;
 // "ohne Gummieinlage" ist das Gegenteil von "mit Einlage" - das Wort allein
 // darf die Reihe nicht entscheiden (Erik am 30.08.2026: TS-ET ist gerade das
 // rutschhemmende Profil OHNE Gummieinlage).
@@ -6841,7 +6990,12 @@ function renderCalcHTML(i){
     // Auswahl aus der Preisdatenbank, nach Bauart gruppiert. Damit steht der
     // richtige Artikel und sein Preis sofort in der Kalkulation, statt dass
     // der Standard aus der Oberflaechen-Erkennung rechnet.
+    felder += profilFilterHtml(i);
     const pk=profilKandidaten();
+    if(!pk.length && profilFilterAn()){
+      felder += '<div style="min-width:330px;font-size:12px;color:var(--red);padding-top:18px">'
+        +'Kein Profil passt zu diesem Filter.</div>';
+    }
     if(pk.length){
       const gruppen={};
       pk.forEach(function(x){ const g=x.format||'weitere Profile'; (gruppen[g]=gruppen[g]||[]).push(x); });
