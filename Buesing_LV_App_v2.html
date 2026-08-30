@@ -762,7 +762,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 185';
+const APP_STAND = '30.08.2026 · 186';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1088,11 +1088,18 @@ const WERTE = [
   // LV-Kalkulator nicht erreichbar - eine Stundenlohn-Position ruehrte sich
   // dort nicht (Erik am 30.08.2026: "Pruefe bitte NOCH EINMAL, ob alle
   // anderen Positionen korrekt funktionieren").
-  ['Löhne und Zuschlag', [
-    ['LOHN_FACHARBEITER','Stundensatz Facharbeiter','€/h',()=>KALK.lohn_facharbeiter,v=>KALK.lohn_facharbeiter=v],
-    ['LOHN_VORARBEITER','Stundensatz Vorarbeiter','€/h',()=>KALK.lohn_vorarbeiter,v=>KALK.lohn_vorarbeiter=v],
-    ['LOHN_HELFER','Stundensatz Helfer','€/h',()=>KALK.lohn_helfer,v=>KALK.lohn_helfer=v],
+  ['Verrechnungslohn (steckt in jedem Einheitspreis)', [
+    ['LOHN_FACHARBEITER','Verrechnungslohn Facharbeiter','€/h',()=>KALK.lohn_facharbeiter,v=>KALK.lohn_facharbeiter=v],
+    ['LOHN_VORARBEITER','Verrechnungslohn Vorarbeiter','€/h',()=>KALK.lohn_vorarbeiter,v=>KALK.lohn_vorarbeiter=v],
+    ['LOHN_HELFER','Verrechnungslohn Helfer','€/h',()=>KALK.lohn_helfer,v=>KALK.lohn_helfer=v],
     ['MAT_ZUSCHLAG','Materialzuschlag','Faktor',()=>KALK.mat_zuschlag,v=>KALK.mat_zuschlag=v],
+  ]],
+  // Getrennt, mit Absicht: diese Saetze gelten NUR fuer die
+  // Stundenlohn-Positionen und wirken auf keinen anderen Einheitspreis.
+  ['Stundenlohnarbeiten (eigene Position, wirkt sonst nirgends)', [
+    ['STD_LOHN_FACH','Angebotener Stundensatz Facharbeiter','€/h',()=>STD_LOHN_FACH,v=>STD_LOHN_FACH=v],
+    ['STD_LOHN_VOR','Angebotener Stundensatz Vorarbeiter','€/h',()=>STD_LOHN_VOR,v=>STD_LOHN_VOR=v],
+    ['STD_LOHN_HELFER','Angebotener Stundensatz Helfer/Azubi','€/h',()=>STD_LOHN_HELFER,v=>STD_LOHN_HELFER=v],
   ]],
   ['Silikon / Elastische Fuge', [
     ['SIL_SANITAER','Sanitärsilikon','€/m',()=>SILIKON.sanitaer,v=>SILIKON.sanitaer=v],
@@ -3968,13 +3975,26 @@ function epEntkopplung(p, system){
   zeilen.push(['Lohn (wie Dichtbahn verlegen)','8 min/m² + Band '+btxt+' × 0,0717 h',lohn]);
   return {ep:Math.round((kalk+lohn)*100)/100, zeilen, warn};
 }
+// ===== STUNDENLOHNARBEITEN - EIGENE SAETZE ================================
+// Erik am 30.08.2026: "Die Position 15.10 (Stundenlohn) darf sich nicht auf
+// die vorherigen Einzelpositionen auswirken! Das ist eine Position fuer
+// ZUSAETZLICHE Stundenlohnarbeiten und ist von der Kalkulation zu trennen."
+// Und: "bitte merke dir das auch fuer zukuenftige LVs!"
+//
+// Deshalb zwei getrennte Saetze, die zufaellig gleich anfangen:
+//   KALK.lohn_*  = Verrechnungslohn IN den Rezepten (steckt in jedem EP)
+//   STD_LOHN_*   = der Satz, den Erik fuer Regiestunden ANBIETET
+// Wer den einen aendert, aendert den anderen nicht. Das gilt fuer jedes LV.
+let STD_LOHN_FACH   = 58.00;  // €/h Facharbeiter im Stundenlohn
+let STD_LOHN_VOR    = 61.00;  // €/h Bauvorarbeiter im Stundenlohn
+let STD_LOHN_HELFER = 52.00;  // €/h Azubi/Helfer im Stundenlohn
 function epStundenlohn(p){
   const t=((p.desc||'')+' '+(p.langtext||'')).toLowerCase();
-  let satz=KALK.lohn_facharbeiter, rolle='Facharbeiter';
-  if(t.indexOf('vorarbeiter')>-1){ satz=KALK.lohn_vorarbeiter; rolle='Bauvorarbeiter'; }
-  else if(t.indexOf('facharbeiter')>-1){ satz=KALK.lohn_facharbeiter; rolle='Facharbeiter'; }
-  else if(t.indexOf('auszubildende')>-1||t.indexOf('azubi')>-1||t.indexOf('helfer')>-1){ satz=KALK.lohn_helfer; rolle='Azubi/Helfer'; }
-  return {ep:satz, zeilen:[['Stundensatz ('+rolle+')','',satz]], warn:[]};
+  let satz=STD_LOHN_FACH, rolle='Facharbeiter';
+  if(t.indexOf('vorarbeiter')>-1){ satz=STD_LOHN_VOR; rolle='Bauvorarbeiter'; }
+  else if(t.indexOf('facharbeiter')>-1){ satz=STD_LOHN_FACH; rolle='Facharbeiter'; }
+  else if(t.indexOf('auszubildende')>-1||t.indexOf('azubi')>-1||t.indexOf('helfer')>-1||t.indexOf('werker')>-1){ satz=STD_LOHN_HELFER; rolle='Azubi/Helfer'; }
+  return {ep:satz, zeilen:[['Stundensatz ('+rolle+')','Regiestunde – wirkt auf keine andere Position',satz]], warn:[]};
 }
 // Profile aus der Preisdatenbank zur Auswahl stellen. Erik am 27.08.2026:
 // "Sobald in dem einen Dropdown 'Profil/Schiene' erkannt ist, koennte in dem
