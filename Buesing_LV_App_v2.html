@@ -286,6 +286,7 @@ tr:hover td{background:#fafafa}
           <option value="raw">RAW</option>
         </select>
         <span style="font-size:12px;color:var(--muted)">bestimmt Kleber, Grundierung, Abdichtung … (außer Fuge)</span>
+        <button class="bg sm" style="margin-left:auto" onclick="lvKalkOeffnen()" title="Die Kalkulationswerte, mit denen NUR dieses LV rechnet">⚙️ Kalkulation dieses LV</button>
       </div>
       <div style="margin:6px 0 12px;display:flex;align-items:center;gap:8px">
         <div class="sw" style="flex:1;max-width:420px"><span class="si">🔍</span>
@@ -457,9 +458,10 @@ tr:hover td{background:#fafafa}
       </div>
       <div class="f"><label>Leistungsart</label>
         <select id="k-art" onchange="kalkuliere()">
-          <option value="0.85">Boden verlegen + verfugen (30×60) – 0,85 h/m²</option>
-          <option value="0.95">Wand verlegen + verfugen (30×60) – 0,95 h/m²</option>
-          <option value="1.40">Erschwernis (Schrägdach, Mosaik) – 1,40 h/m²</option>
+          <option value="1.10">Boden verlegen + verfugen (30×60) – 1,10 h/m²</option>
+          <option value="1.10">Wand verlegen + verfugen (30×60) – 1,10 h/m²</option>
+          <option value="1.40">Mosaik bis 10×10 – 1,40 h/m²</option>
+          <option value="1.85">Betonwerkstein verlegen – 1,85 h/m²</option>
           <option value="0">Nur Material (kein Lohnanteil)</option>
         </select>
       </div>
@@ -758,7 +760,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 170';
+const APP_STAND = '30.08.2026 · 171';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1040,8 +1042,10 @@ const WERTE = [
   ['Fliesen legen', [
     ['FLI_KLEBER_KLEIN','Kleber bis 30×60','kg/m²',()=>FLI_KLEBER_KLEIN,v=>FLI_KLEBER_KLEIN=v],
     ['FLI_KLEBER_GROSS','Kleber ab 60×60 (Buttering-Floating)','kg/m²',()=>FLI_KLEBER_GROSS,v=>FLI_KLEBER_GROSS=v],
-    ['FLI_ZEIT_WAND','Zeit Wand','h/m²',()=>FLI_ZEIT_WAND,v=>FLI_ZEIT_WAND=v],
+    ['FLI_ZEIT_WAND','Zeit Wand bis 30×60','h/m²',()=>FLI_ZEIT_WAND,v=>FLI_ZEIT_WAND=v],
     ['FLI_ZEIT_BODEN','Zeit Boden bis 30×60','h/m²',()=>FLI_ZEIT_BODEN,v=>FLI_ZEIT_BODEN=v],
+    ['FLI_ZEIT_MOSAIK','Zeit Mosaik bis 10×10','h/m²',()=>FLI_ZEIT_MOSAIK,v=>FLI_ZEIT_MOSAIK=v],
+    ['FLI_ZEIT_R12_MIN','Mindestzeit Boden ab R12','h/m²',()=>FLI_ZEIT_R12_MIN,v=>FLI_ZEIT_R12_MIN=v],
     ['FLI_ZEIT_GROSS','Zeit Boden 60×60','h/m²',()=>FLI_ZEIT_GROSS,v=>FLI_ZEIT_GROSS=v],
     ['FLI_ZEIT_XXL','Zeit Boden ab 80×80','h/m²',()=>FLI_ZEIT_XXL,v=>FLI_ZEIT_XXL=v],
     ['REKT_ZUSCHLAG','Zuschlag rektifiziert','€/m²',()=>REKT_ZUSCHLAG,v=>REKT_ZUSCHLAG=v],
@@ -1243,6 +1247,14 @@ function werteSetzen(key, roh){
 // bewusst festgesetzt.
 function werteInsLVUebernehmen(){
   if(!(LV && LV.pos && LV.pos.length)) return;
+  // Ein LV mit eigenen Kalkulationswerten wird vom Haupt-Kalkulator NICHT
+  // mehr angefasst. Sonst veraendert eine Zeitaenderung von heute ein
+  // Angebot, das laengst abgegeben ist. Aendern laesst es sich weiterhin -
+  // aber bewusst, ueber "Kalkulation dieses LV".
+  if(lvWerteHat()){
+    setWerteStatus('gilt für neue LVs – das offene LV rechnet mit seinen eigenen Werten');
+    return;
+  }
   let geaendert=0;
   const gruen=[];
   LV.pos.forEach(function(p,i){
@@ -1311,6 +1323,231 @@ function werteAllesZurueck(){
   werteAnwenden(); renderWerte(); werteSpeichern();
   werteInsLVUebernehmen();
   toast('Alle Werte zurückgesetzt.');
+}
+
+// ============================================================
+// KALKULATION DIESES LV
+// Erik am 30.08.2026: "Koennen wir fuer jedes LV eine Gesamt-Kalkulations-
+// uebersicht bauen? Dann wuerde ich da rein gehen, den Verlegepreis von 0,95
+// auf 1,1 aendern und automatisch aendern sich alle Verlegepositionen ...
+// Der alte Kalkulator bleibt und ist die Grundlage fuer ein NEU HOCHGELADENES
+// LV."
+//
+// Also zwei Ebenen:
+//   Haupt-Kalkulator  = die Vorlage. Gilt fuer alles, was neu hochgeladen wird.
+//   LV.werte          = die Werte, mit denen NUR dieses LV rechnet.
+//
+// Ein abgegebenes Angebot darf sich nicht nachtraeglich aendern, nur weil im
+// Haupt-Kalkulator eine Zeit hochgesetzt wurde. Deshalb bekommt jedes LV beim
+// ersten Oeffnen eine eigene Kopie der Werte.
+//
+// Und: KEIN Preis aendert sich von allein. Eine Wertaenderung zeigt zuerst
+// eine Liste - Position fuer Position, alt gegen neu, mit Summe. Erst der
+// Klick auf "Uebernehmen" schreibt sie ins LV.
+// ============================================================
+function werteJetzt(){
+  const o={};
+  werteAlle().forEach(function(g){ g[1].forEach(function(e){
+    const v=e[3](); if(typeof v==='number' && isFinite(v)) o[e[0]]=v;
+  }); });
+  return o;
+}
+function werteObjektAnwenden(obj){
+  werteStdMerken();
+  if(!WERTE_STD) return;
+  werteAlle().forEach(function(g){ g[1].forEach(function(e){
+    const v=parseFloat(obj ? obj[e[0]] : NaN);
+    e[4](isFinite(v) ? v : WERTE_STD[e[0]]);
+  }); });
+}
+function lvWerteHat(){ return !!(LV && LV.werte && typeof LV.werte==='object'); }
+// Werte dieses LV - beim ersten Zugriff eine Kopie der aktuellen Vorlage.
+function lvWerte(){
+  if(!(LV && LV.pos && LV.pos.length)) return null;
+  if(!lvWerteHat()) LV.werte = werteJetzt();
+  return LV.werte;
+}
+let WERTE_IN_LV = false;
+function mitLVWerten(fn){
+  if(!lvWerteHat() || WERTE_IN_LV) return fn();
+  const vorher = werteJetzt();
+  WERTE_IN_LV = true;
+  try{ werteObjektAnwenden(LV.werte); return fn(); }
+  finally{ WERTE_IN_LV = false; werteObjektAnwenden(vorher); }
+}
+// --- Vorschau: was wuerde sich aendern? -------------------------------
+let LVK_LISTE = [];
+let LVK_AUS   = {};   // von Erik abgewaehlt
+let LVK_AN    = {};   // von Erik zusaetzlich angehakt (Hand-Preise)
+function lvkSchluessel(x){ return String(x.nr||'')+'#'+x.i; }
+function lvkGewaehlt(x){
+  const k=lvkSchluessel(x);
+  if(LVK_AUS[k]) return false;
+  if(LVK_AN[k])  return true;
+  return !x.hand;     // von Hand eingetragene Preise sind NICHT vorausgewaehlt
+}
+function lvkUmschalten(k){
+  if(LVK_AUS[k]){ delete LVK_AUS[k]; LVK_AN[k]=true; }
+  else if(LVK_AN[k]){ delete LVK_AN[k]; LVK_AUS[k]=true; }
+  else { LVK_AUS[k]=true; }
+  lvKalkOeffnen();
+}
+function lvKalkVorschau(){
+  const liste=[];
+  if(!(LV && LV.pos)) return liste;
+  LV.pos.forEach(function(p,i){
+    if(p.typ==='ueberschrift') return;
+    let k;
+    try{ k=JSON.parse(JSON.stringify(p)); }catch(e){ return; }
+    delete k._epHand;                 // sonst rechnet autoEP gar nicht erst
+    try{ autoEP(k, LV.system||'sakret'); }catch(e){ return; }
+    const neu=Math.round((parseFloat(k.ep)||0)*100)/100;
+    const alt=parseFloat(p.ep)||0;
+    if(!(neu>0)) return;              // nicht rechenbar - dann auch kein Vorschlag
+    if(Math.abs(neu-alt)<=0.005) return;
+    liste.push({i:i, nr:p.nr||'', desc:p.desc||'', menge:parseFloat(p.menge)||0,
+                alt:alt, neu:neu, hand:!!p._epHand});
+  });
+  return liste;
+}
+// --- Fenster ----------------------------------------------------------
+function kalkBoxZu(){ const d=document.getElementById('kalk-box'); if(d&&d.parentNode) d.parentNode.removeChild(d); }
+function kalkBoxAuf(titel, inhalt){
+  kalkBoxZu();
+  const d=document.createElement('div');
+  d.id='kalk-box';
+  d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900;display:flex;'
+                 +'align-items:center;justify-content:center;padding:20px';
+  d.onclick=function(e){ if(e.target===d) kalkBoxZu(); };
+  d.innerHTML='<div style="background:#fff;border-radius:10px;max-width:980px;width:100%;'
+    +'max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.3)">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)">'
+    +'<b style="font-size:14px">'+titel+'</b>'
+    +'<button class="bg sm" style="padding:2px 9px" onclick="kalkBoxZu()">✕</button></div>'
+    +'<div style="padding:12px 16px;overflow:auto">'+inhalt+'</div></div>';
+  document.body.appendChild(d);
+}
+function lvKalkOeffnen(){
+  if(!(LV && LV.pos && LV.pos.length)){ toast('Kein LV geöffnet'); return; }
+  lvWerte();
+  const vorlage = werteJetzt();                 // Haupt-Kalkulator
+  LVK_LISTE = lvKalkVorschau();
+  let abw=0;
+  let h='';
+  // --- Werte ---
+  werteAlle().forEach(function(g){
+    let zeilen='';
+    g[1].forEach(function(e){
+      const key=e[0];
+      const wert = isFinite(parseFloat(LV.werte[key])) ? parseFloat(LV.werte[key]) : vorlage[key];
+      const vgl  = vorlage[key];
+      const ab   = isFinite(vgl) && Math.abs(wert-vgl)>1e-9;
+      if(ab) abw++;
+      zeilen+='<tr style="border-top:1px solid var(--line)">'
+        +'<td style="padding:4px 8px 4px 0">'+esc(e[1])+'</td>'
+        +'<td style="padding:4px 8px;white-space:nowrap;text-align:right">'
+        +'<input type="number" step="0.01" value="'+String(wert)+'" style="width:95px;padding:3px 6px;text-align:right'
+        +(ab?';border-color:var(--accent);font-weight:700':'')+'" '
+        +'onchange="lvWertSetzen(\''+key+'\',this.value)"> <span style="color:var(--muted)">'+esc(e[2])+'</span></td>'
+        +'<td style="padding:4px 0 4px 8px;white-space:nowrap;color:var(--muted);font-size:11.5px">'
+        +(ab ? ('Kalkulator '+String(vgl)+' <button class="bg sm" style="padding:1px 7px;font-size:11px" '
+                +'onclick="lvWertZurueck(\''+key+'\')">↩</button>') : '')
+        +'</td></tr>';
+    });
+    h+='<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;'
+      +'letter-spacing:.5px;color:var(--accent);margin-bottom:4px">'+esc(g[0])+'</div>'
+      +'<table style="width:100%;border-collapse:collapse;font-size:12.5px">'+zeilen+'</table></div>';
+  });
+  // --- Kopf ---
+  let kopf='<div style="font-size:12.5px;color:var(--muted);line-height:1.7;margin-bottom:6px">'
+    +'Diese Werte gelten <b>nur für dieses LV</b>. Der Haupt-Kalkulator bleibt unberührt – '
+    +'er ist die Vorlage für jedes neu hochgeladene LV.<br>'
+    +(abw ? ('<b style="color:var(--accent)">'+abw+' Wert(e) weichen vom Haupt-Kalkulator ab.</b>')
+          : 'Alle Werte wie im Haupt-Kalkulator.')
+    +' <button class="bg sm" style="margin-left:6px;padding:2px 9px" onclick="lvWerteVomKalkulator()">'
+    +'Werte aus dem Haupt-Kalkulator holen</button></div>';
+  // --- Vorschau ---
+  let vor='';
+  if(LVK_LISTE.length){
+    let summe=0, n=0;
+    let zeilen='';
+    LVK_LISTE.forEach(function(x){
+      const k=lvkSchluessel(x), an=lvkGewaehlt(x);
+      const diff=(x.neu-x.alt)*x.menge;
+      if(an){ summe+=diff; n++; }
+      zeilen+='<tr style="border-top:1px solid var(--line)'+(an?'':';opacity:.5')+'">'
+        +'<td style="padding:4px 6px"><input type="checkbox"'+(an?' checked':'')
+        +' onchange="lvkUmschalten(\''+k.replace(/'/g,"\\'")+'\')"></td>'
+        +'<td style="padding:4px 6px;white-space:nowrap"><b>'+esc(x.nr)+'</b></td>'
+        +'<td style="padding:4px 6px;font-size:11.5px;color:var(--muted)">'+esc(x.desc.slice(0,52))
+        +(x.hand?' <span style="color:var(--red)">· Preis von Hand</span>':'')+'</td>'
+        +'<td style="padding:4px 6px;text-align:right;white-space:nowrap">'+fmt(x.menge)+'</td>'
+        +'<td style="padding:4px 6px;text-align:right;white-space:nowrap">'+fmt(x.alt)+'</td>'
+        +'<td style="padding:4px 6px;text-align:right;white-space:nowrap;font-weight:700">'+fmt(x.neu)+'</td>'
+        +'<td style="padding:4px 6px;text-align:right;white-space:nowrap;color:'
+        +(diff>=0?'var(--green)':'var(--red)')+'">'+(diff>=0?'+':'')+fmt(diff)+' €</td></tr>';
+    });
+    vor='<div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--line)">'
+      +'<div style="font-size:13px;font-weight:700;margin-bottom:4px">'+LVK_LISTE.length
+      +' Position(en) würden sich ändern</div>'
+      +'<div style="font-size:12px;color:var(--muted);margin-bottom:8px">'
+      +'Von Hand eingetragene Preise sind <b>nicht</b> vorausgewählt – die änderst du nur, wenn du den Haken setzt.</div>'
+      +'<table style="width:100%;border-collapse:collapse;font-size:12.5px">'
+      +'<thead><tr style="color:var(--muted);font-size:11px">'
+      +'<th></th><th style="text-align:left;padding:3px 6px">Pos.</th><th style="text-align:left;padding:3px 6px">Beschreibung</th>'
+      +'<th style="text-align:right;padding:3px 6px">Menge</th><th style="text-align:right;padding:3px 6px">jetzt</th>'
+      +'<th style="text-align:right;padding:3px 6px">neu</th><th style="text-align:right;padding:3px 6px">Differenz</th>'
+      +'</tr></thead><tbody>'+zeilen+'</tbody></table>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">'
+      +'<div style="font-size:13px"><b>'+n+' ausgewählt</b> · Angebotssumme <b style="color:'
+      +(summe>=0?'var(--green)':'var(--red)')+'">'+(summe>=0?'+':'')+fmt(summe)+' €</b></div>'
+      +'<button class="btn sm" onclick="lvKalkUebernehmen()">Ausgewählte übernehmen</button></div></div>';
+  } else {
+    vor='<div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--line);'
+      +'font-size:12.5px;color:var(--muted)">Kein Preis im LV würde sich mit diesen Werten ändern.</div>';
+  }
+  kalkBoxAuf('Kalkulation dieses LV · '+esc(LV.titel||''), kopf + vor + h);
+}
+function lvWertSetzen(key, roh){
+  lvWerte();
+  const v=parseFloat(String(roh).replace(',','.'));
+  if(isFinite(v) && v>=0) LV.werte[key]=v; else delete LV.werte[key];
+  scheduleSave();
+  lvKalkOeffnen();
+}
+function lvWertZurueck(key){
+  lvWerte();
+  const vorlage=werteJetzt();
+  if(isFinite(vorlage[key])) LV.werte[key]=vorlage[key]; else delete LV.werte[key];
+  scheduleSave();
+  lvKalkOeffnen();
+}
+function lvWerteVomKalkulator(){
+  if(!confirm('Alle Werte dieses LV auf den Stand des Haupt-Kalkulators setzen?\n\n'
+            + 'Die Preise im LV ändern sich dadurch noch nicht – die Liste zeigt dir erst, was passieren würde.')) return;
+  LV.werte = werteJetzt();
+  scheduleSave();
+  lvKalkOeffnen();
+  toast('Werte aus dem Haupt-Kalkulator geholt');
+}
+function lvKalkUebernehmen(){
+  const nehmen = LVK_LISTE.filter(lvkGewaehlt);
+  if(!nehmen.length){ toast('Nichts ausgewählt'); return; }
+  let n=0;
+  nehmen.forEach(function(x){
+    const p=LV.pos[x.i];
+    if(!p) return;
+    const warGruen = (p.status==='gruen');
+    delete p._epHand;                  // der Preis kommt jetzt aus der Rechnung
+    try{ autoEP(p, LV.system||'sakret'); }catch(e){ return; }
+    // Eine gepruefte Position bleibt geprueft - nur der Preis ist neu.
+    if(warGruen){ p.status='gruen'; delete p.gruenAuto; }
+    n++;
+  });
+  LVK_AUS={}; LVK_AN={};
+  renderLV(); scheduleSave();
+  lvKalkOeffnen();
+  toast(n+' Position(en) neu gerechnet');
 }
 function renderWerte(){
   const box=document.getElementById('werte-box');
@@ -2167,7 +2404,9 @@ function erkenneOberflaeche(text){
 }
 
 // Format aus LV-Text lesen und Format-Stufe bestimmen (längste Kante entscheidet XXL)
-const STUFEN = [['klein','bis 30×60'],['gross','60×60'],['xxl','ab 80×80']];
+// Erik am 30.08.2026: "Mosaik ist von 2,5x2,5 bis 10x10". Mosaik ist eine
+// eigene Stufe, weil es die Verlegezeit sprengt - 1,40 statt 1,10 h/m².
+const STUFEN = [['mosaik','Mosaik bis 10×10'],['klein','bis 30×60'],['gross','60×60'],['xxl','ab 80×80']];
 function formatAusText(text){
   const m=(text||'').match(/(\d{1,3})\s*[×xX\/]\s*(\d{1,3})/);
   if(!m) return null;
@@ -2179,6 +2418,8 @@ function formatStufe(text){
   const lang=Math.max(f.a,f.b), kurz=Math.min(f.a,f.b);
   if(lang>=80) return 'xxl';
   if(kurz>=60) return 'gross';
+  // Mosaik: beide Kanten hoechstens 10 cm (2,5x2,5 bis 10x10).
+  if(lang<=10) return 'mosaik';
   return 'klein';
 }
 // Die Mengen und Zeiten des Fliesenrezepts stehen in Variablen, damit Erik
@@ -2186,11 +2427,22 @@ function formatStufe(text){
 // (28.08.2026: "ich will nicht jedes Mal die Datei bearbeiten muessen").
 let FLI_KLEBER_KLEIN = 3.0;   // kg/m² Kleber, Format bis 30x60
 let FLI_KLEBER_GROSS = 4.8;   // kg/m² Buttering-Floating ab 60x60
-let FLI_ZEIT_WAND    = 0.95;  // h/m² Wand, alle Formate
-let FLI_ZEIT_BODEN   = 0.95;  // h/m² Boden bis 30x60
+// Erik am 30.08.2026: "der Verlegepreis der 30x60 Fliesen liegt bei 0,95
+// Std/qm - das ist zu wenig! Wir brauchen 1,1 Std/qm ... wir nehmen das fuer
+// alle 30 x 60 - Wand und Boden."
+let FLI_ZEIT_WAND    = 1.10;  // h/m² Wand, bis 30x60
+let FLI_ZEIT_BODEN   = 1.10;  // h/m² Boden bis 30x60
+let FLI_ZEIT_MOSAIK  = 1.40;  // h/m² Mosaik 2,5x2,5 bis 10x10, Wand wie Boden
 let FLI_ZEIT_GROSS   = 1.05;  // h/m² Boden 60x60
 let FLI_ZEIT_XXL     = 1.20;  // h/m² Boden ab 80x80
+// Ab R12 wird das Verfugen erschwert. Der Wert ist eine UNTERGRENZE: liegt die
+// Verlegezeit ohnehin darueber (Mosaik), bleibt sie stehen.
+let FLI_ZEIT_R12_MIN = 1.15;  // h/m² Mindestzeit Boden ab R12
 function rezept(typ, stufe){
+  // Mosaik kostet an der Wand wie am Boden dieselbe Zeit. Der Kleberbedarf
+  // bleibt der der kleinen Formate (Erik am 30.08.2026: "Kleber lassen wir so").
+  if(stufe==='mosaik' && (typ==='wand'||typ==='boden'))
+    return {kleberKey:'klein', kleberKg:FLI_KLEBER_KLEIN, zeit:FLI_ZEIT_MOSAIK};
   if(typ==='wand'){
     if(stufe==='gross'||stufe==='xxl') return {kleberKey:'gross', kleberKg:FLI_KLEBER_GROSS, zeit:FLI_ZEIT_WAND};
     return {kleberKey:'klein', kleberKg:FLI_KLEBER_KLEIN, zeit:FLI_ZEIT_WAND};
@@ -2708,7 +2960,7 @@ function epFliese(p, system){
   if(p.typ==='boden'){
     const erkR=erkenneRutsch((p.desc||'')+' '+(p.langtext||''));
     if(!p.rutsch) p.rutsch = erkR.hoch ? 'hoch' : 'normal';
-    if(p.rutsch==='hoch' && zeit<1.15) zeit=1.15;
+    if(p.rutsch==='hoch' && zeit<FLI_ZEIT_R12_MIN) zeit=FLI_ZEIT_R12_MIN;
   }
   const zeittxt=zeit.toFixed(2).replace('.',',');
   const lohn=mitLohn ? zeit*LOHN() : 0;
@@ -4320,7 +4572,9 @@ let BWS_KLEBER_KG = 4.5;    // Duennbett bis 5 mm - Fliese braucht 3,0
 let BWS_FUGE_KG   = 0.55;   // Erik hat es am 27.08.2026 im PCI-Verbrauchsrechner
                               // nachgerechnet: Fuge 3 mm breit, 18 mm tief,
                               // Format 30x30 -> 0,55 kg je m2.
-let BWS_ZEIT      = 1.05;   // h/m2 - Fliese 0,95
+// Erik am 30.08.2026: "Fuer die Verlegung von Betonwerkstein aendern wir die
+// Zeit auf 1,85 Std/qm." Vorher 1,05.
+let BWS_ZEIT      = 1.85;   // h/m2 - Fliese 1,10
 function epBetonwerkstein(p, system){
   const warn=[], zeilen=[];
   const sys=SYSTEME[system]||SYSTEME.sakret;
@@ -5075,7 +5329,14 @@ function berechneEPKern(p, system){
 //   gelb = Automatik hat einen Wert gerechnet (rechenbar, aber ungeprueft)
 //   rot  = Rezept/Artikel/Fliesenpreis fehlt -> Erik muss ran
 //   gruen= ausschliesslich von Erik von Hand, nie automatisch
+// Rechnet IMMER mit den Kalkulationswerten des offenen LV, sofern es eigene
+// hat. Ein LV, das im Maerz abgegeben wurde, muss im September dieselben
+// Preise zeigen - eine Aenderung im Haupt-Kalkulator darf es nicht
+// nachtraeglich veraendern (Erik am 30.08.2026).
 function autoEP(p, system){
+  return mitLVWerten(function(){ return autoEPRoh(p, system); });
+}
+function autoEPRoh(p, system){
   system = system || LV.system || 'sakret';
   // Handarbeit ist unantastbar: ein selbst eingetragener Preis bleibt stehen,
   // die Position bleibt gruen. Nur der Hinweis wird aktualisiert.
@@ -9039,6 +9300,10 @@ async function versionZurueck(vid){
 // 'Duschelement' mit Mosaikzeilen.
 function lvKomplettPruefen(){
   if(!(LV && LV.pos && LV.pos.length)) return 0;
+  // Jedes LV bekommt beim ersten Oeffnen seine eigenen Kalkulationswerte -
+  // eine Kopie der Vorlage aus dem Haupt-Kalkulator. Ab da rechnet es
+  // unabhaengig davon (Erik am 30.08.2026).
+  lvWerte();
   // Altbestand schuetzen: was Erik selbst auf Gruen gestellt hat, hat auch
   // einen von ihm verantworteten Preis. Vor der ersten Nachpruefung eines
   // gespeicherten LV wird das nachgetragen, damit die Sperre auch fuer alles
