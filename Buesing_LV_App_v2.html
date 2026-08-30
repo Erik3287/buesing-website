@@ -762,7 +762,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 183';
+const APP_STAND = '30.08.2026 · 184';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4054,10 +4054,39 @@ function profilArtikel(p){
 // sitzt auf der Stufenkante und hat einen rutschhemmenden Einleger. Erik am
 // 30.08.2026 zu 15.03.9: "warum ist hier die Edelstahlschiene hinterlegt?
 // Da muss das rein" - gemeint ist die TS-B30-Reihe.
+// Erik am 30.08.2026: "wenn im profil so etwas wie 'rutschhemmend, gummi,
+// Einlage etc' steht, sollte das als Standard bei Treppenprofil ausgewaehlt
+// sein - aber bitte mit einem Hinweis, dass das vom Nutzer zu pruefen bzw.
+// bestaetigen ist, weil es einfach zu viele Profile gibt."
+// Zwei Wege fuehren zum Treppenprofil: das Bauteil (Treppe, Stufe) oder die
+// Ausstattung (rutschhemmend, Einlage, Gummi). Beides zaehlt nur innerhalb
+// einer Profil-Position - "R10 rutschhemmend" auf einer Bodenfliese loest
+// hier nichts aus.
 const TREPPENPROFIL_WORTE =
-  /treppen(?:stufen)?profil|stufenprofil|stufenkant|rutschhemm|antirutsch|trittkant/i;
+  /treppen(?:stufen)?profil|stufenprofil|stufenkant|trittkant|treppenkant/i;
+const TREPPENPROFIL_AUSSTATTUNG =
+  /rutschhemm|anti-?rutsch|gleitschutz|gummieinlage|gummi|einlage|einleger|profileinsatz/i;
 function istTreppenprofil(p){
-  return TREPPENPROFIL_WORTE.test(String((p&&p.desc)||'')+' '+String((p&&p.langtext)||''));
+  const t=String((p&&p.desc)||'')+' '+String((p&&p.langtext)||'');
+  return TREPPENPROFIL_WORTE.test(t) || TREPPENPROFIL_AUSSTATTUNG.test(t);
+}
+// Fuer den Hinweis: das GANZE Wort aus dem LV-Text, nicht der Wortstamm der
+// Suche ("rutschhemmender" statt "rutschhemm").
+function ganzesWort(t, m){
+  if(!m) return '';
+  let a=m.index, b=m.index+m[0].length;
+  while(a>0   && /[a-zA-ZäöüÄÖÜß-]/.test(t.charAt(a-1))) a--;
+  while(b<t.length && /[a-zA-ZäöüÄÖÜß-]/.test(t.charAt(b))) b++;
+  return t.slice(a,b);
+}
+function treppenprofilGrund(p){
+  const t=String((p&&p.desc)||'')+' '+String((p&&p.langtext)||'');
+  const worte=[];
+  const m1=new RegExp(TREPPENPROFIL_WORTE.source,'i').exec(t);
+  const m2=new RegExp(TREPPENPROFIL_AUSSTATTUNG.source,'i').exec(t);
+  if(m1) worte.push('„'+ganzesWort(t,m1)+'“');
+  if(m2) worte.push('„'+ganzesWort(t,m2)+'“');
+  return worte.join(' und ');
 }
 // Das Treppenprofil in der Hoehe, die zur Fliese passt (TS-B30/80, /100, /125).
 function treppenprofilStandard(p){
@@ -4106,6 +4135,12 @@ function epProfil(p, system){
   // und Quadec-Profilen. Bei einem Treppenprofil gibt es nichts zu waehlen -
   // Erik am 30.08.2026: "bei Treppenschutzprofilen ist die Auswahl (matt,
   // glaenzend etc.) ueberfluessig und kann in diesem Fall weg".
+  if(!gewaehlt && std.treppe && a){
+    // Es gibt zu viele Treppenprofile, um blind eines zu setzen. Also:
+    // Vorschlag mit Begruendung, gelb - und mit OK bestaetigt Erik ihn.
+    warn.push('PRUEFEN|Treppenprofil erkannt ('+treppenprofilGrund(p)+') → '+a.name+' · '
+      + fmt(a.ek)+' €/m. Es gibt viele Treppenprofile – bitte bestätigen oder oben ein anderes wählen.');
+  }
   if(!gewaehlt && !std.treppe && !erk.sicher) warn.push('PRUEFEN|Oberfläche prüfen – '+erk.grund);
   if(!gewaehlt && !std.treppe && p.oberflaeche==='pulver' && !(p.farbe||'').trim()) warn.push('EINGABE|Farbe eintragen (wird bemustert)');
   // Profilhoehe gegen Fliesenstaerke pruefen - ein 8-mm-Profil unter einer
