@@ -392,6 +392,7 @@ option{background:#fff;color:#1d1d1f;font-weight:400}
       <button class="bg sm" onclick="document.getElementById('preisdatei').click()" title="Eine vorbereitete Preisliste (JSON) direkt einlesen – ohne KI, Zeile für Zeile wie in der Datei">📥 Preisliste einlesen</button>
       <input type="file" id="preisdatei" accept=".json" style="display:none" onchange="preislisteEinlesen(this.files[0]); this.value='';">
     </div>
+    <div id="p-profilfilter" style="margin:8px 0 0"></div>
     <div style="overflow-x:auto">
       <table>
         <thead><tr>
@@ -784,7 +785,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 190';
+const APP_STAND = '30.08.2026 · 193';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4156,14 +4157,23 @@ function profilLaenge(a){
   return null;
 }
 function laengeTxt(l){ return String(l).replace('.',',')+' m'; }
-// Der aktuelle Filter, gilt fuer alle Positionen dieser Sitzung.
-let PROFIL_FILTER = {bauart:[], material:[], oberflaeche:[], laenge:[]};
-function profilFilterAn(){
-  return PROFIL_FILTER.bauart.length || PROFIL_FILTER.material.length
-      || PROFIL_FILTER.oberflaeche.length || PROFIL_FILTER.laenge.length;
+// Zwei getrennte Filter: einer in der Preisdatenbank, einer im Auswahlfeld
+// der Position. Sie duerfen sich NICHT gegenseitig beeinflussen - sonst
+// versteckt ein Haken, den Erik in der Preisliste gesetzt hat, im LV eine
+// Schiene, die er sucht.
+const PROFIL_FILTER_LEER = function(){ return {bauart:[], material:[], oberflaeche:[], laenge:[]}; };
+let PROFIL_FILTER_P  = PROFIL_FILTER_LEER();   // Preisdatenbank
+let PROFIL_FILTER_LV = PROFIL_FILTER_LEER();   // Auswahlfeld in der Position
+let PROFIL_FILTER_AUF_P  = false;
+let PROFIL_FILTER_AUF_LV = false;
+// bereich: 'p' = Preisdatenbank, sonst die Nummer der Position im LV
+function profilFilterVon(bereich){ return bereich==='p' ? PROFIL_FILTER_P : PROFIL_FILTER_LV; }
+function profilFilterAn(bereich){
+  const f=profilFilterVon(bereich);
+  return !!(f.bauart.length || f.material.length || f.oberflaeche.length || f.laenge.length);
 }
-function profilPasstFilter(a){
-  const f=PROFIL_FILTER;
+function profilPasstFilter(a, bereich){
+  const f=profilFilterVon(bereich);
   if(f.bauart.length      && f.bauart.indexOf(profilBauart(a))<0) return false;
   if(f.material.length    && f.material.indexOf(profilMaterial(a))<0) return false;
   if(f.oberflaeche.length && f.oberflaeche.indexOf(profilOberflaeche(a))<0) return false;
@@ -4173,26 +4183,39 @@ function profilPasstFilter(a){
   }
   return true;
 }
-function profilFilterSetzen(feld, wert, i){
-  const liste=PROFIL_FILTER[feld]; if(!liste) return;
+function profilFilterSetzen(feld, wert, bereich){
+  const liste=profilFilterVon(bereich)[feld]; if(!liste) return;
   const k=liste.indexOf(wert);
   if(k>-1) liste.splice(k,1); else liste.push(wert);
-  profilFilterNeuZeichnen(i);
+  profilFilterNeuZeichnen(bereich);
 }
-function profilFilterLeeren(i){
-  PROFIL_FILTER={bauart:[], material:[], oberflaeche:[], laenge:[]};
-  profilFilterNeuZeichnen(i);
+function profilFilterLeeren(bereich){
+  if(bereich==='p') PROFIL_FILTER_P=PROFIL_FILTER_LEER(); else PROFIL_FILTER_LV=PROFIL_FILTER_LEER();
+  profilFilterNeuZeichnen(bereich);
 }
-// Nur den Rechner DIESER Position neu zeichnen - die Seite bleibt stehen.
-function profilFilterNeuZeichnen(i){
+function profilFilterKlappen(bereich){
+  if(bereich==='p') PROFIL_FILTER_AUF_P=!PROFIL_FILTER_AUF_P; else PROFIL_FILTER_AUF_LV=!PROFIL_FILTER_AUF_LV;
+  profilFilterNeuZeichnen(bereich);
+}
+// Nur den betroffenen Teil neu zeichnen - die Seite bleibt stehen.
+function profilFilterNeuZeichnen(bereich){
+  if(bereich==='p'){ renderP(); return; }
+  const i=bereich;
   if(!(LV && LV.pos && LV.pos[i])) return;
   const row=document.getElementById('calc-'+i);
   if(row && row.querySelector('td')) row.querySelector('td').innerHTML=renderCalcHTML(i);
 }
 // Die Kaestchen. Jedes zeigt, wie viele Profile es gerade trifft.
-function profilFilterHtml(i){
-  const alle=profilKandidatenRoh();
+function profilFilterHtml(bereich){
+  // Preisdatenbank: alle Artikel der Gruppe "Profile".
+  // Position: nur die, die auch im Auswahlfeld stehen koennen (Meterware).
+  const alle = (bereich==='p')
+    ? (PREISE||[]).filter(function(x){ return x.kat==='profile'; })
+    : profilKandidatenRoh();
   if(alle.length<6) return '';
+  const b = "'" + (bereich==='p' ? 'p' : String(bereich)) + "'";
+  const auf = (bereich==='p') ? PROFIL_FILTER_AUF_P : PROFIL_FILTER_AUF_LV;
+  const f = profilFilterVon(bereich);
   const achsen=[
     ['bauart',      'Bauart',     profilBauart],
     ['material',    'Material',   profilMaterial],
@@ -4207,11 +4230,11 @@ function profilFilterHtml(i){
     h+='<div style="margin-bottom:5px"><span style="font-size:10.5px;font-weight:700;text-transform:uppercase;'
       +'letter-spacing:.4px;color:var(--muted);margin-right:8px">'+ax[1]+'</span>'
       + werte.map(function(w){
-          const an=PROFIL_FILTER[ax[0]].indexOf(w)>-1;
+          const an=f[ax[0]].indexOf(w)>-1;
           return '<label style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;'
             +'font-size:12px;cursor:pointer'+(an?';font-weight:700;color:var(--accent)':'')+'">'
             +'<input type="checkbox"'+(an?' checked':'')+' style="margin:0" '
-            +'onchange="profilFilterSetzen(\''+ax[0]+'\',\''+esc(w).replace(/'/g,"\\'")+'\','+i+')">'
+            +'onchange="profilFilterSetzen(\''+ax[0]+'\',\''+esc(w).replace(/'/g,"\\'")+'\','+b+')">'
             +esc(w)+' <span style="color:var(--muted)">'+zaehl[w]+'</span></label>';
         }).join('')
       +'</div>';
@@ -4224,45 +4247,44 @@ function profilFilterHtml(i){
     h+='<div style="margin-bottom:5px"><span style="font-size:10.5px;font-weight:700;text-transform:uppercase;'
       +'letter-spacing:.4px;color:var(--muted);margin-right:8px">Länge</span>'
       + lw.map(function(w){
-          const an=PROFIL_FILTER.laenge.indexOf(w)>-1;
+          const an=f.laenge.indexOf(w)>-1;
           return '<label style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;'
             +'font-size:12px;cursor:pointer'+(an?';font-weight:700;color:var(--accent)':'')+'">'
             +'<input type="checkbox"'+(an?' checked':'')+' style="margin:0" '
-            +'onchange="profilFilterSetzen(\'laenge\',\''+esc(w)+'\','+i+')">'
+            +'onchange="profilFilterSetzen(\'laenge\',\''+esc(w)+'\','+b+')">'
             +esc(w)+' <span style="color:var(--muted)">'+lz[w]+'</span></label>';
         }).join('')
       +'</div>';
   }
   if(!h) return '';
-  const treffer=alle.filter(profilPasstFilter).length;
+  const treffer=alle.filter(function(a){ return profilPasstFilter(a, bereich); }).length;
   // Eingeklappt ist es EINE Zeile - sonst schiebt der Filter das Auswahlfeld
   // aus dem Blick (Erik am 30.08.2026: "wo ist das auswahlmenue fuer die
   // schienen?").
   const kopf = '<div style="font-size:11.5px;margin-bottom:4px;cursor:pointer;user-select:none" '
-    + 'onclick="PROFIL_FILTER_AUF=!PROFIL_FILTER_AUF; profilFilterNeuZeichnen('+i+')">'
-    + '<span style="color:var(--accent)">'+(PROFIL_FILTER_AUF?'▾':'▸')+' 🔍 Schienen filtern</span> '
-    + (profilFilterAn()
+    + 'onclick="profilFilterKlappen('+b+')">'
+    + '<span style="color:var(--accent)">'+(auf?'▾':'▸')+' 🔍 Schienen filtern</span> '
+    + (profilFilterAn(bereich)
         ? '<b style="color:var(--accent)">'+treffer+' von '+alle.length+'</b>'
         : '<span style="color:var(--muted)">alle '+alle.length+'</span>')
     + '</div>';
-  if(!PROFIL_FILTER_AUF){
-    return kopf + (profilFilterAn()
+  if(!auf){
+    return kopf + (profilFilterAn(bereich)
       ? ('<div style="font-size:11px;margin:-2px 0 5px"><button class="bg sm" '
-         +'style="padding:1px 8px;font-size:11px" onclick="profilFilterLeeren('+i+')">Filter aus</button></div>')
+         +'style="padding:1px 8px;font-size:11px" onclick="profilFilterLeeren('+b+')">Filter aus</button></div>')
       : '');
   }
   return kopf
     + '<div style="background:#f7f7f9;border:1px solid var(--line);border-radius:8px;'
     + 'padding:8px 11px;margin-bottom:6px">'+h
     + '<div style="font-size:11.5px;color:var(--muted);margin-top:2px">'
-    + (profilFilterAn()
+    + (profilFilterAn(bereich)
         ? ('<b style="color:var(--accent)">'+treffer+' von '+alle.length+' Profilen</b> in der Auswahl '
            +'<button class="bg sm" style="padding:1px 8px;font-size:11px;margin-left:6px" '
-           +'onclick="profilFilterLeeren('+i+')">Filter aus</button>')
+           +'onclick="profilFilterLeeren('+b+')">Filter aus</button>')
         : ('alle '+alle.length+' Profile in der Auswahl – zum Eingrenzen ankreuzen'))
     + '</div></div>';
 }
-let PROFIL_FILTER_AUF = false;
 function profilKandidatenRoh(){
   return (PREISE||[]).filter(function(x){
     if(x.kat!=='profile') return false;
@@ -4271,9 +4293,9 @@ function profilKandidatenRoh(){
     return e==='m' || e==='lfm' || e==='mtr';
   }).sort(function(a,b){ return alphabetisch(a.name, b.name); });
 }
-// Was im Auswahlfeld steht: alles, was durch den Filter passt.
+// Was im Auswahlfeld der Position steht: alles, was durch DEREN Filter passt.
 function profilKandidaten(){
-  return profilKandidatenRoh().filter(profilPasstFilter);
+  return profilKandidatenRoh().filter(function(a){ return profilPasstFilter(a, 'lv'); });
 }
 function profilArtikel(p){
   if(!p || !p.profilArt) return null;
@@ -7009,9 +7031,10 @@ function renderCalcHTML(i){
     // richtige Artikel und sein Preis sofort in der Kalkulation, statt dass
     // der Standard aus der Oberflaechen-Erkennung rechnet.
     const pk=profilKandidaten();
-    if(!pk.length && profilFilterAn()){
-      felder += '<div style="min-width:330px;font-size:12px;color:var(--red);padding-top:18px">'
-        +'Kein Profil passt zu diesem Filter.</div>';
+    if(!pk.length && profilFilterAn('lv')){
+      felder += '<div style="flex:1;min-width:330px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">'
+        +'Profil aus der Preisdatenbank</div>'+profilFilterHtml(i)
+        +'<div style="font-size:12px;color:var(--red)">Kein Profil passt zu diesem Filter.</div></div>';
     }
     if(pk.length){
       const gruppen={};
@@ -8828,6 +8851,17 @@ function renderP(){
   let liste=PREISE.filter(p=>{
     return (PF==='alle'||p.kat===PF)&&(!s||p.name.toLowerCase().includes(s)||(p.lief||'').toLowerCase().includes(s)||(p.artnr||'').toLowerCase().includes(s));
   });
+  // Derselbe Schienen-Filter wie im Rechner, hier ueber der Artikelliste.
+  // Erik am 30.08.2026: "ich dachte eigentlich an diesen Filter in der
+  // Preisdatenbank". Er erscheint nur, solange Profile angezeigt werden.
+  const pfBox=document.getElementById('p-profilfilter');
+  const profilAnsicht = (PF==='profile');
+  if(pfBox){
+    pfBox.innerHTML = profilAnsicht ? profilFilterHtml('p') : '';
+    pfBox.style.display = profilAnsicht ? 'block' : 'none';
+  }
+  if(profilAnsicht && profilFilterAn('p'))
+    liste=liste.filter(function(a){ return profilPasstFilter(a, 'p'); });
   if(sortCol){
     liste.sort((a,b)=>{
       let av=a[sortCol]||'', bv=b[sortCol]||'';
