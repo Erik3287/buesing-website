@@ -758,7 +758,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 169';
+const APP_STAND = '30.08.2026 · 170';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -7060,7 +7060,14 @@ function doSave(silent){
   fetch(API_URL+'?action=save_lv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(r=>r.json()).then(d=>{
       if(d.ok){ if(d.id) LV.id=d.id; delete LV.neu;
-                if(silent) setSaveStatus('✓ gespeichert'); else toast('LV gespeichert ✓ (Archiv)'); }
+                // Der Server meldet, wenn beim Speichern Fertiges verschwunden
+                // ist. Der vorherige Stand liegt dann gesichert im Verlauf.
+                if(d.verlust){
+                  setSaveStatus('⚠ gespeichert – Vorstand gesichert');
+                  toast('Achtung: fertig '+d.gruen_vorher+' → '+d.gruen_jetzt
+                        +' · alter Stand liegt im Archiv unter „Verlauf"');
+                }
+                else if(silent) setSaveStatus('✓ gespeichert'); else toast('LV gespeichert ✓ (Archiv)'); }
       else if(d && d.leer){ if(silent) setSaveStatus('nur lokal – leeres LV wird nicht angelegt');
                             else toast('Leeres LV wird nicht angelegt'); }
       else { if(silent) setSaveStatus('⚠ nur lokal'); else toast('Lokal gespeichert (DB-Fehler)'); }
@@ -8898,6 +8905,7 @@ async function renderArchiv(){
           <td><span style="color:${statusColors[st]};font-weight:600">${statusLabels[st]||st}</span></td>
           <td>${datum}</td>
           <td class="np"><button class="bg sm" onclick="ladeLV(${lv.id})">Öffnen</button>
+            <button class="bg sm" style="margin-left:4px" onclick="lvVerlauf(${lv.id})" title="Frühere Stände dieses LV">Verlauf</button>
             <button class="bg sm" style="margin-left:4px" onclick="delLV(${lv.id}, '${esc(lv.titel||'').replace(/'/g,"\\'")}')">Löschen</button></td>
         </tr>`;
       }).join('');
@@ -8918,6 +8926,108 @@ async function delLV(id, titel){
   }catch(e){ alert('Server nicht erreichbar: '+e.message); return; }
   await renderArchiv();
   toast('LV gelöscht');
+}
+
+// ============================================
+// VERSIONSGESCHICHTE
+// Erik am 30.08.2026: "aber wie kann das passieren? Das muss doch
+// zuverlaessig gespeichert werden!!!" - gespeichert wurde es. Die App hatte
+// sein fertiges LV beim Oeffnen selbst wieder aufgerissen und diesen Stand
+// gespeichert; eine aeltere Fassung gab es nirgends. Der Server legt jetzt
+// vor jedem Ueberschreiben den bisherigen Stand ab. Hier kommt Erik dran.
+// ============================================
+const VERLAUF_GRUND = {
+  erststand:     'erster gesicherter Stand',
+  zwischenstand: 'Zwischenstand',
+  rueckgang:     '⚠ gesichert, weil danach Fertiges verschwand'
+};
+async function lvVerlauf(id){
+  let liste = [];
+  try{
+    const res = await fetch(API_URL+'?action=get_verlauf&id='+id);
+    const d = await res.json();
+    if(!d.ok) throw new Error(d.error||'Fehler');
+    liste = d.verlauf || [];
+  }catch(e){ alert('Verlauf konnte nicht geladen werden: '+e.message); return; }
+  if(!liste.length){
+    liefBoxAuf('Verlauf · LV Nr. '+id,
+      '<div style="font-size:13px;color:var(--muted)">Für dieses LV gibt es noch keine gesicherte Fassung.'
+      + '<br><br>Gesichert wird ab jetzt automatisch: immer dann, wenn fertige Positionen verschwinden, '
+      + 'und sonst etwa alle 10 Minuten Arbeit.</div>');
+    return;
+  }
+  let h = '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">'
+        + 'Jede Zeile ist der Stand, wie er <b>vor</b> dem jeweiligen Speichern aussah. '
+        + 'Zurückholen ersetzt die Positionen des LV – der aktuelle Stand wird vorher selbst gesichert.</div>'
+        + '<table style="width:100%;font-size:12.5px;border-collapse:collapse">'
+        + '<thead><tr style="border-bottom:1px solid var(--line);color:var(--muted);font-size:11px">'
+        + '<th style="text-align:left;padding:5px 6px">Stand vom</th>'
+        + '<th style="text-align:right;padding:5px 6px">Positionen</th>'
+        + '<th style="text-align:right;padding:5px 6px">fertig</th>'
+        + '<th style="text-align:right;padding:5px 6px">Summe</th>'
+        + '<th style="text-align:left;padding:5px 6px">Anlass</th>'
+        + '<th></th></tr></thead><tbody>';
+  liste.forEach(function(v){
+    const dt = v.created_at ? new Date(v.created_at.replace(' ','T')) : null;
+    const wann = dt ? dt.toLocaleDateString('de-DE')+', '+dt.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}) : '';
+    const rueck = v.grund==='rueckgang';
+    h += '<tr style="border-bottom:1px solid var(--line)">'
+       + '<td style="padding:6px">'+esc(wann)+'</td>'
+       + '<td style="padding:6px;text-align:right">'+(v.anzahl||0)+'</td>'
+       + '<td style="padding:6px;text-align:right;color:var(--green);font-weight:600">'+(v.gruen||0)+'</td>'
+       + '<td style="padding:6px;text-align:right">'+fmt(parseFloat(v.summe)||0)+' €</td>'
+       + '<td style="padding:6px;font-size:11.5px;color:'+(rueck?'var(--red)':'var(--muted)')+'">'
+       + esc(VERLAUF_GRUND[v.grund]||v.grund||'')+'</td>'
+       + '<td style="padding:6px;text-align:right"><button class="bg sm" onclick="versionZurueck('+v.id+')">Zurückholen</button></td>'
+       + '</tr>';
+  });
+  h += '</tbody></table>';
+  liefBoxAuf('Verlauf · '+esc(liste[0].titel||('LV Nr. '+id)), h);
+}
+async function versionZurueck(vid){
+  let v = null;
+  try{
+    const res = await fetch(API_URL+'?action=get_version&vid='+vid);
+    const d = await res.json();
+    if(!d.ok || !d.version) throw new Error(d.error||'Fassung nicht gefunden');
+    v = d.version;
+  }catch(e){ alert('Fassung konnte nicht geladen werden: '+e.message); return; }
+  const liste = v.positionen || [];
+  if(!liste.length){ alert('Diese Fassung enthält keine Positionen.'); return; }
+  const dt = v.created_at ? new Date(v.created_at.replace(' ','T')) : null;
+  const wann = dt ? dt.toLocaleDateString('de-DE')+', '+dt.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}) : '';
+  if(!confirm('Stand vom '+wann+' zurückholen?\n\n'
+            + (v.titel||'LV Nr. '+v.lv_id)+'\n'
+            + liste.length+' Zeilen · '+(v.gruen||0)+' fertig · '+fmt(parseFloat(v.summe)||0)+' €\n\n'
+            + 'Der jetzige Stand wird vorher gesichert und lässt sich genauso zurückholen.')) return;
+  // Kopfdaten des LV frisch holen, damit Auftraggeber/System/Status stimmen.
+  let kopf = {};
+  try{
+    const r2 = await fetch(API_URL+'?action=get_lv&id='+v.lv_id);
+    const d2 = await r2.json();
+    if(d2.ok && d2.lv) kopf = d2.lv;
+  }catch(e){}
+  LV = {
+    id: parseInt(v.lv_id)||0,
+    titel: v.titel || kopf.titel || '',
+    auftraggeber: kopf.auftraggeber || '',
+    status: kopf.status || 'bearbeitung',
+    system: kopf.system || 'sakret',
+    pos: liste
+  };
+  LV.pos.forEach(function(q){ delete q._calcOpen; });
+  liefBoxZu();
+  document.getElementById('lv-up').style.display='none';
+  const pr=document.getElementById('lv-proc'); if(pr) pr.style.display='none';
+  document.getElementById('lv-main').style.display='block';
+  const tit=document.getElementById('lv-tit'); if(tit) tit.textContent = LV.titel || 'LV-Kalkulation';
+  // AUSDRUECKLICH OHNE lvKomplettPruefen: eine zurueckgeholte Fassung wird
+  // genau so wiederhergestellt, wie sie war. Sonst rechnet die Nachpruefung
+  // dieselbe Fassung womoeglich gleich wieder kaputt.
+  renderLV();
+  showTab('lv', document.querySelector('.nb'));
+  doSave(true);
+  toast('Stand vom '+wann+' zurückgeholt ✓');
 }
 
 // Die komplette Nachpruefung eines geladenen LV: Typen neu erkennen,
