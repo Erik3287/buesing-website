@@ -276,14 +276,45 @@ switch ($action) {
             break;
         }
         if ($id > 0) {
+            // Erst sichern, dann ueberschreiben. Nie umgekehrt.
+            $sich = lv_sichern($pdo, $id, $liste);
             $stmt = $pdo->prepare("UPDATE lvs SET titel=?, auftraggeber=?, status=?, positionen=?, summe=?, nutzer=? WHERE id=?");
             $stmt->execute([$data['titel'] ?? '', $data['auftraggeber'] ?? '', $data['status'] ?? 'bearbeitung', $pos, $data['summe'] ?? 0, $data['nutzer'] ?? '', $id]);
-            echo json_encode(['ok' => true, 'id' => $id]);
+            $antwort = ['ok' => true, 'id' => $id];
+            if ($sich && $sich['verlust']) {
+                $antwort['verlust'] = true;
+                $antwort['gruen_vorher'] = $sich['gruen_vorher'];
+                $antwort['gruen_jetzt']  = $sich['gruen_jetzt'];
+                $antwort['anzahl_vorher'] = $sich['anzahl_vorher'];
+                $antwort['anzahl_jetzt']  = $sich['anzahl_jetzt'];
+            }
+            echo json_encode($antwort);
         } else {
             $stmt = $pdo->prepare("INSERT INTO lvs (titel, auftraggeber, status, positionen, summe, nutzer) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt->execute([$data['titel'] ?? '', $data['auftraggeber'] ?? '', $data['status'] ?? 'bearbeitung', $pos, $data['summe'] ?? 0, $data['nutzer'] ?? '']);
             echo json_encode(['ok' => true, 'id' => $pdo->lastInsertId()]);
         }
+        break;
+
+    // ===== VERSIONSGESCHICHTE EINES LV =====
+    case 'get_verlauf':
+        $id = intval($_GET['id'] ?? 0);
+        lv_verlauf_tabelle($pdo);
+        $st = $pdo->prepare("SELECT id, lv_id, titel, summe, anzahl, gruen, grund, nutzer, created_at
+                             FROM lv_verlauf WHERE lv_id = ? ORDER BY id DESC LIMIT 60");
+        $st->execute([$id]);
+        echo json_encode(['ok' => true, 'verlauf' => $st->fetchAll()]);
+        break;
+
+    // ===== EINE ALTE FASSUNG HOLEN (mit Positionen) =====
+    case 'get_version':
+        $vid = intval($_GET['vid'] ?? 0);
+        lv_verlauf_tabelle($pdo);
+        $st = $pdo->prepare("SELECT * FROM lv_verlauf WHERE id = ?");
+        $st->execute([$vid]);
+        $v = $st->fetch();
+        if ($v) { $v['positionen'] = json_decode($v['positionen'], true); }
+        echo json_encode(['ok' => (bool)$v, 'version' => $v]);
         break;
 
     // ===== LV LÖSCHEN =====
@@ -480,4 +511,90 @@ switch ($action) {
     default:
         echo json_encode(['error' => 'Unbekannte Aktion']);
 }
+
+
+// ============================================================
+// VERSIONSGESCHICHTE DER LVs
+// Erik am 30.08.2026: "aber wie kann das passieren? Das muss doch
+// zuverlaessig gespeichert werden!!!" - gespeichert WURDE zuverlaessig.
+// Die App hatte sein fertiges LV beim Oeffnen selbst wieder aufgerissen
+// und diesen Zustand gespeichert; eine aeltere Fassung gab es nirgends.
+// Ab jetzt legt jedes Speichern, das etwas Wesentliches veraendert, den
+// VORHERIGEN Stand in lv_verlauf ab. Nichts geht mehr unwiederbringlich
+// verloren, egal welcher Fehler noch kommt.
+// ============================================================
+function lv_verlauf_tabelle($pdo) {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS lv_verlauf (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        lv_id INT NOT NULL,
+        titel VARCHAR(255) DEFAULT '',
+        positionen LONGTEXT,
+        summe DECIMAL(12,2) DEFAULT 0,
+        anzahl INT DEFAULT 0,
+        gruen INT DEFAULT 0,
+        grund VARCHAR(32) DEFAULT '',
+        nutzer VARCHAR(100) DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX (lv_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+// Zaehlt Positionen und fertige (gruene) Positionen einer Liste.
+function lv_zaehl($liste) {
+    $anzahl = 0; $gruen = 0;
+    if (is_array($liste)) {
+        foreach ($liste as $p) {
+            if (!is_array($p)) continue;
+            if (($p['typ'] ?? '') === 'ueberschrift') continue;
+            $anzahl++;
+            if (($p['status'] ?? '') === 'gruen') $gruen++;
+        }
+    }
+    return ['anzahl' => $anzahl, 'gruen' => $gruen];
+}
+// Sichert den BISHER gespeicherten Stand, bevor er ueberschrieben wird.
+// Gibt zurueck, ob dabei Fertiges verloren geht - die App warnt dann.
+function lv_sichern($pdo, $id, $neueListe) {
+    try {
+        lv_verlauf_tabelle($pdo);
+        $st = $pdo->prepare("SELECT titel, positionen, summe, nutzer FROM lvs WHERE id = ?");
+        $st->execute([$id]);
+        $alt = $st->fetch();
+        if (!$alt) return null;
+        $altListe = json_decode($alt['positionen'] ?? '[]', true);
+        if (!is_array($altListe) || !count($altListe)) return null;
+        $a = lv_zaehl($altListe);
+        $n = lv_zaehl($neueListe);
+        // Verlust heisst: weniger fertige oder weniger Positionen als vorher.
+        $verlust = ($n['gruen'] < $a['gruen']) || ($n['anzahl'] < $a['anzahl']);
+        $letzte = $pdo->prepare("SELECT id, created_at FROM lv_verlauf WHERE lv_id = ? ORDER BY id DESC LIMIT 1");
+        $letzte->execute([$id]);
+        $l = $letzte->fetch();
+        $grund = '';
+        if (!$l)                                                   $grund = 'erststand';
+        elseif ($verlust)                                          $grund = 'rueckgang';
+        elseif (strtotime($l['created_at']) < time() - 600)        $grund = 'zwischenstand';
+        if ($grund !== '') {
+            $ins = $pdo->prepare("INSERT INTO lv_verlauf
+                (lv_id, titel, positionen, summe, anzahl, gruen, grund, nutzer)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $ins->execute([$id, $alt['titel'] ?? '', $alt['positionen'], $alt['summe'] ?? 0,
+                           $a['anzahl'], $a['gruen'], $grund, $alt['nutzer'] ?? '']);
+            // Alte Zwischenstaende aufraeumen - die 40 juengsten bleiben,
+            // Rueckgaenge werden NIE geloescht.
+            $alt40 = $pdo->prepare("SELECT id FROM lv_verlauf WHERE lv_id = ? ORDER BY id DESC LIMIT 1 OFFSET 40");
+            $alt40->execute([$id]);
+            $grenze = $alt40->fetchColumn();
+            if ($grenze) {
+                $del = $pdo->prepare("DELETE FROM lv_verlauf WHERE lv_id = ? AND id <= ? AND grund <> 'rueckgang'");
+                $del->execute([$id, $grenze]);
+            }
+        }
+        return ['verlust' => $verlust, 'gruen_vorher' => $a['gruen'], 'gruen_jetzt' => $n['gruen'],
+                'anzahl_vorher' => $a['anzahl'], 'anzahl_jetzt' => $n['anzahl'], 'gesichert' => $grund !== ''];
+    } catch (Exception $e) {
+        return null;   // Eine Sicherung darf das Speichern nie blockieren
+    }
+}
+
+
 ?>
