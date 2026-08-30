@@ -762,7 +762,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 186';
+const APP_STAND = '30.08.2026 · 187';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -3985,7 +3985,10 @@ function epEntkopplung(p, system){
 //   KALK.lohn_*  = Verrechnungslohn IN den Rezepten (steckt in jedem EP)
 //   STD_LOHN_*   = der Satz, den Erik fuer Regiestunden ANBIETET
 // Wer den einen aendert, aendert den anderen nicht. Das gilt fuer jedes LV.
-let STD_LOHN_FACH   = 58.00;  // €/h Facharbeiter im Stundenlohn
+// Erik am 30.08.2026: "Der normale Berechnungssatz bleibt fuer ALLE
+// Positionen bei 58,00 Euro. Am Ende der meisten LVs ist ein freies Feld fuer
+// Stundenlohnarbeiten - hier tragen wir zukuenftig 56,00 Euro ein."
+let STD_LOHN_FACH   = 56.00;  // €/h Facharbeiter im Stundenlohn
 let STD_LOHN_VOR    = 61.00;  // €/h Bauvorarbeiter im Stundenlohn
 let STD_LOHN_HELFER = 52.00;  // €/h Azubi/Helfer im Stundenlohn
 function epStundenlohn(p){
