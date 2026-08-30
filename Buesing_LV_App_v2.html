@@ -760,7 +760,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 173';
+const APP_STAND = '30.08.2026 · 174';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1117,6 +1117,13 @@ const WERTE = [
     ['FB_MOERTEL_KG','Mörtel','kg/lfdm',()=>FB_MOERTEL_KG,v=>FB_MOERTEL_KG=v],
     ['FB_ZEIT','Zeit','h/lfdm',()=>FB_ZEIT,v=>FB_ZEIT=v],
     ['FB_BREITE_STD','Breite, wenn keine im Text','m',()=>FB_BREITE_STD,v=>FB_BREITE_STD=v],
+  ]],
+  ['Grundierung', [
+    ['GRU_L_SAUG','Verbrauch saugend','L/m²',()=>GRU_L_SAUG,v=>GRU_L_SAUG=v],
+    ['GRU_L_NSAUG','Verbrauch nicht saugend','L/m²',()=>GRU_L_NSAUG,v=>GRU_L_NSAUG=v],
+    ['GRU_L_HOLZ','Verbrauch Holzuntergrund','L/m²',()=>GRU_L_HOLZ,v=>GRU_L_HOLZ=v],
+    ['GRU_L_METALL','Verbrauch Metalluntergrund','L/m²',()=>GRU_L_METALL,v=>GRU_L_METALL=v],
+    ['GRU_ZEIT','Zeit Auftragen','h/m²',()=>GRU_ZEIT,v=>GRU_ZEIT=v],
   ]],
   ['Abdichtung', [
     ['ABD_FLUESSIG_KG','Flüssigabdichtung Verbrauch','kg/m²',()=>ABD_FLUESSIG_KG,v=>ABD_FLUESSIG_KG=v],
@@ -2242,17 +2249,57 @@ const ABDICHT = {
     eckeAussen:{name:'RAW Dichtecke außen',              gebinde:1,  nicht:['innen']},
   }
 };
-// Grundierung (Gebinde in Litern, Verbrauch L/m²)
+// Grundierung (Gebinde in Litern). Der Verbrauch steht in den
+// Kalkulationswerten - Erik kann ihn dort je Untergrund einstellen.
+// Erik am 30.08.2026: "wir haben aktuell 'saugend' und 'nicht saugend'.
+// Wir erweitern das bitte auf 'Holzuntergrund' und 'Metalluntergrund'."
+// Fuer Holz und Metall steht bis auf Weiteres derselbe Haftgrund wie bei
+// nicht saugendem Untergrund - in der Preisdatenbank gibt es (Stand
+// 30.08.2026) kein eigenes Produkt dafuer. Ueber die Materialauswahl in der
+// Position laesst sich jederzeit ein anderer Artikel waehlen.
+let GRU_L_SAUG   = 0.21;   // L/m² saugender Untergrund
+let GRU_L_NSAUG  = 0.125;  // L/m² nicht saugender Untergrund
+let GRU_L_HOLZ   = 0.125;  // L/m² Holzuntergrund
+let GRU_L_METALL = 0.125;  // L/m² Metalluntergrund
+let GRU_ZEIT     = 0.05;   // h/m² Auftragen, alle Untergruende
 const GRUND = {
   sakret: {
-    saugend:      {name:'Sakret Universalgrundierung', gebinde:20, liter:0.21},
-    nichtsaugend: {name:'Sakret Schnellhaftgrund',     gebinde:5,  liter:0.125},
+    saugend:      {name:'Sakret Universalgrundierung', gebinde:20},
+    nichtsaugend: {name:'Sakret Schnellhaftgrund',     gebinde:5 },
+    holz:         {name:'Sakret Schnellhaftgrund',     gebinde:5 },
+    metall:       {name:'Sakret Schnellhaftgrund',     gebinde:5 },
   },
   raw: {
-    saugend:      {name:'RAW Grundierung universal Konzentrat', gebinde:20, liter:0.21},
-    nichtsaugend: {name:'RAW Haftgrund schnell',                gebinde:5,  liter:0.125},
+    saugend:      {name:'RAW Grundierung universal Konzentrat', gebinde:20},
+    nichtsaugend: {name:'RAW Haftgrund schnell',                gebinde:5 },
+    holz:         {name:'RAW Haftgrund schnell',                gebinde:5 },
+    metall:       {name:'RAW Haftgrund schnell',                gebinde:5 },
   }
 };
+// Die vier Untergruende an einer Stelle: Schluessel, Beschriftung, Verbrauch.
+const UNTERGRUND = [
+  ['saugend',      'saugend',          function(){ return GRU_L_SAUG;   }],
+  ['nichtsaugend', 'nicht saugend',    function(){ return GRU_L_NSAUG;  }],
+  ['holz',         'Holzuntergrund',   function(){ return GRU_L_HOLZ;   }],
+  ['metall',       'Metalluntergrund', function(){ return GRU_L_METALL; }],
+];
+function untergrundEintrag(key){
+  return UNTERGRUND.find(function(u){ return u[0]===key; }) || UNTERGRUND[0];
+}
+// Untergrund aus dem LV-Text lesen. Holz und Metall stehen dort meist
+// woertlich - dann muss die App nicht fragen.
+function erkenneUntergrund(text){
+  const t=String(text||'').toLowerCase();
+  if(/\bmetall|\bstahl|\bblech|verzinkt|edelstahl|eisen\b/.test(t))
+    return {u:'metall', sicher:true, grund:'Metall im LV-Text genannt'};
+  if(/\bholz|osb|spanplatte|holzwerkstoff|dielen|holzuntergrund|sperrholz|holzbalken/.test(t))
+    return {u:'holz', sicher:true, grund:'Holz im LV-Text genannt'};
+  if(/nicht\s*saugend|nichtsaugend|nicht\s*saugende/.test(t))
+    return {u:'nichtsaugend', sicher:true, grund:'nicht saugend im LV-Text genannt'};
+  if(/saugf(ä|ae)hig|saugend|tiefengrund/.test(t))
+    return {u:'saugend', sicher:true, grund:'saugend im LV-Text genannt'};
+  return {u:'saugend', sicher:false, grund:'kein Untergrund im LV-Text – Standard saugend'};
+}
 // Vorspachtel (kg je Gebinde, Verbrauch kg/m² bei 3 mm)
 // WBS = standfeste Spachtelmasse, schichtdickenabhaengig (Merkblatt 08.05.2026):
 // 1,2 kg/m² JE mm Schichtdicke, zulaessig 3-50 mm. Frueher stand hier ein fester
@@ -3590,22 +3637,27 @@ function epStueckAbdicht(p, system, typ){
 function epGrundierung(p, system){
   const warn=[], zeilen=[];
   const g=(GRUND[system]||GRUND.sakret);
-  const modus = p.untergrund||'saugend';
-  const cfg = modus==='nichtsaugend' ? g.nichtsaugend : g.saugend;
+  const erk = erkenneUntergrund((p.desc||'')+' '+(p.langtext||''));
+  if(!p.untergrund) p.untergrund = erk.u;
+  const modus = p.untergrund;
+  const u   = untergrundEintrag(modus);
+  const cfg = g[u[0]] || g.saugend;
+  const liter = u[2]();
+  if(!erk.sicher && !p._untergrundHand) warn.push('PRUEFEN|Untergrund prüfen – '+erk.grund);
   // Vom Benutzer gewaehlter Artikel schlaegt den Systemstandard
   let a=null;
   if(p.grundArt) a=(PREISE||[]).find(function(x){ return x.name===p.grundArt; });
   if(!a) a=findArtikel(cfg.name, cfg.nicht);
-  const ltxt=cfg.liter.toString().replace('.',',');
-  const mtxt=modus==='nichtsaugend'?'nicht saugend':'saugend';
+  const ltxt=String(liter).replace('.',',');
+  const mtxt=u[1];
   let mat=0;
   const geb = gebindeAusArtikel(a, cfg.gebinde) || cfg.gebinde;
-  if(a){ mat=preisJe(a,geb)*cfg.liter; zeilen.push(['Grundierung '+ltxt+' L ('+mtxt+')', preisTxt(a,geb,'L')+' × '+ltxt, mat]); }
+  if(a){ mat=preisJe(a,geb)*liter; zeilen.push(['Grundierung '+ltxt+' L ('+mtxt+')', preisTxt(a,geb,'L')+' × '+ltxt, mat]); }
   else { warn.push('ARTIKEL|'+cfg.name); zeilen.push(['Grundierung '+ltxt+' L ('+mtxt+')','fehlt',0]); }
   const kalk=mat*1.20;
   zeilen.push(['Material × 1,20','',kalk]);
-  const lohn=0.05*LOHN();
-  zeilen.push(['Lohn',lohnTxt(0.05),lohn]);
+  const lohn=GRU_ZEIT*LOHN();
+  zeilen.push(['Lohn',lohnTxt(GRU_ZEIT),lohn]);
   const ep=Math.round((kalk+lohn)*100)/100;
   return {ep, zeilen, warn};
 }
@@ -6406,20 +6458,23 @@ function renderCalcHTML(i){
       +'<div style="font-size:11px;color:var(--muted);margin-top:3px">Matte wird gestoßen, Stoß mit Band überklebt.<br>2,6 m Raum ≈ 0,62 · 4 m ≈ 0,75 · 8 m ≈ 0,88</div></div>';
   }
   if(p.typ==='grundierung'){
-    if(!p.untergrund) p.untergrund='saugend';
+    const erkU = erkenneUntergrund((p.desc||'')+' '+(p.langtext||''));
+    if(!p.untergrund) p.untergrund=erkU.u;
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Untergrund</div>'
       +'<select onchange="setUntergrund('+i+',this.value)" style="width:auto;padding:6px 8px">'
-      +'<option value="saugend"'+(p.untergrund==='saugend'?' selected':'')+'>saugend</option>'
-      +'<option value="nichtsaugend"'+(p.untergrund==='nichtsaugend'?' selected':'')+'>nicht saugend</option>'
+      + UNTERGRUND.map(function(u){
+          return '<option value="'+u[0]+'"'+(p.untergrund===u[0]?' selected':'')+'>'
+                 +u[1]+' – '+String(u[2]()).replace('.',',')+' L/m²</option>'; }).join('')
       +'</select>'
-      + (/saugfähigkeit|saugfaehigkeit|saugende|tiefengrund/i.test((p.desc||'')+' '+(p.langtext||''))
-          ? '<div style="font-size:11px;margin-top:3px;color:#1a9e4b">🟢 im LV-Text als saugend beschrieben</div>' : '')
+      + (erkU.sicher
+          ? '<div style="font-size:11px;margin-top:3px;color:#1a9e4b">🟢 '+esc(erkU.grund)+'</div>' : '')
       +'</div>';
     // Gibt es im Text ein gelbes Bieterfeld, steht die Auswahl schon dort -
     // dann hier kein zweites Feld (Erik 27.08.2026).
     const gk = istBieterPos(p) ? [] : grundierungKandidaten();
     const gcur = p.grundArt || '';
-    const gStd = ((GRUND[LV.system||'sakret']||GRUND.sakret)[p.untergrund==='nichtsaugend'?'nichtsaugend':'saugend']).name;
+    const gSys = (GRUND[LV.system||'sakret']||GRUND.sakret);
+    const gStd = (gSys[p.untergrund] || gSys.saugend).name;
     let gopts='<option value="">– Standard ('+esc(gStd)+') –</option>';
     gk.forEach(function(x){ gopts+='<option value="'+esc(x.name)+'"'+(x.name===gcur?' selected':'')
       +'>'+esc(x.name)+' · '+fmt(x.ek)+' €'+(x.eu?('/'+String(x.eu).replace(/^\//,'')):'')+'</option>'; });
@@ -6514,7 +6569,7 @@ function renderCalcHTML(i){
     +'<div id="calc-out-'+i+'" style="flex:1;min-width:300px">'+renderCalcOut(i)+'</div></div>';
 }
 function setStufe(i,v){ LV.pos[i].stufe=v; calcGeaendert(i); }
-function setUntergrund(i,v){ LV.pos[i].untergrund=v; calcGeaendert(i); }
+function setUntergrund(i,v){ LV.pos[i].untergrund=v; LV.pos[i]._untergrundHand=true; calcGeaendert(i); }
 function setDusch(i,f,v){ LV.pos[i][f]=parseFloat(v)||0; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 function setSockelLaenge(i,v){ LV.pos[i].sockelLaenge=v; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
 function setSockel(i,v){ LV.pos[i].sockelEk=parseFloat(v)||0; const el=document.getElementById('calc-out-'+i); if(el) el.innerHTML=renderCalcOut(i); scheduleSave(); }
