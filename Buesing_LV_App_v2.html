@@ -760,7 +760,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 177';
+const APP_STAND = '30.08.2026 · 178';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1520,7 +1520,10 @@ function kalkWerteHtml(){
       zeilen+='<tr style="border-top:1px solid var(--line)">'
         +'<td style="padding:5px 8px 5px 0">'+esc(e[1])+'</td>'
         +'<td style="padding:5px 0;white-space:nowrap;text-align:right">'
-        +'<input id="kalkfeld-'+key+'" type="number" step="0.01" value="'+(isFinite(wert)?String(wert):'')+'" '
+        // 20/60 als "0,3333333" ist nicht lesbar - angezeigt wird auf vier
+        // Stellen gerundet, gespeichert bleibt der genaue Wert.
+        +'<input id="kalkfeld-'+key+'" type="number" step="0.01" value="'
+        +(isFinite(wert)?String(Math.round(wert*10000)/10000):'')+'" '
         +'style="width:100px;padding:4px 6px;text-align:right'+(ab?';border-color:var(--accent);font-weight:700':'')+'" '
         +'onchange="lvWertSetzen(\''+key+'\',this.value)"> <span style="color:var(--muted)">'+esc(e[2])+'</span>'
         +'<span id="kalkzurueck-'+key+'">'
@@ -1553,7 +1556,7 @@ function kalkZeileAktualisieren(key){
   const wert  = parseFloat(LV.werte[key]);
   const start = parseFloat(LV.werteStart ? LV.werteStart[key] : NaN);
   const ab    = isFinite(start) && isFinite(wert) && Math.abs(wert-start)>1e-9;
-  if(document.activeElement!==feld) feld.value = isFinite(wert)?String(wert):'';
+  if(document.activeElement!==feld) feld.value = isFinite(wert)?String(Math.round(wert*10000)/10000):'';
   feld.style.borderColor = ab ? 'var(--accent)' : '';
   feld.style.fontWeight  = ab ? '700' : '';
   if(box) box.innerHTML = ab
@@ -5376,7 +5379,15 @@ function epDuschelement(p, system){
   zeilen.push(['Mosaik verlegen (Gefälle)','2,2 h/m² × '+flt+' × '+fmt(LOHN()),lohnMo]);
   return {ep:Math.round((kalk+lohnEl+lohnMo)*100)/100, zeilen, warn};
 }
+// JEDE Rechnung laeuft mit den Kalkulationswerten des offenen LV. Bis hierher
+// tat das nur autoEP; der Rechner in der Position rief berechneEP direkt auf
+// und zeigte deshalb weiter den Wert aus dem Haupt-Kalkulator. Erik am
+// 30.08.2026 stellte die Zeit je Trittstufe auf 1,8 h - im Rechner stand
+// unveraendert "Gesamtzeit 1,10 h": "Es aendert sich nichts".
 function berechneEP(p, system){
+  return mitLVWerten(function(){ return berechneEPRoh(p, system); });
+}
+function berechneEPRoh(p, system){
   PREIS_ALT_SAMMLER = []; PREIS_NULL_SAMMLER = [];
   const r = berechneEPKern(p, system);
   const einmal = function(arr){ return arr.filter(function(v,i,a){ return a.indexOf(v)===i; }); };
