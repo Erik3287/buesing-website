@@ -760,7 +760,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 171';
+const APP_STAND = '30.08.2026 · 172';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -7115,12 +7115,17 @@ function renderLV(){
         ? `<span style="font-variant-numeric:tabular-nums">${g.wahl?'[ '+fmt(g.summe)+' ]':fmt(g.summe)} €</span>`
           + (g.nBedarf ? `<div style="font-size:10.5px;font-weight:400;color:#0047c7">+ ${g.nBedarf} Bedarf/Wahl ${fmt(g.bedarf)} €</div>` : '')
         : `<span style="font-size:11px;font-weight:400;color:var(--muted)">nur Textinformation</span>`;
-      return `<tr class="pos-row" data-i="${i}" data-such="${suchtext}" style="background:var(--surface2)">
-        <td style="font-weight:700;color:var(--muted);font-size:13px;border-left:6px solid var(--line);padding-left:8px">${p.nr||''}</td>
-        <td colspan="5" style="font-weight:700;font-size:13px;padding:10px 0 6px">${p.desc||''}
-          <span style="font-weight:400;font-size:11px;color:var(--muted);margin-left:8px">${(p.nr||'').split('.').length>2?'Bereich':'Titel'}${g.n?' · '+g.n+' Positionen':''}</span></td>
-        <td colspan="2" style="text-align:right;font-weight:700;font-size:13px;padding:10px 8px 6px;white-space:nowrap">${summeTxt}</td>
-        <td class="np"><select style="padding:3px 4px;font-size:11px;width:118px" onchange="upd(${i},'typ',this.value)">${typOptions(p.typ)}</select></td>
+      // Erik am 30.08.2026: "kannst du die Farblich absetzen? Am besten in dem
+      // blau, wie die LV-Positionsnummern und dann den ganzen Balken in blau.
+      // hinten in diesem Feld steht 'Ueberschrift' - das kann da weg."
+      // Also: der ganze Balken blau, und kein Typ-Auswahlfeld mehr - eine
+      // Ueberschrift ist eine Ueberschrift.
+      return `<tr class="pos-row" data-i="${i}" data-such="${suchtext}" style="background:#eaf3fd">
+        <td style="font-weight:700;color:var(--accent);font-size:13px;border-left:6px solid var(--accent);padding-left:8px">${p.nr||''}</td>
+        <td colspan="5" style="font-weight:700;font-size:13px;padding:10px 0 6px;color:var(--accent)">${p.desc||''}
+          <span style="font-weight:400;font-size:11px;color:var(--accent);opacity:.7;margin-left:8px">${(p.nr||'').split('.').length>2?'Bereich':'Titel'}${g.n?' · '+g.n+' Positionen':''}</span></td>
+        <td colspan="2" style="text-align:right;font-weight:700;font-size:13px;padding:10px 8px 6px;white-space:nowrap;color:var(--accent)">${summeTxt}</td>
+        <td class="np"></td>
       </tr>`;
     }
     const gp=(parseFloat(p.menge)||0)*(parseFloat(p.ep)||0);
