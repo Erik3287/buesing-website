@@ -760,7 +760,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 175';
+const APP_STAND = '30.08.2026 · 176';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -920,6 +920,34 @@ async function initDB(){
     }));
     renderP();
   }
+  await grundierungenNachtragen();
+}
+
+// Die beiden Spezialgrundierungen gehoeren in die Preisdatenbank, damit sie
+// dort auftauchen und der Preis von einer Stelle kommt. Erik am 30.08.2026:
+// "kannst du die beiden gleich mit in die Datenbank aufnehmen?"
+// Laeuft genau einmal: sind beide Artikelnummern da, passiert nichts mehr.
+const GRUNDIERUNG_NACHTRAG = [
+  {artnr:'510105', name:'PCI Wadian gelb',           kat:'grundierung', ek:27.61, eu:'/L',
+   format:'Flasche 1 L · Spezialgrundierung Holzspanplatten', lief:'Keramundo', dat:'30.08.2026'},
+  {artnr:'225804', name:'PCI Gisogrund 404 violett', kat:'grundierung', ek:25.13, eu:'/L',
+   format:'Tüte 1 L · Spezialgrundierung Metall',              lief:'Keramundo', dat:'30.08.2026'},
+];
+async function grundierungenNachtragen(){
+  if(!(PREISE && PREISE.length)) return;
+  let neu=0;
+  GRUNDIERUNG_NACHTRAG.forEach(function(b,idx){
+    const da = PREISE.some(function(p){
+      return (p.artnr && String(p.artnr)===b.artnr)
+          || String(p.name||'').toLowerCase().trim()===b.name.toLowerCase();
+    });
+    if(!da){ PREISE.push(Object.assign({id:Date.now()+idx, geprueft:''}, b)); neu++; }
+  });
+  if(!neu) return;
+  renderP();
+  const ok = await dbSavePreise();
+  toast(neu===1 ? 'Spezialgrundierung in die Preisdatenbank aufgenommen'+(ok?' ✓':' – nur lokal')
+                : 'PCI Wadian und Gisogrund 404 in die Preisdatenbank aufgenommen'+(ok?' ✓':' – nur lokal'));
 }
 
 let LV = { titel:'', pos:[] };
