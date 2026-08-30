@@ -760,7 +760,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 178';
+const APP_STAND = '30.08.2026 · 179';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1067,6 +1067,28 @@ let PREISE = [
 // Jeder Eintrag weiss, wie er gelesen und gesetzt wird - so bleiben die
 // Rezepte unveraendert und greifen weiter auf ihre Variablen zu.
 const WERTE = [
+  // Die Stundensaetze standen bisher NUR im Reiter "Stundensatz" und fehlten
+  // in dieser Uebersicht. Damit war der wichtigste Wert der ganzen App im
+  // LV-Kalkulator nicht erreichbar - eine Stundenlohn-Position ruehrte sich
+  // dort nicht (Erik am 30.08.2026: "Pruefe bitte NOCH EINMAL, ob alle
+  // anderen Positionen korrekt funktionieren").
+  ['Löhne und Zuschlag', [
+    ['LOHN_FACHARBEITER','Stundensatz Facharbeiter','€/h',()=>KALK.lohn_facharbeiter,v=>KALK.lohn_facharbeiter=v],
+    ['LOHN_VORARBEITER','Stundensatz Vorarbeiter','€/h',()=>KALK.lohn_vorarbeiter,v=>KALK.lohn_vorarbeiter=v],
+    ['LOHN_HELFER','Stundensatz Helfer','€/h',()=>KALK.lohn_helfer,v=>KALK.lohn_helfer=v],
+    ['MAT_ZUSCHLAG','Materialzuschlag','Faktor',()=>KALK.mat_zuschlag,v=>KALK.mat_zuschlag=v],
+  ]],
+  ['Silikon / Elastische Fuge', [
+    ['SIL_SANITAER','Sanitärsilikon','€/m',()=>SILIKON.sanitaer,v=>SILIKON.sanitaer=v],
+    ['SIL_NATURSTEIN','Natursteinsilikon','€/m',()=>SILIKON.naturstein,v=>SILIKON.naturstein=v],
+  ]],
+  ['Baustelleneinrichtung (Staffel nach Auftragssumme)', [
+    ['BAU_BIS_25','bis 25.000 €','€',()=>BAUSTELLE_STAFFEL[0].ep,v=>BAUSTELLE_STAFFEL[0].ep=v],
+    ['BAU_BIS_50','bis 50.000 €','€',()=>BAUSTELLE_STAFFEL[1].ep,v=>BAUSTELLE_STAFFEL[1].ep=v],
+    ['BAU_BIS_100','bis 100.000 €','€',()=>BAUSTELLE_STAFFEL[2].ep,v=>BAUSTELLE_STAFFEL[2].ep=v],
+    ['BAU_BIS_150','bis 150.000 €','€',()=>BAUSTELLE_STAFFEL[3].ep,v=>BAUSTELLE_STAFFEL[3].ep=v],
+    ['BAU_UEBER_150','über 150.000 €','€',()=>BAUSTELLE_STAFFEL[4].ep,v=>BAUSTELLE_STAFFEL[4].ep=v],
+  ]],
   ['Fliesen legen', [
     ['FLI_KLEBER_KLEIN','Kleber bis 30×60','kg/m²',()=>FLI_KLEBER_KLEIN,v=>FLI_KLEBER_KLEIN=v],
     ['FLI_KLEBER_GROSS','Kleber ab 60×60 (Buttering-Floating)','kg/m²',()=>FLI_KLEBER_GROSS,v=>FLI_KLEBER_GROSS=v],
