@@ -760,7 +760,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 176';
+const APP_STAND = '30.08.2026 · 177';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1419,21 +1419,32 @@ function mitWerten(obj, fn){
 function mitLVWerten(fn){ return lvWerteHat() ? mitWerten(LV.werte, fn) : fn(); }
 
 // Das LV auf die Werte nachziehen. altWerte = womit bisher gerechnet wurde.
+//
+// Betroffen ist eine Position nur, wenn der geaenderte Wert ihren Rechenpreis
+// ueberhaupt bewegt. Alles andere wird gar nicht erst angefasst - und auch
+// nicht gemeldet. Erik am 30.08.2026 hatte die Stufenzeit geaendert und nur
+// "kein Preis aendert sich" gelesen; dass seine Trittstufe 15.03.14 mit
+// 168,16 EUR einen selbst gesetzten Preis traegt, stand nirgends.
 function lvNachrechnen(altWerte){
-  let n=0, delta=0, eigene=0;
+  let n=0, delta=0;
+  const eigene=[];
+  const rechne=function(p, werte){
+    let k;
+    try{ k=Object.assign({}, p); }catch(e){ return null; }
+    delete k._epHand;
+    try{ mitWerten(werte, function(){ autoEPRoh(k, LV.system||'sakret'); }); }catch(e){ return null; }
+    return Math.round((parseFloat(k.ep)||0)*100)/100;
+  };
   (LV.pos||[]).forEach(function(p){
     if(p.typ==='ueberschrift') return;
     const alt=parseFloat(p.ep)||0;
-    let probe;
-    try{ probe=JSON.parse(JSON.stringify(p)); }catch(e){ return; }
-    delete probe._epHand;
-    let alterRechenwert=0;
-    try{
-      mitWerten(altWerte, function(){ autoEPRoh(probe, LV.system||'sakret'); });
-      alterRechenwert=Math.round((parseFloat(probe.ep)||0)*100)/100;
-    }catch(e){ return; }
-    // Preis passt nicht zur Rechnung -> Erik hat ihn selbst bestimmt.
-    if(Math.abs(alterRechenwert-alt) > 0.005){ if(alt>0) eigene++; return; }
+    const vorher = rechne(p, altWerte);
+    const nachher= rechne(p, LV.werte);
+    if(vorher===null || nachher===null) return;
+    if(Math.abs(vorher-nachher) <= 0.005) return;      // Wert betrifft sie nicht
+    // Der gespeicherte Preis passt nicht zur Rechnung -> Erik hat ihn selbst
+    // bestimmt. Der bleibt, wird aber genannt.
+    if(Math.abs(vorher-alt) > 0.005){ eigene.push(p.nr||'?'); return; }
     const warGruen=(p.status==='gruen');
     delete p._epHand;
     try{ autoEP(p, LV.system||'sakret'); }catch(e){ return; }
@@ -1474,15 +1485,35 @@ function kalkBoxAuf(titel, inhalt){
 function lvKalkOeffnen(){
   if(!(LV && LV.pos && LV.pos.length)){ toast('Kein LV geöffnet'); return; }
   lvWerte();
-  let h='<div style="font-size:13px;color:var(--muted);margin-bottom:2px">'
-       +'Diese Werte gelten nur für <b style="color:var(--text)">'+esc(LV.titel||'dieses LV')+'</b>. '
-       +'Änderst du einen Wert, rechnet das LV sofort nach.</div>'
-       +'<div style="font-size:13px;margin-bottom:4px">Angebotssumme netto: '
-       +'<b id="kalk-summe" style="color:var(--accent);font-size:15px">'+fmt(lvSummeNetto())+' €</b></div>';
+  const h='<div style="font-size:13px;color:var(--muted);margin-bottom:2px">'
+        +'Diese Werte gelten nur für <b style="color:var(--text)">'+esc(LV.titel||'dieses LV')+'</b>. '
+        +'Änderst du einen Wert, rechnet das LV sofort nach.</div>'
+        +'<div style="font-size:13px;margin-bottom:8px">Angebotssumme netto: '
+        +'<b id="kalk-summe" style="color:var(--accent);font-size:15px">'+fmt(lvSummeNetto())+' €</b></div>'
+        // Suchfeld: 90 Werte sind zu viel zum Durchblaettern. Erik am
+        // 30.08.2026: "wo im kleinen Kalkulator finde ich den Lohnaufwand
+        // fuer diese Position?" - hier tippt er "stufe" und sieht alles dazu.
+        +'<div class="sw" style="margin-bottom:4px"><span class="si">🔍</span>'
+        +'<input type="text" id="kalk-suche" placeholder="Wert suchen … (z.B. Stufe, Zeit, Kleber, Grundierung)" '
+        +'value="'+esc(KALK_SUCHE)+'" oninput="kalkSuche(this.value)"></div>'
+        +'<div id="kalk-werte">'+kalkWerteHtml()+'</div>';
+  kalkBoxAuf('Kalkulation dieses LV', h);
+}
+let KALK_SUCHE = '';
+function kalkSuche(v){
+  KALK_SUCHE = String(v||'');
+  const box=document.getElementById('kalk-werte');
+  if(box) box.innerHTML = kalkWerteHtml();
+}
+function kalkWerteHtml(){
+  const such = KALK_SUCHE.toLowerCase().trim();
+  let h='', treffer=0;
   werteAlle().forEach(function(g){
     let zeilen='';
     g[1].forEach(function(e){
       const key=e[0];
+      if(such && (g[0]+' '+e[1]+' '+e[2]).toLowerCase().indexOf(such)<0) return;
+      treffer++;
       const wert  = parseFloat(LV.werte[key]);
       const start = parseFloat(LV.werteStart ? LV.werteStart[key] : NaN);
       const ab    = isFinite(start) && isFinite(wert) && Math.abs(wert-start)>1e-9;
@@ -1497,11 +1528,14 @@ function lvKalkOeffnen(){
                 +'onclick="lvWertZurueck(\''+key+'\')">↩</button>') : '')
         +'</span></td></tr>';
     });
+    if(!zeilen) return;
     h+='<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;'
       +'letter-spacing:.5px;color:var(--accent);margin-bottom:4px">'+esc(g[0])+'</div>'
       +'<table style="width:100%;border-collapse:collapse;font-size:13px">'+zeilen+'</table></div>';
   });
-  kalkBoxAuf('Kalkulation dieses LV', h);
+  if(!treffer) h='<div style="margin-top:14px;font-size:13px;color:var(--muted)">'
+                +'Kein Wert passt zu „'+esc(KALK_SUCHE)+'".</div>';
+  return h;
 }
 // Ein Wert wurde geaendert. Das Fenster wird dabei NICHT neu gezeichnet -
 // Erik am 30.08.2026: "wenn man im Mengenfeld mittels der Pfeiltasten den Wert
@@ -1548,10 +1582,18 @@ function lvKalkRechnen(){
   const r=lvNachrechnen(alt);
   renderLV(); scheduleSave();
   kalkSummeAktualisieren();
-  if(!r.n){ toast('Kein Preis im LV ändert sich dadurch'); return; }
+  const nennen = r.eigene.slice(0,3).join(', ') + (r.eigene.length>3 ? ' …' : '');
+  if(!r.n && !r.eigene.length){
+    toast('Dieser Wert kommt in diesem LV nicht vor'); return;
+  }
+  if(!r.n){
+    toast(r.eigene.length+(r.eigene.length===1?' Position hat':' Positionen haben')
+          +' einen eigenen Preis und bleibt' + (r.eigene.length===1?'':'en') + ': '+nennen);
+    return;
+  }
   toast(r.n+(r.n===1?' Position':' Positionen')+' neu gerechnet · '
         + (r.delta>=0?'+':'')+fmt(r.delta)+' €'
-        + (r.eigene ? (' · '+r.eigene+(r.eigene===1?' eigener Preis':' eigene Preise')+' unverändert') : ''));
+        + (r.eigene.length ? (' · eigener Preis bleibt: '+nennen) : ''));
 }
 function lvWertZurueck(key){
   lvWerte();
