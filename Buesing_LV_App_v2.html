@@ -760,7 +760,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 179';
+const APP_STAND = '30.08.2026 · 180';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4454,9 +4454,12 @@ function epSauberlaufmatte(p){
   // Rahmen in derselben Position? p.emcoRahmenDabei gewinnt (Umschalter), sonst aus dem Text
   const autoR = emcoMitRahmen((p.desc||'')+' '+(p.langtext||''));
   const mitR  = (p.emcoRahmenDabei!=null) ? !!p.emcoRahmenDabei : autoR;
-  zeilen.push([m.name+' · '+hoehe+' mm ('+mattKenn+')', mitR?('inkl. Rahmen '+rahmenKenn):('Rahmen dazu: '+rahmenKenn), 0]);
-  zeilen.push(['Fläche', (b||'?')+'×'+(t||'?')+' mm', flaeche]);
-  zeilen.push(['Liste '+fmt(m.preis)+' €/m² · EK −'+Math.round(rab*100)+'%', fmt(ekM2)+' €/m²', 0]);
+  // Angabezeilen tragen KEINEN Betrag (null). Mit 0 stand dort "0,00 EUR",
+  // und die Flaeche 2,000 m² wurde als "2,00 EUR" angezeigt - beides sieht
+  // nach einem Posten aus, ist aber keiner (geprueft am 30.08.2026).
+  zeilen.push([m.name+' · '+hoehe+' mm ('+mattKenn+')', mitR?('inkl. Rahmen '+rahmenKenn):('Rahmen dazu: '+rahmenKenn), null]);
+  zeilen.push(['Fläche', (b||'?')+'×'+(t||'?')+' mm = '+flaeche.toFixed(3).replace('.',',')+' m²', null]);
+  zeilen.push(['Liste '+fmt(m.preis)+' €/m² · EK −'+Math.round(rab*100)+'%', fmt(ekM2)+' €/m²', null]);
   zeilen.push(['Matte: VK −'+Math.round(abs*100)+'% × '+flaeche.toFixed(3)+' m²', fmt(vkM2)+' €/m²', material]);
   let rahmenKosten=0;
   if(mitR){
@@ -4465,7 +4468,7 @@ function epSauberlaufmatte(p){
     const umfang=2*((b/1000)+(t/1000));
     const vkM=r.preis*(1-abs);
     rahmenKosten=vkM*umfang;
-    zeilen.push([r.name+' ('+rahmenKenn+(rTyp==='cn'?' CN':' AL')+')', 'Umfang '+umfang.toFixed(2)+' lfm', 0]);
+    zeilen.push([r.name+' ('+rahmenKenn+(rTyp==='cn'?' CN':' AL')+')', 'Umfang '+umfang.toFixed(2)+' lfm', null]);
     zeilen.push(['Rahmen: '+fmt(vkM)+' €/m × '+umfang.toFixed(2), 'Liste '+fmt(r.preis)+' €/m −'+Math.round(abs*100)+'%', rahmenKosten]);
   }
   zeilen.push(['Lohn Einlegen', flaeche.toFixed(3)+' × 0,15 h × '+fmt(LOHN()), lohn]);
