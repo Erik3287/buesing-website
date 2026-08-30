@@ -75,6 +75,8 @@ tr:hover td{background:#fafafa}
 .sl-z.sum{border-top:1px solid var(--border);margin-top:4px;padding-top:8px;font-weight:700}
 .sl-erg{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border-radius:10px;background:var(--accent);color:#fff;font-weight:700;font-size:16px;margin-top:8px}
 .sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+optgroup{background:#0071e3;color:#fff;font-weight:700;font-style:normal;padding:3px 0}
+option{background:#fff;color:#1d1d1f;font-weight:400}
 #toast{position:fixed;bottom:24px;right:24px;background:#1d1d1f;color:#fff;padding:12px 20px;border-radius:14px;font-weight:600;font-size:14px;display:none;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.2)}
 @media print{header,nav,.np{display:none!important}body{background:white;color:black}.card{border:none;padding:0;box-shadow:none}#pra{display:block!important}}
 #pra{display:none}
@@ -760,7 +762,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 180';
+const APP_STAND = '30.08.2026 · 182';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -4048,6 +4050,38 @@ function profilArtikel(p){
   if(!p || !p.profilArt) return null;
   return (PREISE||[]).find(function(x){ return x.name===p.profilArt; }) || null;
 }
+// Ein Treppenprofil ist etwas anderes als ein Winkel-/Abschlussprofil: es
+// sitzt auf der Stufenkante und hat einen rutschhemmenden Einleger. Erik am
+// 30.08.2026 zu 15.03.9: "warum ist hier die Edelstahlschiene hinterlegt?
+// Da muss das rein" - gemeint ist die TS-B30-Reihe.
+const TREPPENPROFIL_WORTE =
+  /treppen(?:stufen)?profil|stufenprofil|stufenkant|rutschhemm|antirutsch|trittkant/i;
+function istTreppenprofil(p){
+  return TREPPENPROFIL_WORTE.test(String((p&&p.desc)||'')+' '+String((p&&p.langtext)||''));
+}
+// Das Treppenprofil in der Hoehe, die zur Fliese passt (TS-B30/80, /100, /125).
+function treppenprofilStandard(p){
+  const reihe=(PREISE||[]).filter(function(x){
+    return x.kat==='profile' && /TS-?B\s*30/i.test(x.name||'');
+  });
+  if(!reihe.length) return null;
+  const st=fliesenstaerke(p);
+  if(st && st.mm){
+    const treffer=reihe.find(function(x){ return profilHoehe(x.name)===st.mm; });
+    if(treffer) return treffer;
+  }
+  // ohne bekannte Fliesenstaerke: die haeufigste Hoehe, 10 mm
+  return reihe.find(function(x){ return profilHoehe(x.name)===10; }) || reihe[0];
+}
+// Welcher Artikel rechnet, wenn Erik nichts von Hand gewaehlt hat?
+function profilStandard(p){
+  if(istTreppenprofil(p)){
+    const t=treppenprofilStandard(p);
+    if(t) return {artikel:t, name:t.name, treppe:true};
+  }
+  const cfg=PROFILE[(p&&p.oberflaeche)||'glaenzend']||PROFILE.glaenzend;
+  return {artikel:findArtikel(cfg.name), name:'Schiene '+cfg.label, treppe:false, cfg:cfg};
+}
 function epProfil(p, system){
   const warn=[], zeilen=[];
   const txt=(p.desc||'')+' '+(p.langtext||'');
@@ -4057,23 +4091,27 @@ function epProfil(p, system){
   // Von Hand gewaehltes Profil geht immer vor dem Standard aus der
   // Oberflaechen-Erkennung.
   const gewaehlt=profilArtikel(p);
-  const a = gewaehlt || findArtikel(cfg.name);
-  const label = gewaehlt ? gewaehlt.name : ('Schiene '+cfg.label);
+  const std = profilStandard(p);
+  const a = gewaehlt || std.artikel;
+  const label = gewaehlt ? gewaehlt.name : std.name;
   let schiene=0;
   if(a){
     schiene=(parseFloat(a.ek)||0)*1.05;
     zeilen.push([label, fmt(a.ek)+' €/m × 1,05', schiene]);
   } else {
-    warn.push('ARTIKEL|'+cfg.name);
+    warn.push('ARTIKEL|'+(std.treppe?'Treppenprofil TS-B30':cfg.name));
     zeilen.push([label, 'fehlt', 0]);
   }
-  // Die Oberflaechen-Erkennung zaehlt nur, solange kein Profil gewaehlt ist.
-  if(!gewaehlt && !erk.sicher) warn.push('PRUEFEN|Oberfläche prüfen – '+erk.grund);
-  if(!gewaehlt && p.oberflaeche==='pulver' && !(p.farbe||'').trim()) warn.push('EINGABE|Farbe eintragen (wird bemustert)');
+  // Die Oberflaechen-Erkennung zaehlt nur bei den Winkel-, Fliesen-, Wuerfel-
+  // und Quadec-Profilen. Bei einem Treppenprofil gibt es nichts zu waehlen -
+  // Erik am 30.08.2026: "bei Treppenschutzprofilen ist die Auswahl (matt,
+  // glaenzend etc.) ueberfluessig und kann in diesem Fall weg".
+  if(!gewaehlt && !std.treppe && !erk.sicher) warn.push('PRUEFEN|Oberfläche prüfen – '+erk.grund);
+  if(!gewaehlt && !std.treppe && p.oberflaeche==='pulver' && !(p.farbe||'').trim()) warn.push('EINGABE|Farbe eintragen (wird bemustert)');
   // Profilhoehe gegen Fliesenstaerke pruefen - ein 8-mm-Profil unter einer
   // 10-mm-Fliese laesst die Fliese ueberstehen.
-  if(gewaehlt){
-    const stW=fliesenstaerke(p), hW=profilHoehe(gewaehlt.name);
+  if(gewaehlt || (std.treppe && a)){
+    const stW=fliesenstaerke(p), hW=profilHoehe((gewaehlt||a).name);
     if(stW.mm && hW && hW!==stW.mm){
       warn.push('PRUEFEN|Profilhöhe '+hoeheTxt(hW)+' mm passt nicht zur Fliese ('+hoeheTxt(stW.mm)+' mm '+stW.quelle+') – '
         + (hW<stW.mm ? 'die Fliese steht über' : 'das Profil steht über'));
@@ -6659,14 +6697,24 @@ function renderCalcHTML(i){
       const gruppen={};
       pk.forEach(function(x){ const g=x.format||'weitere Profile'; (gruppen[g]=gruppen[g]||[]).push(x); });
       const st=fliesenstaerke(p);
-      let inner='<option value="">– Standard aus der Oberfläche ('+esc((PROFILE[p.oberflaeche]||PROFILE.glaenzend).label)+') –</option>';
+      const stdP = profilStandard(p);
+      let inner='<option value="">– Standard: '
+        + esc(stdP.treppe ? (stdP.artikel?stdP.artikel.name:'Treppenprofil TS-B30')
+                          : ('Oberfläche '+(PROFILE[p.oberflaeche]||PROFILE.glaenzend).label))
+        + ' –</option>';
       Object.keys(gruppen).sort(function(a,b){ return a.localeCompare(b,'de'); }).forEach(function(g){
         // Passende Hoehe zuerst und gekennzeichnet
         const sortiert = gruppen[g].slice().sort(function(a,b){
           const pa=(st.mm && profilHoehe(a.name)===st.mm)?0:1, pb=(st.mm && profilHoehe(b.name)===st.mm)?0:1;
           return pa-pb || profilHoehe(a.name)-profilHoehe(b.name);
         });
-        inner+='<optgroup label="'+esc(g.slice(0,70))+'">'
+        // Die Gruppenzeile ist im Auswahlfeld kaum zu lesen (Erik am
+        // 30.08.2026: "extrem schlecht zu sehen"). Ein Browser laesst sich
+        // beim Aussehen eines <select> nur begrenzt reinreden - Safari
+        // ignoriert Farben in der Gruppenzeile ganz. Deshalb zusaetzlich:
+        // nur der Kopf des Formats, in GROSSBUCHSTABEN und zwischen Strichen.
+        const gkopf = String(g).split(/[|·,(]/)[0].trim().toUpperCase().slice(0,44);
+        inner+='<optgroup label="── '+esc(gkopf)+' ──">'
           + sortiert.map(function(x){
               const sel=(p.profilArt===x.name)?' selected':'';
               const passt=(st.mm && profilHoehe(x.name)===st.mm) ? '  ← passt zu '+hoeheTxt(st.mm)+' mm' : '';
@@ -6697,12 +6745,12 @@ function renderCalcHTML(i){
     // Ist ein Profil aus der Preisdatenbank gewaehlt, ist die Oberflaeche
     // damit entschieden - sie steckt im Artikel. Erik am 27.08.2026: "bei
     // Treppenprofilen gibt es keine Auswahlmoeglichkeit zur Oberflaeche."
-    if(!profilArtikel(p))
+    if(!profilArtikel(p) && !istTreppenprofil(p))
     felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Oberfläche</div>'
       +'<select onchange="setOberflaeche('+i+',this.value)" style="width:auto;padding:6px 8px">'
       + Object.keys(PROFILE).map(function(k){return '<option value="'+k+'"'+(k===p.oberflaeche?' selected':'')+'>'+PROFILE[k].label+'</option>';}).join('')
       +'</select><div style="font-size:11px;margin-top:3px">'+ampel+'</div></div>';
-    if(p.oberflaeche==='pulver'){
+    if(p.oberflaeche==='pulver' && !istTreppenprofil(p) && !profilArtikel(p)){
       felder += '<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Farbe (wird bemustert)</div>'
         +'<input type="text" value="'+(p.farbe||'')+'" placeholder="z. B. hellanthrazit" oninput="setFarbe('+i+',this.value)" style="width:150px;padding:6px 8px"></div>';
     }
@@ -6728,8 +6776,113 @@ function renderCalcHTML(i){
   }
   return '<div style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start;padding:12px 0">'
     + fremd
+    + gleicheHtml(i)
     + felder
     +'<div id="calc-out-'+i+'" style="flex:1;min-width:300px">'+renderCalcOut(i)+'</div></div>';
+}
+
+// ============================================================
+// DIESELBE POSITION AN ANDERER STELLE
+// Erik am 30.08.2026: "ich habe das jetzt bei dieser Position geaendert - nun
+// weiss ich weder, ob es diese Position noch einmal gibt, noch ob diese dann
+// dort auch geaendert wurde."
+//
+// Das ist KEINE Kopplung: es wird nichts automatisch uebertragen und nichts
+// verglichen, um Preise anzugleichen. Es steht nur da, wo dieselbe Leistung
+// im LV noch einmal vorkommt und was dort eingetragen ist. Uebertragen wird
+// erst auf Klick und nach Rueckfrage.
+// ============================================================
+// Der Text einer Position, zerlegt in das, was sie unterscheidet:
+//   stamm  = Anfang des ersten Wortes ("Trennschiene," und "Trennschien,
+//            Schlueterprofil" sind dieselbe Leistung, "Trittstufe" und
+//            "Setzstufe" sind es nicht)
+//   zahlen = alle Zahlen im Text. 30x30 und 5x5 sind zwei verschiedene
+//            Fliesen, auch wenn der Satz drumherum gleich ist.
+function posMerkmale(p){
+  const roh=String((p&&p.desc)||'').toLowerCase();
+  const worte=roh.replace(/[^a-zäöüß ]/g,' ').split(/\s+/).filter(function(w){ return w.length>=4; });
+  const zahlen=(roh.match(/\d+(?:[.,]\d+)?/g)||[]).map(function(z){ return z.replace(',','.'); });
+  return {
+    stamm: (worte[0]||'').slice(0,8),
+    zahlen: zahlen.slice().sort().join('|'),
+    worte: worte.filter(function(w,i,a){ return a.indexOf(w)===i; })
+  };
+}
+function posAehnlich(a, b){
+  if(!a.stamm || a.stamm!==b.stamm) return 0;      // anderes Bauteil
+  if(a.zahlen!==b.zahlen) return 0;                 // anderes Format/Mass
+  if(!a.worte.length || !b.worte.length) return 0;
+  let gleich=0;
+  a.worte.forEach(function(w){ if(b.worte.indexOf(w)>-1) gleich++; });
+  const zusammen = a.worte.length + b.worte.length - gleich;
+  return zusammen ? gleich/zusammen : 0;
+}
+// Alle Positionen, die dieselbe Leistung beschreiben wie Nummer i.
+function gleichePositionen(i){
+  const p=LV.pos[i];
+  if(!p || p.typ==='ueberschrift') return [];
+  const w=posMerkmale(p);
+  if(!w.stamm) return [];
+  const raus=[];
+  (LV.pos||[]).forEach(function(q,k){
+    if(k===i || q.typ!==p.typ || q.typ==='ueberschrift') return;
+    if(posAehnlich(w, posMerkmale(q)) < 0.4) return;
+    raus.push({i:k, nr:q.nr||'?', desc:q.desc||'', ep:parseFloat(q.ep)||0,
+               gleich: Math.abs((parseFloat(q.ep)||0)-(parseFloat(p.ep)||0)) <= 0.005});
+  });
+  return raus;
+}
+// Die Felder, in denen eine Entscheidung steckt - die werden uebertragen.
+const ENTSCHEIDUNG_FELDER = ['profilArt','oberflaeche','farbe','flieseEk','fabrikat','flieseName',
+  'umfang','untergrund','grundArt','stufe','rutsch','rektifiziert','silikonArt','entkopplungArt',
+  'spachtelModus','spachtelMm','emcoMatte','emcoRahmenDabei','stufeArt','abdichtProdukt','wklasse'];
+function gleicheHtml(i){
+  const liste=gleichePositionen(i);
+  if(!liste.length) return '';
+  const p=LV.pos[i];
+  const anders=liste.filter(function(x){ return !x.gleich; });
+  const zeilen=liste.map(function(x){
+    return '<span style="display:inline-block;margin-right:14px;white-space:nowrap">'
+      + '<b>'+esc(x.nr)+'</b> '
+      + '<span style="color:'+(x.gleich?'#1a9e4b':'var(--red)')+'">'+fmt(x.ep)+' €</span></span>';
+  }).join('');
+  return '<div style="flex-basis:100%;background:#f7f7f9;border:1px solid var(--line);'
+    + 'border-radius:8px;padding:8px 11px;font-size:11.5px">'
+    + '<b>Dieselbe Leistung steht im LV noch '+liste.length+'× :</b> '
+    + '<span style="color:var(--muted)">hier '+fmt(parseFloat(p.ep)||0)+' €</span><br>'
+    + '<div style="margin-top:4px">'+zeilen+'</div>'
+    + (anders.length
+        ? ('<div style="margin-top:6px">'
+           + '<span style="color:var(--red)">'+anders.length+' davon '
+           + (anders.length===1?'hat':'haben')+' einen anderen Preis.</span> '
+           + '<button class="bg sm" style="padding:2px 9px;margin-left:6px" onclick="gleicheUebertragen('+i+')">'
+           + 'Diese Position dorthin übertragen</button></div>')
+        : '<div style="margin-top:6px;color:#1a9e4b">Überall derselbe Preis.</div>')
+    + '</div>';
+}
+function gleicheUebertragen(i){
+  const p=LV.pos[i];
+  const ziele=gleichePositionen(i).filter(function(x){ return !x.gleich; });
+  if(!ziele.length){ toast('Es gibt nichts zu übertragen'); return; }
+  if(!confirm('Diese Position auf '+ziele.length+' andere übertragen?\n\n'
+            + ziele.map(function(x){ return x.nr+':  '+fmt(x.ep)+' €  →  '+fmt(parseFloat(p.ep)||0)+' €'; }).join('\n')
+            + '\n\nÜbertragen werden Artikel, Ausführung und Preis – nicht die Menge.')) return;
+  let n=0;
+  ziele.forEach(function(x){
+    const q=LV.pos[x.i];
+    if(!q) return;
+    ENTSCHEIDUNG_FELDER.forEach(function(feld){
+      if(p[feld]!==undefined && p[feld]!==null && p[feld]!=='') q[feld]=p[feld];
+      else delete q[feld];
+    });
+    q.ep = parseFloat(p.ep)||0;
+    q._epHand = true;
+    q.status = 'gruen'; delete q.gruenAuto;
+    q.notiz = 'übernommen aus Position '+(p.nr||'');
+    n++;
+  });
+  renderLV(); scheduleSave();
+  toast(n+(n===1?' Position übernommen':' Positionen übernommen')+' – aus '+(p.nr||''));
 }
 function setStufe(i,v){ LV.pos[i].stufe=v; calcGeaendert(i); }
 function setUntergrund(i,v){ LV.pos[i].untergrund=v; LV.pos[i]._untergrundHand=true; calcGeaendert(i); }
