@@ -94,6 +94,39 @@ tr:hover td{background:#fafafa}
 .sl-z.sum{border-top:1px solid var(--border);margin-top:4px;padding-top:8px;font-weight:700}
 .sl-erg{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border-radius:10px;background:var(--accent);color:#fff;font-weight:700;font-size:16px;margin-top:8px}
 .sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+/* ===== KOPF DER LV-ANSICHT ============================================= */
+.lvk{display:flex;flex-direction:column;gap:11px;margin-bottom:16px}
+.lvk-zeile1{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;
+  padding-bottom:11px;border-bottom:2px solid var(--text)}
+.lvk-name{flex:1 1 320px;min-width:0}
+/* Der Stift steht INLINE hinter dem letzten Wort - sonst haengt er bei
+   einem langen, umgebrochenen Namen irgendwo in der Mitte. */
+.lvk-name h2{display:inline;margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em;
+  color:var(--text);line-height:1.25}
+.lvk-stift{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px;border-radius:7px;
+  opacity:.45;transition:opacity .15s,background .15s;margin-left:5px;vertical-align:2px}
+.lvk-stift:hover{opacity:1;background:var(--surface2)}
+.lvk-summe{text-align:right;white-space:nowrap;margin-left:auto}
+.lvk-netto{font-size:26px;font-weight:700;letter-spacing:-.02em;color:var(--accent);
+  font-variant-numeric:tabular-nums;line-height:1.1}
+.lvk-netto small{font-size:13px;font-weight:600;color:var(--muted);margin-left:5px}
+.lvk-bedarf{font-size:11.5px;color:var(--muted);margin-top:2px}
+.lvk-leiste{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lvk-gruppe{display:flex;align-items:center;gap:5px;padding:5px 10px 5px 9px;
+  background:var(--surface2);border:1px solid var(--line);border-radius:11px}
+.lvk-lab{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);margin-right:2px;white-space:nowrap}
+.lvk-rechts{display:flex;align-items:center;gap:8px;margin-left:auto}
+.lvk-status{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.lvk-einst{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);
+  border:1px solid var(--line);border-radius:11px;flex-wrap:wrap}
+.lvk-einst select{width:auto;padding:5px 10px;font-size:13px}
+.lvk-hinweis{font-size:12px;color:var(--muted)}
+@media (max-width:860px){
+  .lvk-zeile1{align-items:flex-start;flex-direction:column;gap:8px}
+  .lvk-summe{text-align:left}
+  .lvk-rechts{margin-left:0}
+}
 /* ===== COCKPIT-KOPF DER AUSWERTUNG =====================================
    Erik am 31.08.2026: "Kannst du den Kopf der Auswertungsseite mit diesen
    Kacheln spektakulaerer und futuristischer gestalten?" Dunkles Feld,
@@ -355,36 +388,55 @@ option{background:#fff;color:#1d1d1f;font-weight:400}
       <div class="sc" id="k-rot"    onclick="ampelFilter('rot')"   style="cursor:pointer" title="Nur offene zeigen"><div class="sv" style="color:var(--red)" id="s-r">0</div><div class="sl">Offen !</div></div>
     </div>
     <div class="card">
-      <div class="sh">
-        <div>
-          <div class="ct" id="lv-tit" style="display:inline-block">LV-Kalkulation</div>
-          <button class="bg sm" style="padding:1px 8px;font-size:12px;margin-left:6px;vertical-align:middle"
-                  title="LV umbenennen" onclick="lvUmbenennen()">✏️</button>
-          <div style="color:var(--muted);font-size:12px">Angebotssumme netto: <span id="lv-sum" style="color:var(--accent);font-weight:700">–</span></div>
-          <div id="lv-bedarf" style="font-size:11.5px;color:var(--muted)"></div>
+      <!-- KOPF DER LV-ANSICHT
+           Erik am 31.08.2026: "koenntest du hier den Kopf auch noch etwas
+           aufraeumen? Das ist aeusserst chaotisch ... Es fehlt komplett die
+           struktur." Jetzt drei klare Baender: Name und Summe, darunter die
+           Knoepfe nach Zweck gruppiert, darunter die Einstellungen. -->
+      <div class="lvk">
+        <div class="lvk-zeile1">
+          <div class="lvk-name">
+            <h2 id="lv-tit">LV-Kalkulation</h2>
+            <button class="lvk-stift" title="LV umbenennen" onclick="lvUmbenennen()">✏️</button>
+          </div>
+          <div class="lvk-summe">
+            <div class="lvk-netto"><span id="lv-sum">–</span><small>€ netto</small></div>
+            <div id="lv-bedarf" class="lvk-bedarf"></div>
+          </div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center" class="np">
-          <span id="save-status" style="font-size:12px;color:var(--muted);margin-right:4px"></span>
-          <button class="bg sm" onclick="neuesLV()">+ Neues LV</button>
-          <button class="bg sm" onclick="doExportBesprechung()" title="Kompakte Datei mit allen Rechenwegen – zum Hochladen ins Gespräch">📦 Für Claude</button>
-          <button class="bg sm" onclick="doExportPDF()">📄 PDF-Angebot</button>
-          <button class="bg sm" onclick="doExportLV()" title="Das ausgefüllte LV im Layout der Ausschreibung, mit Zusammenfassungsblatt">📑 LV-Export</button>
-          <button class="bg sm" onclick="doExportDaten()" title="Alle Positionen als Datei sichern – zum Weitergeben oder Nachschauen">💾 Positionen als Datei</button>
-          <button class="bg sm" onclick="document.getElementById('pos-datei').click()" title="Eine gesicherte Positionsdatei in DIESES LV einlesen">📂 Datei einlesen</button>
-          <input type="file" id="pos-datei" accept=".json" style="display:none" onchange="positionsdateiLaden(this.files[0]); this.value='';">
-          <button class="bg sm" onclick="typenNeuErkennen()" title="Alle Positions-Typen neu bestimmen">🔄 Typen neu erkennen</button>
-          <button class="bg sm" onclick="alleEpNeuBerechnen()" title="Alle EP über das Regelwerk neu rechnen – geprüfte (grüne) Positionen bleiben unangetastet">🧮 Alle EP neu berechnen</button>
-          <button class="btn sm" onclick="doSave()">💾 Speichern</button>
+        <div class="lvk-leiste np">
+          <div class="lvk-gruppe">
+            <span class="lvk-lab">Ausgeben</span>
+            <button class="bg sm" onclick="doExportPDF()" title="Angebot als PDF">📄 PDF-Angebot</button>
+            <button class="bg sm" onclick="doExportLV()" title="Das ausgefüllte LV im Layout der Ausschreibung, mit Zusammenfassungsblatt">📑 LV-Export</button>
+            <button class="bg sm" onclick="doExportBesprechung()" title="Kompakte Datei mit allen Rechenwegen – zum Hochladen ins Gespräch">📦 Für Claude</button>
+          </div>
+          <div class="lvk-gruppe">
+            <span class="lvk-lab">Datei</span>
+            <button class="bg sm" onclick="doExportDaten()" title="Alle Positionen als Datei sichern">💾 Sichern</button>
+            <button class="bg sm" onclick="document.getElementById('pos-datei').click()" title="Eine gesicherte Positionsdatei in DIESES LV einlesen">📂 Einlesen</button>
+            <input type="file" id="pos-datei" accept=".json" style="display:none" onchange="positionsdateiLaden(this.files[0]); this.value='';">
+          </div>
+          <div class="lvk-gruppe">
+            <span class="lvk-lab">Neu rechnen</span>
+            <button class="bg sm" onclick="typenNeuErkennen()" title="Alle Positions-Typen neu bestimmen">🔄 Typen</button>
+            <button class="bg sm" onclick="alleEpNeuBerechnen()" title="Alle EP über das Regelwerk neu rechnen – geprüfte (grüne) Positionen bleiben unangetastet">🧮 Alle EP</button>
+          </div>
+          <div class="lvk-rechts">
+            <span id="save-status" class="lvk-status"></span>
+            <button class="bg sm" onclick="neuesLV()" title="Ein neues, leeres LV anlegen">＋ Neues LV</button>
+            <button class="btn sm" onclick="doSave()">💾 Speichern</button>
+          </div>
         </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;margin:4px 0 14px;padding:10px 12px;background:var(--surface2);border-radius:10px">
-        <span style="font-size:13px;font-weight:600">System für dieses LV:</span>
-        <select id="lv-system" onchange="setLvSystem(this.value)" style="width:auto;padding:6px 10px">
-          <option value="sakret">Sakret</option>
-          <option value="raw">RAW</option>
-        </select>
-        <span style="font-size:12px;color:var(--muted)">bestimmt Kleber, Grundierung, Abdichtung … (außer Fuge)</span>
-        <button class="bg sm" style="margin-left:auto" onclick="lvKalkOeffnen()" title="Die Kalkulationswerte, mit denen NUR dieses LV rechnet">⚙️ Kalkulation dieses LV</button>
+        <div class="lvk-einst">
+          <span class="lvk-lab">System</span>
+          <select id="lv-system" onchange="setLvSystem(this.value)">
+            <option value="sakret">Sakret</option>
+            <option value="raw">RAW</option>
+          </select>
+          <span class="lvk-hinweis">bestimmt Kleber, Grundierung, Abdichtung … (außer Fuge)</span>
+          <button class="bg sm" style="margin-left:auto" onclick="lvKalkOeffnen()" title="Die Kalkulationswerte, mit denen NUR dieses LV rechnet">⚙️ Kalkulation dieses LV</button>
+        </div>
       </div>
       <div style="margin:6px 0 12px;display:flex;align-items:center;gap:8px">
         <div class="sw" style="flex:1;max-width:420px"><span class="si">🔍</span>
@@ -895,7 +947,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '31.08.2026 · 199';
+const APP_STAND = '31.08.2026 · 200';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -7914,11 +7966,11 @@ function renderLV(){
   document.getElementById('s-g').textContent=g;
   document.getElementById('s-y').textContent=y;
   document.getElementById('s-r').textContent=r;
-  document.getElementById('lv-sum').textContent=fmt(tot)+' €';
+  document.getElementById('lv-sum').textContent=fmt(tot);
   const bedEl=document.getElementById('lv-bedarf');
   if(bedEl) bedEl.innerHTML = nBedarf
-    ? ('<span style="color:#0047c7;font-weight:800">'+nBedarf+' BEDARFSPOSITION(EN)</span> '
-       +fmt(totBedarf)+' € – <b>nicht</b> in der Angebotssumme')
+    ? ('zzgl. <b style="color:#5a4bb8">'+nBedarf+' Bedarfsposition'+(nBedarf===1?'':'en')+'</b> '
+       +'über '+fmt(totBedarf)+' € – nicht in der Summe')
     : '';
 
   // Endpreis-Kalkulation berechnen und anzeigen
@@ -8002,7 +8054,7 @@ function upd(i,f,v){
     renderLV(); scheduleSave(); return;
   }
   let tot=0; LV.pos.forEach(p=>{ if(!istBedarfPos(p)) tot+=(p.menge||0)*(p.ep||0); });
-  document.getElementById('lv-sum').textContent=fmt(tot)+' €';
+  document.getElementById('lv-sum').textContent=fmt(tot);
   const gp=(parseFloat(LV.pos[i].menge)||0)*(parseFloat(LV.pos[i].ep)||0);
   const gpCell=document.getElementById('gp-'+i);
   if(gpCell){
