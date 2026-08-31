@@ -94,111 +94,51 @@ tr:hover td{background:#fafafa}
 .sl-z.sum{border-top:1px solid var(--border);margin-top:4px;padding-top:8px;font-weight:700}
 .sl-erg{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border-radius:10px;background:var(--accent);color:#fff;font-weight:700;font-size:16px;margin-top:8px}
 .sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-/* ===== KOPF DER LV-ANSICHT ============================================= */
-.lvk{display:flex;flex-direction:column;gap:11px;margin-bottom:16px}
+/* ===== KOPF DER LV-ANSICHT =============================================
+   Erik am 31.08.2026: "Teile das ganze bitte schoen symmetrisch und
+   uebersichtlich sowie intuitiv ein" und "Der Kopf, in welchem der Name des
+   LV steht, soll in einem dunklen mittelgrau erscheinen und der Name des LVs
+   dann in weiss."
+   Aufbau: dunkler Kopfbalken mit Name und Summe, darunter vier gleich grosse
+   blaue Felder im Raster 2x2, darunter die graue Einstellungszeile. */
+.lvk{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
 .lvk-zeile1{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;
-  padding-bottom:11px;border-bottom:2px solid var(--text)}
+  background:#4b4f57;border-radius:13px;padding:15px 18px 14px}
 .lvk-name{flex:1 1 320px;min-width:0}
 /* Der Stift steht INLINE hinter dem letzten Wort - sonst haengt er bei
    einem langen, umgebrochenen Namen irgendwo in der Mitte. */
 .lvk-name h2{display:inline;margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em;
-  color:var(--text);line-height:1.25}
+  color:#fff;line-height:1.25}
 .lvk-stift{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px;border-radius:7px;
-  opacity:.45;transition:opacity .15s,background .15s;margin-left:5px;vertical-align:2px}
-.lvk-stift:hover{opacity:1;background:var(--surface2)}
+  opacity:.65;transition:opacity .15s,background .15s;margin-left:5px;vertical-align:2px}
+.lvk-stift:hover{opacity:1;background:rgba(255,255,255,.14)}
 .lvk-summe{text-align:right;white-space:nowrap;margin-left:auto}
-.lvk-netto{font-size:26px;font-weight:700;letter-spacing:-.02em;color:var(--accent);
+.lvk-netto{font-size:26px;font-weight:700;letter-spacing:-.02em;color:#fff;
   font-variant-numeric:tabular-nums;line-height:1.1}
-.lvk-netto small{font-size:13px;font-weight:600;color:var(--muted);margin-left:5px}
-.lvk-bedarf{font-size:11.5px;color:var(--muted);margin-top:2px}
-.lvk-leiste{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.lvk-gruppe{display:flex;align-items:center;gap:5px;padding:5px 10px 5px 9px;
-  background:var(--surface2);border:1px solid var(--line);border-radius:11px}
-.lvk-lab{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--muted);margin-right:2px;white-space:nowrap}
-.lvk-rechts{display:flex;align-items:center;gap:8px;margin-left:auto}
+.lvk-netto small{font-size:13px;font-weight:600;color:rgba(255,255,255,.62);margin-left:5px}
+.lvk-bedarf{font-size:11.5px;color:rgba(255,255,255,.68);margin-top:3px}
+.lvk-bedarf b{color:#c9bcff}
+/* Vier gleich grosse Felder, zwei mal zwei */
+.lvk-leiste{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch}
+.lvk-gruppe{display:flex;align-items:center;gap:7px;padding:9px 12px;
+  background:#e9f2fe;border:1px solid #bfd9f8;border-radius:12px}
+.lvk-knoepfe{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto;justify-content:flex-end}
+.lvk-lab{font-size:9.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
+  color:#0060c9;white-space:nowrap}
+.lvk-gruppe .bg{background:#fff;border-color:#cfe0f5}
+.lvk-gruppe .bg:hover{border-color:#0071e3}
+.lvk-gruppe .btn{background:#1d1d1f;border-color:#1d1d1f;color:#fff}
+.lvk-gruppe .btn:hover{background:#000;border-color:#000}
 .lvk-status{font-size:11.5px;color:var(--muted);white-space:nowrap}
 .lvk-einst{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);
-  border:1px solid var(--line);border-radius:11px;flex-wrap:wrap}
+  border:1px solid var(--line);border-radius:12px;flex-wrap:wrap}
 .lvk-einst select{width:auto;padding:5px 10px;font-size:13px}
+.lvk-einst .lvk-lab{color:var(--muted)}
 .lvk-hinweis{font-size:12px;color:var(--muted)}
 @media (max-width:860px){
+  .lvk-leiste{grid-template-columns:1fr}
   .lvk-zeile1{align-items:flex-start;flex-direction:column;gap:8px}
-  .lvk-summe{text-align:left}
-  .lvk-rechts{margin-left:0}
-}
-/* ===== COCKPIT-KOPF DER AUSWERTUNG =====================================
-   Erik am 31.08.2026: "Kannst du den Kopf der Auswertungsseite mit diesen
-   Kacheln spektakulaerer und futuristischer gestalten?" Dunkles Feld,
-   Leuchtkanten, grosse Ziffern in Tabellenbreite - der Rest der App bleibt
-   hell und ruhig. */
-.aw-hero{position:relative;overflow:hidden;border-radius:18px;padding:22px 24px 20px;
-  background:radial-gradient(120% 140% at 12% -10%,#1b3a63 0%,#101a2c 46%,#0a0e17 100%);
-  color:#eaf1ff;box-shadow:0 14px 40px rgba(10,20,40,.28);margin-bottom:16px}
-.aw-hero::before{content:"";position:absolute;inset:0;pointer-events:none;
-  background-image:linear-gradient(rgba(120,180,255,.055) 1px,transparent 1px),
-                   linear-gradient(90deg,rgba(120,180,255,.055) 1px,transparent 1px);
-  background-size:38px 38px;mask-image:radial-gradient(80% 90% at 20% 0%,#000 35%,transparent 100%)}
-.aw-hero::after{content:"";position:absolute;top:-70px;right:-50px;width:280px;height:280px;
-  border-radius:50%;pointer-events:none;
-  background:radial-gradient(circle,rgba(64,150,255,.30) 0%,rgba(64,150,255,0) 68%)}
-.aw-hero>*{position:relative;z-index:1}
-.aw-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;
-  margin-bottom:16px}
-.aw-eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
-  color:#7fb2ff;display:flex;align-items:center;gap:8px}
-.aw-eyebrow .punkt{width:6px;height:6px;border-radius:50%;background:#4d9bff;
-  box-shadow:0 0 0 4px rgba(77,155,255,.18)}
-.aw-obj{font-size:17px;font-weight:600;letter-spacing:-.01em;margin-top:5px;color:#fff}
-.aw-haupt{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.aw-haupt .zahl{font-size:44px;font-weight:700;letter-spacing:-.035em;line-height:1;
-  font-variant-numeric:tabular-nums;
-  background:linear-gradient(180deg,#ffffff 0%,#a8ccff 130%);-webkit-background-clip:text;
-  background-clip:text;color:transparent}
-.aw-haupt .eh{font-size:15px;font-weight:600;color:#8fb8ee}
-.aw-gitter{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:1px;
-  background:rgba(140,180,240,.16);border:1px solid rgba(140,180,240,.16);border-radius:12px;
-  overflow:hidden}
-.aw-zelle{background:rgba(9,14,24,.72);padding:13px 15px 12px;display:flex;flex-direction:column;gap:3px;
-  transition:background .2s}
-.aw-zelle:hover{background:rgba(24,40,68,.85)}
-.aw-zelle .w{font-size:22px;font-weight:700;letter-spacing:-.025em;font-variant-numeric:tabular-nums;
-  color:#fff;line-height:1.15}
-.aw-zelle .w small{font-size:12.5px;font-weight:600;color:#8fb8ee;margin-left:3px}
-.aw-zelle .l{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:#7e9ac2}
-.aw-zelle.akz .w{color:#6fb4ff}
-.aw-zelle.bed .w{color:#b9a6ff}
-/* Personalplanung im Cockpit */
-.aw-plan{margin-top:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-  background:rgba(9,14,24,.55);border:1px solid rgba(140,180,240,.16);border-radius:12px;
-  padding:11px 14px}
-.aw-plan-lab{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#7fb2ff}
-.aw-plan-feld{display:flex;align-items:center;gap:7px}
-.aw-plan-feld span{font-size:11.5px;color:#8fb8ee;white-space:nowrap}
-.aw-plan-feld input{width:66px;padding:5px 8px;text-align:right;font-size:13px;font-weight:600;
-  color:#eaf1ff;background:rgba(20,32,54,.9);border:1px solid rgba(140,180,240,.28);border-radius:8px;
-  font-variant-numeric:tabular-nums}
-.aw-plan-feld input:focus{outline:none;border-color:#4d9bff;box-shadow:0 0 0 3px rgba(77,155,255,.22)}
-.aw-plan-satz{flex:1;min-width:250px;font-size:12.5px;color:#a8c6ea;text-align:right}
-.aw-plan-satz b{color:#fff}
-/* Zahlenrolle */
-.aw-zelle .w.rollt{color:#9fd0ff;text-shadow:0 0 14px rgba(77,155,255,.5)}
-.aw-zelle.gew .w{color:#5fe0a8}
-.aw-zelle.neg .w{color:#ff8f7d}
-.aw-rail{margin-top:14px;display:flex;flex-direction:column;gap:6px}
-.aw-rail .spur{height:8px;border-radius:5px;background:rgba(140,180,240,.14);overflow:hidden;display:flex}
-.aw-rail .spur i{display:block;height:100%}
-.aw-rail .lohnf{background:linear-gradient(90deg,#4d9bff,#7fd0ff)}
-.aw-rail .matf{background:linear-gradient(90deg,#3a5f96,#4a7ec0)}
-.aw-rail .leg{display:flex;gap:16px;font-size:11px;color:#8fb8ee;flex-wrap:wrap}
-.aw-rail .leg b{color:#eaf1ff;font-variant-numeric:tabular-nums}
-.aw-rail .leg span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;
-  margin-right:6px;vertical-align:baseline}
-.aw-rail .leg .l1::before{background:#4d9bff}
-.aw-rail .leg .l2::before{background:#3a5f96}
-@media (prefers-reduced-motion:no-preference){
-  .aw-zelle{animation:awauf .42s cubic-bezier(.2,.7,.3,1) backwards}
-  @keyframes awauf{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+  .lvk-summe{text-align:left;margin-left:0}
 }
 optgroup{background:#0071e3;color:#fff;font-weight:700;font-style:normal;padding:3px 0}
 option{background:#fff;color:#1d1d1f;font-weight:400}
@@ -405,27 +345,31 @@ option{background:#fff;color:#1d1d1f;font-weight:400}
           </div>
         </div>
         <div class="lvk-leiste np">
-          <div class="lvk-gruppe">
-            <span class="lvk-lab">Ausgeben</span>
-            <button class="bg sm" onclick="doExportPDF()" title="Angebot als PDF">📄 PDF-Angebot</button>
-            <button class="bg sm" onclick="doExportLV()" title="Das ausgefüllte LV im Layout der Ausschreibung, mit Zusammenfassungsblatt">📑 LV-Export</button>
-            <button class="bg sm" onclick="doExportBesprechung()" title="Kompakte Datei mit allen Rechenwegen – zum Hochladen ins Gespräch">📦 Für Claude</button>
+          <div class="lvk-gruppe"><span class="lvk-lab">Ausgeben</span>
+            <div class="lvk-knoepfe">
+              <button class="bg sm" onclick="doExportPDF()" title="Angebot als PDF">📄 PDF-Angebot</button>
+              <button class="bg sm" onclick="doExportLV()" title="Das ausgefüllte LV im Layout der Ausschreibung, mit Zusammenfassungsblatt">📑 LV-Export</button>
+              <button class="bg sm" onclick="doExportBesprechung()" title="Kompakte Datei mit allen Rechenwegen – zum Hochladen ins Gespräch">📦 Für Claude</button>
+            </div>
           </div>
-          <div class="lvk-gruppe">
-            <span class="lvk-lab">Datei</span>
-            <button class="bg sm" onclick="doExportDaten()" title="Alle Positionen als Datei sichern">💾 Sichern</button>
-            <button class="bg sm" onclick="document.getElementById('pos-datei').click()" title="Eine gesicherte Positionsdatei in DIESES LV einlesen">📂 Einlesen</button>
-            <input type="file" id="pos-datei" accept=".json" style="display:none" onchange="positionsdateiLaden(this.files[0]); this.value='';">
+          <div class="lvk-gruppe"><span class="lvk-lab">Datei</span>
+            <div class="lvk-knoepfe">
+              <button class="bg sm" onclick="doExportDaten()" title="Alle Positionen als Datei sichern">💾 Sichern</button>
+              <button class="bg sm" onclick="document.getElementById('pos-datei').click()" title="Eine gesicherte Positionsdatei in DIESES LV einlesen">📂 Einlesen</button>
+              <input type="file" id="pos-datei" accept=".json" style="display:none" onchange="positionsdateiLaden(this.files[0]); this.value='';">
+            </div>
           </div>
-          <div class="lvk-gruppe">
-            <span class="lvk-lab">Neu rechnen</span>
-            <button class="bg sm" onclick="typenNeuErkennen()" title="Alle Positions-Typen neu bestimmen">🔄 Typen</button>
-            <button class="bg sm" onclick="alleEpNeuBerechnen()" title="Alle EP über das Regelwerk neu rechnen – geprüfte (grüne) Positionen bleiben unangetastet">🧮 Alle EP</button>
+          <div class="lvk-gruppe"><span class="lvk-lab">Neu rechnen</span>
+            <div class="lvk-knoepfe">
+              <button class="bg sm" onclick="typenNeuErkennen()" title="Alle Positions-Typen neu bestimmen">🔄 Typen</button>
+              <button class="bg sm" onclick="alleEpNeuBerechnen()" title="Alle EP über das Regelwerk neu rechnen – geprüfte (grüne) Positionen bleiben unangetastet">🧮 Alle EP</button>
+            </div>
           </div>
-          <div class="lvk-rechts">
-            <span id="save-status" class="lvk-status"></span>
-            <button class="bg sm" onclick="neuesLV()" title="Ein neues, leeres LV anlegen">＋ Neues LV</button>
-            <button class="btn sm" onclick="doSave()">💾 Speichern</button>
+          <div class="lvk-gruppe"><span class="lvk-lab">Dieses LV</span>
+            <div class="lvk-knoepfe">
+              <button class="bg sm" onclick="neuesLV()" title="Ein neues, leeres LV anlegen">＋ Neues LV</button>
+              <button class="btn sm" onclick="doSave()">💾 Speichern</button>
+            </div>
           </div>
         </div>
         <div class="lvk-einst">
@@ -435,7 +379,8 @@ option{background:#fff;color:#1d1d1f;font-weight:400}
             <option value="raw">RAW</option>
           </select>
           <span class="lvk-hinweis">bestimmt Kleber, Grundierung, Abdichtung … (außer Fuge)</span>
-          <button class="bg sm" style="margin-left:auto" onclick="lvKalkOeffnen()" title="Die Kalkulationswerte, mit denen NUR dieses LV rechnet">⚙️ Kalkulation dieses LV</button>
+          <span id="save-status" class="lvk-status" style="margin-left:auto"></span>
+          <button class="bg sm" onclick="lvKalkOeffnen()" title="Die Kalkulationswerte, mit denen NUR dieses LV rechnet">⚙️ Kalkulation dieses LV</button>
         </div>
       </div>
       <div style="margin:6px 0 12px;display:flex;align-items:center;gap:8px">
@@ -947,7 +892,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '31.08.2026 · 200';
+const APP_STAND = '31.08.2026 · 201';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
