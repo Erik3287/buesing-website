@@ -135,6 +135,23 @@ tr:hover td{background:#fafafa}
 .aw-zelle .l{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:#7e9ac2}
 .aw-zelle.akz .w{color:#6fb4ff}
 .aw-zelle.bed .w{color:#b9a6ff}
+/* Personalplanung im Cockpit */
+.aw-plan{margin-top:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  background:rgba(9,14,24,.55);border:1px solid rgba(140,180,240,.16);border-radius:12px;
+  padding:11px 14px}
+.aw-plan-lab{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#7fb2ff}
+.aw-plan-feld{display:flex;align-items:center;gap:7px}
+.aw-plan-feld span{font-size:11.5px;color:#8fb8ee;white-space:nowrap}
+.aw-plan-feld input{width:66px;padding:5px 8px;text-align:right;font-size:13px;font-weight:600;
+  color:#eaf1ff;background:rgba(20,32,54,.9);border:1px solid rgba(140,180,240,.28);border-radius:8px;
+  font-variant-numeric:tabular-nums}
+.aw-plan-feld input:focus{outline:none;border-color:#4d9bff;box-shadow:0 0 0 3px rgba(77,155,255,.22)}
+.aw-plan-satz{flex:1;min-width:250px;font-size:12.5px;color:#a8c6ea;text-align:right}
+.aw-plan-satz b{color:#fff}
+/* Zahlenrolle */
+.aw-zelle .w.rollt{color:#9fd0ff;text-shadow:0 0 14px rgba(77,155,255,.5)}
+.aw-zelle.gew .w{color:#5fe0a8}
+.aw-zelle.neg .w{color:#ff8f7d}
 .aw-rail{margin-top:14px;display:flex;flex-direction:column;gap:6px}
 .aw-rail .spur{height:8px;border-radius:5px;background:rgba(140,180,240,.14);overflow:hidden;display:flex}
 .aw-rail .spur i{display:block;height:100%}
@@ -874,7 +891,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '31.08.2026 · 197';
+const APP_STAND = '31.08.2026 · 198';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -1210,6 +1227,13 @@ const WERTE = [
   ]],
   // Getrennt, mit Absicht: diese Saetze gelten NUR fuer die
   // Stundenlohn-Positionen und wirken auf keinen anderen Einheitspreis.
+  // Was eine Arbeitsstunde Erik WIRKLICH kostet - Lohn, Lohnnebenkosten,
+  // Fahrzeug, Werkzeug, Buero, alles anteilig. Nur damit laesst sich aus dem
+  // Angebot ein Gewinn ausrechnen. Steht der Wert auf 0, zeigt die Auswertung
+  // statt des Gewinns den Rohertrag und sagt, dass die Zahl fehlt.
+  ['Selbstkosten (für die Gewinnrechnung)', [
+    ['KOSTEN_STUNDE','Kostensatz je Arbeitsstunde','€/h',()=>KOSTEN_STUNDE,v=>KOSTEN_STUNDE=v],
+  ]],
   ['Stundenlohnarbeiten (eigene Position, wirkt sonst nirgends)', [
     ['STD_LOHN_FACH','Angebotener Stundensatz Facharbeiter','€/h',()=>STD_LOHN_FACH,v=>STD_LOHN_FACH=v],
     ['STD_LOHN_VOR','Angebotener Stundensatz Vorarbeiter','€/h',()=>STD_LOHN_VOR,v=>STD_LOHN_VOR=v],
@@ -4104,6 +4128,10 @@ function epEntkopplung(p, system){
 // Erik am 30.08.2026: "Der normale Berechnungssatz bleibt fuer ALLE
 // Positionen bei 58,00 Euro. Am Ende der meisten LVs ist ein freies Feld fuer
 // Stundenlohnarbeiten - hier tragen wir zukuenftig 56,00 Euro ein."
+// Erik am 31.08.2026: "Kannst du noch den moeglichen Gewinn in die Kacheln
+// mit aufnehmen?" Dafuer fehlt der App eine Zahl, die sie nirgends herleiten
+// kann: was eine Arbeitsstunde im Betrieb KOSTET. 0 = noch nicht hinterlegt.
+let KOSTEN_STUNDE = 0;
 let STD_LOHN_FACH   = 56.00;  // €/h Facharbeiter im Stundenlohn
 let STD_LOHN_VOR    = 61.00;  // €/h Bauvorarbeiter im Stundenlohn
 let STD_LOHN_HELFER = 52.00;  // €/h Azubi/Helfer im Stundenlohn
@@ -8760,15 +8788,31 @@ function awGruppe(p){
   return AW_GRUPPEN[t] || ('Sonstiges'+(t?(' ('+t+')'):''));
 }
 // Die komplette Auswertung, frisch gerechnet.
+// Was an einer Position ROHES MATERIAL ist - also der Einkauf, bevor die
+// 20 % daraufkommen. Steht im Rechenweg eine Zeile "Material × 1,20", ist der
+// Betrag genau das Zwanzigprozent-Ergebnis; sonst bleibt die Naeherung
+// (Einheitspreis minus Lohn) geteilt durch den Zuschlag.
+function materialRoh(p, lohnJeEinheit){
+  let r;
+  try{ r=berechneEP(p, LV.system||'sakret'); }catch(e){ return 0; }
+  const z=(r.zeilen||[]).find(function(x){ return /^Material\s*[×x]/.test(String(x[0]||'')); });
+  const f=parseFloat(KALK.mat_zuschlag)||1.2;
+  if(z && typeof z[2]==='number') return z[2]/f;
+  const ep=parseFloat(p.ep)||0;
+  const lohn=(lohnJeEinheit||0)*(parseFloat(KALK.lohn_facharbeiter)||58);
+  return Math.max(0,(ep-lohn))/f;
+}
 function auswertungRechnen(){
   const zeilen=[], G={};
-  let nA=0,nB=0,sA=0,sB=0,ohne=0,ohneWert=0;
+  let nA=0,nB=0,sA=0,sB=0,ohne=0,ohneWert=0,matA=0,matB=0;
   (LV.pos||[]).forEach(function(p){
     if(p.typ==='ueberschrift') return;
     const m=parseFloat(p.menge)||0, ep=parseFloat(p.ep)||0, gp=m*ep;
     const bedarf=istBedarfPos(p);
     const je=stundenJeEinheit(p);
     const std=(je!==null) ? je*m : null;
+    const mat=materialRoh(p, je||0)*m;
+    if(bedarf) matB+=mat; else matA+=mat;
     zeilen.push({nr:p.nr||'', desc:p.desc||'', typ:p.typ||'', menge:m, einheit:p.einheit||'',
                  ep:ep, gp:gp, bedarf:bedarf, je:je, std:std, gruppe:awGruppe(p), status:p.status});
     if(std===null){ ohne++; if(!bedarf) ohneWert+=gp; }
@@ -8778,17 +8822,64 @@ function auswertungRechnen(){
     g.eh=p.einheit||g.eh; g.n++;
   });
   return {zeilen:zeilen, gruppen:G, nettoA:nA, nettoB:nB, stdA:sA, stdB:sB,
-          ohne:ohne, ohneWert:ohneWert};
+          ohne:ohne, ohneWert:ohneWert, matA:matA, matB:matB};
 }
 function awSetzen(feld, wert){
   const v=parseFloat(String(wert).replace(',','.'))||0;
   if(feld==='mann')  AW_MANN=Math.max(1, Math.round(v));
   if(feld==='std')   AW_STD_TAG=Math.max(1, v);
   if(feld==='tage')  AW_TAGE_WOCHE=Math.max(1, Math.min(7, v));
-  renderAuswertung();
+  awPlanungAktualisieren();     // nur die betroffenen Zahlen, rollend
 }
 let AW_ALLE=false;
 function awAlleZeigen(){ AW_ALLE=!AW_ALLE; renderAuswertung(); }
+
+// ===== ZAHLENROLLE ========================================================
+// Erik am 31.08.2026: "Wenn man die Werte im Rechner veraendert, soll sich die
+// Zahl wie bei einem Flipper-Automat aktualisieren." Also kein Umspringen,
+// sondern Durchlaufen: die Ziffern rollen in einer knappen halben Sekunde von
+// der alten zur neuen Zahl, am Ende leicht abbremsend.
+const AW_ROLLE={};   // merkt sich je Feld den zuletzt gezeigten Wert
+function awRollen(id, ziel, nachkomma, einheit){
+  const el=document.getElementById(id);
+  if(!el) return;
+  const von = (AW_ROLLE[id]!==undefined) ? AW_ROLLE[id] : 0;
+  AW_ROLLE[id]=ziel;
+  const schreib=function(v){
+    el.innerHTML=fmt(v, nachkomma)+(einheit?('<small>'+einheit+'</small>'):'');
+  };
+  let ruhig=false;
+  try{ ruhig=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+  if(ruhig || von===ziel || !window.requestAnimationFrame){ schreib(ziel); return; }
+  const dauer=520, start=(window.performance&&performance.now)?performance.now():Date.now();
+  el.classList.add('rollt');
+  const schritt=function(jetzt){
+    const t=Math.min(1,((jetzt||Date.now())-start)/dauer);
+    const e=1-Math.pow(1-t,3);                 // am Ende abbremsen
+    schreib(von+(ziel-von)*e);
+    if(t<1) requestAnimationFrame(schritt);
+    else { schreib(ziel); el.classList.remove('rollt'); }
+  };
+  requestAnimationFrame(schritt);
+}
+// Die Kacheln, die von der Personalplanung abhaengen - nur die werden
+// nachgezogen, der Rest der Seite bleibt stehen.
+function awPlanungAktualisieren(){
+  if(!(LV && LV.pos && LV.pos.length)) return;
+  const a=auswertungRechnen();
+  const tage=a.stdA/AW_STD_TAG, kalTage=tage/AW_MANN, wochen=kalTage/AW_TAGE_WOCHE;
+  awRollen('aw-z-manntage', tage, 2, ' Tage');
+  awRollen('aw-z-dauer', kalTage, 2, ' Tage');
+  awRollen('aw-z-wochen', wochen, 2, ' Wo.');
+  const l1=document.getElementById('aw-l-dauer'); if(l1) l1.textContent='mit '+AW_MANN+' Mann';
+  const l2=document.getElementById('aw-l-manntage'); if(l2) l2.textContent='Manntage à '+fmt(AW_STD_TAG)+' h';
+  const l3=document.getElementById('aw-l-wochen'); if(l3) l3.textContent='Bauzeit · '+Math.round(AW_TAGE_WOCHE)+' Tage/Woche';
+  const satz=document.getElementById('aw-satz');
+  if(satz) satz.innerHTML='<b>'+AW_MANN+' Mann</b> · '+fmt(a.stdA)+' h ÷ '+fmt(AW_STD_TAG)
+    +' h ÷ '+AW_MANN+' = <b>'+fmt(kalTage)+' Arbeitstage</b> bei '+Math.round(AW_TAGE_WOCHE)+' Tagen je Woche';
+  const bed=document.getElementById('aw-bedarf-tage');
+  if(bed) bed.textContent=fmt((a.stdA+a.stdB)/AW_STD_TAG/AW_MANN);
+}
 
 function renderAuswertung(){
   const box=document.getElementById('aw-inhalt');
@@ -8812,13 +8903,17 @@ function renderAuswertung(){
   if(unt) unt.textContent=a.zeilen.length+' Positionen · Stundensatz '+fmt(stdSatz)+' €/h · '
         +'jederzeit neu gerechnet aus den offenen Positionen';
 
-  const matA   = Math.max(0, a.nettoA - lohnA);
+  const matRoh = a.matA;
   const lohnPct= a.nettoA>0 ? (lohnA/a.nettoA*100) : 0;
-  const zelle=function(wert, einheit, lab, klasse, verz){
+  const kSatz  = parseFloat(KOSTEN_STUNDE)||0;
+  const rohertrag = a.nettoA - matRoh;                  // Summe minus Einkauf
+  const gewinn    = kSatz>0 ? (rohertrag - a.stdA*kSatz) : null;
+  const zelle=function(wert, einheit, lab, klasse, verz, idW, idL){
     return '<div class="aw-zelle'+(klasse?(' '+klasse):'')+'"'
       +(verz!==undefined?(' style="animation-delay:'+verz+'ms"'):'')+'>'
-      +'<div class="w">'+wert+(einheit?('<small>'+einheit+'</small>'):'')+'</div>'
-      +'<div class="l">'+lab+'</div></div>';
+      +'<div class="w"'+(idW?(' id="'+idW+'"'):'')+'>'+wert
+      +(einheit?('<small>'+einheit+'</small>'):'')+'</div>'
+      +'<div class="l"'+(idL?(' id="'+idL+'"'):'')+'>'+lab+'</div></div>';
   };
   let h='';
   // --- Cockpit ---
@@ -8834,42 +8929,40 @@ function renderAuswertung(){
     +  '</div>'
     +'</div>'
     +'<div class="aw-gitter">'
-    + zelle(fmt(a.stdA), ' h', 'Arbeitszeit', 'akz', 0)
-    + zelle(fmt(tage), ' Tage', 'Manntage à '+fmt(AW_STD_TAG)+' h', '', 40)
-    + zelle(fmt(kalTage), ' Tage', 'mit '+AW_MANN+' Mann', 'akz', 80)
-    + zelle(fmt(wochen), ' Wo.', 'Bauzeit · '+Math.round(AW_TAGE_WOCHE)+' Tage/Woche', '', 120)
-    + zelle(fmt(lohnA), ' €', 'Lohnanteil', '', 160)
-    + zelle(fmt(a.nettoA/(a.stdA||1)), ' €/h', 'Erlös je Stunde', '', 200)
+    + zelle(fmt(a.stdA), ' h', 'Arbeitszeit', 'akz', 0, 'aw-z-std')
+    + zelle(fmt(tage), ' Tage', 'Manntage à '+fmt(AW_STD_TAG)+' h', '', 40, 'aw-z-manntage', 'aw-l-manntage')
+    + zelle(fmt(kalTage), ' Tage', 'mit '+AW_MANN+' Mann', 'akz', 80, 'aw-z-dauer', 'aw-l-dauer')
+    + zelle(fmt(wochen), ' Wo.', 'Bauzeit · '+Math.round(AW_TAGE_WOCHE)+' Tage/Woche', '', 120, 'aw-z-wochen', 'aw-l-wochen')
+    + zelle(fmt(a.nettoA/(a.stdA||1)), ' €/h', 'Erlös je Stunde', '', 160)
+    + (gewinn!==null
+        ? zelle(fmt(gewinn), ' €', 'Gewinn bei '+fmt(kSatz)+' €/h Kosten', (gewinn>=0?'gew':'neg'), 200)
+        : zelle(fmt(rohertrag), ' €', 'Rohertrag (Kostensatz fehlt)', 'gew', 200))
+    +'</div>'
+    // --- Personalplanung, jetzt IM Cockpit ---
+    +'<div class="aw-plan">'
+    +'<div class="aw-plan-lab">Personalplanung</div>'
+    +'<div class="aw-plan-feld"><span>Mann</span>'
+    +'<input type="number" min="1" step="1" value="'+AW_MANN+'" onchange="awSetzen(\'mann\',this.value)" '
+    +'oninput="awSetzen(\'mann\',this.value)"></div>'
+    +'<div class="aw-plan-feld"><span>Std/Tag</span>'
+    +'<input type="number" min="1" step="0.5" value="'+AW_STD_TAG+'" onchange="awSetzen(\'std\',this.value)" '
+    +'oninput="awSetzen(\'std\',this.value)"></div>'
+    +'<div class="aw-plan-feld"><span>Tage/Woche</span>'
+    +'<input type="number" min="1" max="7" step="1" value="'+AW_TAGE_WOCHE+'" onchange="awSetzen(\'tage\',this.value)" '
+    +'oninput="awSetzen(\'tage\',this.value)"></div>'
+    +'<div class="aw-plan-satz" id="aw-satz"><b>'+AW_MANN+' Mann</b> · '+fmt(a.stdA)+' h ÷ '
+    +fmt(AW_STD_TAG)+' h ÷ '+AW_MANN+' = <b>'+fmt(kalTage)+' Arbeitstage</b> bei '
+    +Math.round(AW_TAGE_WOCHE)+' Tagen je Woche</div>'
     +'</div>'
     +'<div class="aw-rail">'
     +  '<div class="spur"><i class="lohnf" style="width:'+lohnPct.toFixed(1)+'%"></i>'
     +  '<i class="matf" style="width:'+(100-lohnPct).toFixed(1)+'%"></i></div>'
     +  '<div class="leg"><span class="l1">Lohn <b>'+fmt(lohnA)+' €</b> · '+Math.round(lohnPct)+' %</span>'
-    +  '<span class="l2">Material und Fremdleistung <b>'+fmt(matA)+' €</b> · '+Math.round(100-lohnPct)+' %</span>'
+    +  '<span class="l2">Material und Fremdleistung <b>'+fmt(a.nettoA-lohnA)+' €</b> · '
+    +  Math.round(100-lohnPct)+' %</span>'
+    +  '<span style="opacity:.75">Materialeinkauf roh <b>'+fmt(matRoh)+' €</b></span>'
     +  '</div></div>'
     +'</div>';
-
-  // --- Personalplanung ---
-  h+='<div style="background:var(--surface2);border:1px solid var(--line);border-radius:12px;'
-    +'padding:14px 16px;margin-bottom:16px">'
-    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;'
-    +'color:var(--accent);margin-bottom:8px">Personalplanung</div>'
-    +'<div style="display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap">'
-    +'<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Mann auf der Baustelle</div>'
-    +'<input type="number" min="1" step="1" value="'+AW_MANN+'" style="width:90px;padding:6px 8px;text-align:right" '
-    +'onchange="awSetzen(\'mann\',this.value)"></div>'
-    +'<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Stunden je Tag</div>'
-    +'<input type="number" min="1" step="0.5" value="'+AW_STD_TAG+'" style="width:90px;padding:6px 8px;text-align:right" '
-    +'onchange="awSetzen(\'std\',this.value)"></div>'
-    +'<div><div style="font-size:12px;color:var(--muted);margin-bottom:3px">Arbeitstage je Woche</div>'
-    +'<input type="number" min="1" max="7" step="1" value="'+AW_TAGE_WOCHE+'" style="width:90px;padding:6px 8px;text-align:right" '
-    +'onchange="awSetzen(\'tage\',this.value)"></div>'
-    +'<div style="flex:1;min-width:260px;font-size:14px;line-height:1.7">'
-    +'<b>'+AW_MANN+' Mann</b> brauchen <b style="color:var(--accent);font-size:17px">'+fmt(kalTage)+' Arbeitstage</b>'
-    +' – das sind rund <b>'+fmt(wochen)+' Wochen</b>.'
-    +'<div style="color:var(--muted);font-size:12px">'+fmt(a.stdA)+' h ÷ '+fmt(AW_STD_TAG)+' h ÷ '+AW_MANN+' Mann'
-    +' · bei '+Math.round(AW_TAGE_WOCHE)+' Tagen je Woche</div></div>'
-    +'</div></div>';
 
   // --- Bedarfspositionen ---
   if(a.nettoB>0 || a.stdB>0){
@@ -8878,7 +8971,7 @@ function renderAuswertung(){
       +'<b style="color:#5a4bb8">Bedarfs- und Wahlpositionen</b> – zählen nicht in die Summe, kommen aber dazu, '
       +'wenn sie abgerufen werden:<br><b>'+fmt(a.nettoB)+' €</b> und <b>'+fmt(a.stdB)+' h</b> '
       +'(dann insgesamt '+fmt(a.stdA+a.stdB)+' h, mit '+AW_MANN+' Mann '
-      +fmt((a.stdA+a.stdB)/AW_STD_TAG/AW_MANN)+' Arbeitstage).</div>';
+      +'<span id="aw-bedarf-tage">'+fmt((a.stdA+a.stdB)/AW_STD_TAG/AW_MANN)+'</span> Arbeitstage).</div>';
   }
 
   // --- Gruppen ---
@@ -8947,6 +9040,9 @@ function renderAuswertung(){
   });
   h+='</tbody></table></div>';
   box.innerHTML=h;
+  AW_ROLLE['aw-z-manntage']=tage;
+  AW_ROLLE['aw-z-dauer']=kalTage;
+  AW_ROLLE['aw-z-wochen']=wochen;
 }
 
 // ===== PRODUKTDATENBLAETTER-Block folgt =====
@@ -9806,7 +9902,12 @@ function systemAnwenden(){
   kalkuliere();
 }
 
-function fmt(n){return Number(n).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});}
+// Zweites Argument optional: Nachkommastellen (Standard 2). Alle bisherigen
+// Aufrufe mit einem Argument bleiben unveraendert.
+function fmt(n, stellen){
+  const k=(stellen===undefined)?2:stellen;
+  return Number(n).toLocaleString('de-DE',{minimumFractionDigits:k,maximumFractionDigits:k});
+}
 
 // ===== STUNDENSATZ-RECHNER (Erik 21.08.) ==================================
 // Rechnet aus den echten Betriebszahlen, was eine verrechenbare Stunde kosten
