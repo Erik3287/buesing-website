@@ -156,9 +156,28 @@ tr:hover td{background:#fafafa}
    Kacheln spektakulaerer und futuristischer gestalten?" Dunkles Feld,
    Leuchtkanten, grosse Ziffern in Tabellenbreite - der Rest der App bleibt
    hell und ruhig. */
-.aw-hero{position:relative;overflow:hidden;border-radius:18px;padding:22px 24px 20px;
+/* Der Kopf sitzt buendig unter dem Menueband: die Innenabstaende von <main>
+   werden mit negativen Raendern aufgehoben, unten laeuft er weich aus. */
+.aw-hero{position:relative;overflow:hidden;margin:-28px -24px 0;border-radius:0 0 20px 20px;
+  padding:22px 26px 26px;
   background:radial-gradient(120% 140% at 12% -10%,#1b3a63 0%,#101a2c 46%,#0a0e17 100%);
-  color:#eaf1ff;box-shadow:0 14px 40px rgba(10,20,40,.28);margin-bottom:16px}
+  color:#eaf1ff}
+/* Weicher Uebergang vom dunklen Kopf in den hellen Inhalt */
+.aw-verlauf{height:64px;margin:-20px -24px 6px;pointer-events:none;
+  background:linear-gradient(180deg,rgba(10,14,23,.55) 0%,rgba(10,14,23,.16) 45%,rgba(10,14,23,0) 100%)}
+/* Kopfzeile IM dunklen Feld - vorher stand sie darueber auf Weiss und wirkte
+   wie ein zweiter Kopf. */
+.aw-kopfz{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:16px}
+.aw-kopfz .eyeb{font-size:10.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#7fb2ff}
+.aw-kopfz .sub{font-size:12px;color:#8fb8ee;margin-top:4px}
+.aw-knopf{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.26);color:#eaf1ff;
+  border-radius:10px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:background .15s,border-color .15s}
+.aw-knopf:hover{background:rgba(255,255,255,.26);border-color:rgba(255,255,255,.45)}
+/* Der helle Bereich unter dem Verlauf */
+.aw-karte{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;
+  margin-bottom:18px}
+.aw-karte table{width:100%}
 .aw-hero::before{content:"";position:absolute;inset:0;pointer-events:none;
   background-image:linear-gradient(rgba(120,180,255,.055) 1px,transparent 1px),
                    linear-gradient(90deg,rgba(120,180,255,.055) 1px,transparent 1px);
@@ -173,9 +192,9 @@ tr:hover td{background:#fafafa}
   color:#7fb2ff;display:flex;align-items:center;gap:8px}
 .aw-eyebrow .punkt{width:6px;height:6px;border-radius:50%;background:#4d9bff;
   box-shadow:0 0 0 4px rgba(77,155,255,.18)}
-.aw-obj{font-size:17px;font-weight:600;letter-spacing:-.01em;margin-top:5px;color:#fff}
+.aw-obj{font-size:19px;font-weight:600;letter-spacing:-.01em;margin-top:5px;color:#fff}
 .aw-haupt{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.aw-haupt .zahl{font-size:44px;font-weight:700;letter-spacing:-.035em;line-height:1;
+.aw-haupt .zahl{font-size:50px;font-weight:700;letter-spacing:-.035em;line-height:1;
   font-variant-numeric:tabular-nums;
   background:linear-gradient(180deg,#ffffff 0%,#a8ccff 130%);-webkit-background-clip:text;
   background-clip:text;color:transparent}
@@ -183,28 +202,29 @@ tr:hover td{background:#fafafa}
 .aw-gitter{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:1px;
   background:rgba(140,180,240,.16);border:1px solid rgba(140,180,240,.16);border-radius:12px;
   overflow:hidden}
-.aw-zelle{background:rgba(9,14,24,.72);padding:13px 15px 12px;display:flex;flex-direction:column;gap:3px;
+.aw-zelle{background:rgba(9,14,24,.72);padding:17px 18px 16px;display:flex;flex-direction:column;gap:4px;
   transition:background .2s}
 .aw-zelle:hover{background:rgba(24,40,68,.85)}
-.aw-zelle .w{font-size:22px;font-weight:700;letter-spacing:-.025em;font-variant-numeric:tabular-nums;
+.aw-zelle .w{font-size:26px;font-weight:700;letter-spacing:-.025em;font-variant-numeric:tabular-nums;
   color:#fff;line-height:1.15}
-.aw-zelle .w small{font-size:12.5px;font-weight:600;color:#8fb8ee;margin-left:3px}
-.aw-zelle .l{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:#7e9ac2}
+.aw-zelle .w small{font-size:14px;font-weight:600;color:#8fb8ee;margin-left:4px}
+.aw-zelle .l{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#7e9ac2}
 .aw-zelle.akz .w{color:#6fb4ff}
 .aw-zelle.bed .w{color:#b9a6ff}
-/* Personalplanung im Cockpit */
-.aw-plan{margin-top:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-  background:rgba(9,14,24,.55);border:1px solid rgba(140,180,240,.16);border-radius:12px;
-  padding:11px 14px}
-.aw-plan-lab{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#7fb2ff}
-.aw-plan-feld{display:flex;align-items:center;gap:7px}
+/* Personalplanung im Cockpit - groesser, mit Beschriftung ueber den Feldern */
+.aw-plan{margin-top:14px;display:flex;align-items:center;gap:22px;flex-wrap:wrap;
+  background:rgba(9,14,24,.6);border:1px solid rgba(140,180,240,.18);border-radius:14px;
+  padding:16px 18px}
+.aw-plan-lab{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#7fb2ff}
+.aw-plan-feld{display:flex;flex-direction:column;gap:5px}
 .aw-plan-feld span{font-size:11.5px;color:#8fb8ee;white-space:nowrap}
-.aw-plan-feld input{width:66px;padding:5px 8px;text-align:right;font-size:13px;font-weight:600;
-  color:#eaf1ff;background:rgba(20,32,54,.9);border:1px solid rgba(140,180,240,.28);border-radius:8px;
+.aw-plan-feld input{width:88px;padding:9px 11px;text-align:right;font-size:16px;font-weight:700;
+  color:#eaf1ff;background:rgba(20,32,54,.9);border:1px solid rgba(140,180,240,.3);border-radius:10px;
   font-variant-numeric:tabular-nums}
 .aw-plan-feld input:focus{outline:none;border-color:#4d9bff;box-shadow:0 0 0 3px rgba(77,155,255,.22)}
-.aw-plan-satz{flex:1;min-width:250px;font-size:12.5px;color:#a8c6ea;text-align:right}
+.aw-plan-satz{flex:1;min-width:280px;font-size:14px;color:#a8c6ea;text-align:right;line-height:1.65}
 .aw-plan-satz b{color:#fff}
+.aw-plan-satz .gross{font-size:21px;font-weight:700;color:#6fb4ff}
 /* Zahlenrolle */
 .aw-zelle .w.rollt{color:#9fd0ff;text-shadow:0 0 14px rgba(77,155,255,.5)}
 .aw-zelle.gew .w{color:#5fe0a8}
@@ -727,19 +747,12 @@ option{background:#fff;color:#1d1d1f;font-weight:400}
 </div>
 
 <!-- TAB LIEFERANTEN -->
+<!-- Der Auswertungs-Kopf beginnt direkt unter dem Menueband und laeuft
+     unten weich aus. Erik am 31.08.2026: "Er sollte direkt ganz oben
+     beginnen ... Dann ein dezenter Uebergangsverlauf in Mengen und
+     Stunden". Deshalb KEINE weisse Karte mehr um den Kopf herum. -->
 <div id="tab-auswertung" class="tab">
-  <div class="card">
-    <div class="sh">
-      <div>
-        <div class="ct" id="aw-titel" style="display:inline-block">Auswertung</div>
-        <button class="bg sm" style="padding:1px 8px;font-size:12px;margin-left:6px;vertical-align:middle"
-                title="LV umbenennen" onclick="lvUmbenennen()">✏️</button>
-        <div style="color:var(--muted);font-size:12px" id="aw-unter">–</div>
-      </div>
-      <div class="np"><button class="bg sm" onclick="renderAuswertung()">🔄 Neu rechnen</button></div>
-    </div>
-    <div id="aw-inhalt"></div>
-  </div>
+  <div id="aw-inhalt"></div>
 </div>
 
 <div id="tab-datenblaetter" class="tab">
@@ -976,7 +989,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '31.08.2026 · 204';
+const APP_STAND = '31.08.2026 · 205';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -8115,7 +8128,7 @@ function lvUmbenennen(){
   if(sauber===alt) return;
   LV.titel = sauber;
   const t1=document.getElementById('lv-tit');  if(t1) t1.textContent=sauber;
-  const t2=document.getElementById('aw-titel');if(t2) t2.textContent='Auswertung · '+sauber;
+  const t2=document.getElementById('aw-titel');if(t2) t2.textContent=sauber;
   renderLV();
   try{ renderAuswertung(); }catch(e){}
   doSave(true);
@@ -8936,6 +8949,13 @@ function auswertungRechnen(){
   return {zeilen:zeilen, gruppen:G, nettoA:nA, nettoB:nB, stdA:sA, stdB:sB,
           ohne:ohne, ohneWert:ohneWert, matA:matA, matB:matB};
 }
+// Der Satz rechts in der Personalplanung - zweizeilig, das Ergebnis gross.
+function awSatzHtml(stunden, kalTage, wochen){
+  return '<b>'+AW_MANN+' Mann</b> brauchen <span class="gross" id="aw-z-satztage">'
+    + awTage(kalTage)+' Arbeitstage</span><br>'
+    + '<span style="font-size:12.5px">'+fmt(stunden,0)+' h ÷ '+fmt(AW_STD_TAG,0)+' h ÷ '+AW_MANN
+    + ' Mann · rund <b>'+awTage(wochen)+' Wochen</b> bei '+Math.round(AW_TAGE_WOCHE)+' Tagen je Woche</span>';
+}
 function awSetzen(feld, wert){
   const v=parseFloat(String(wert).replace(',','.'))||0;
   if(feld==='mann')  AW_MANN=Math.max(1, Math.round(v));
@@ -8991,22 +9011,20 @@ function awPlanungAktualisieren(){
   const l2=document.getElementById('aw-l-manntage'); if(l2) l2.textContent='Manntage à '+fmt(AW_STD_TAG,0)+' h';
   const l3=document.getElementById('aw-l-wochen'); if(l3) l3.textContent='Bauzeit · '+Math.round(AW_TAGE_WOCHE)+' Tage/Woche';
   const satz=document.getElementById('aw-satz');
-  if(satz) satz.innerHTML='<b>'+AW_MANN+' Mann</b> · '+fmt(a.stdA,0)+' h ÷ '+fmt(AW_STD_TAG,0)
-    +' h ÷ '+AW_MANN+' = <b>'+awTage(kalTage)+' Arbeitstage</b> bei '+Math.round(AW_TAGE_WOCHE)+' Tagen je Woche';
+  if(satz) satz.innerHTML=awSatzHtml(a.stdA, kalTage, wochen);
   const bed=document.getElementById('aw-bedarf-tage');
   if(bed) bed.textContent=awTage((a.stdA+a.stdB)/AW_STD_TAG/AW_MANN);
 }
 
 function renderAuswertung(){
   const box=document.getElementById('aw-inhalt');
-  const tit=document.getElementById('aw-titel');
-  const unt=document.getElementById('aw-unter');
   if(!box) return;
   if(!(LV && LV.pos && LV.pos.length)){
-    if(tit) tit.textContent='Auswertung';
-    if(unt) unt.textContent='Kein LV geöffnet';
-    box.innerHTML='<div style="color:var(--muted);font-size:13px;padding:14px 0">'
-      +'Öffne ein LV im Archiv – die Auswertung rechnet dann daraus.</div>';
+    box.innerHTML='<div class="aw-hero"><div class="aw-kopfz"><div>'
+      +'<div class="eyeb">Auswertung</div>'
+      +'<div class="sub">Kein LV geöffnet</div></div></div>'
+      +'<div class="aw-obj">Öffne ein LV im Archiv – die Auswertung rechnet dann daraus.</div></div>'
+      +'<div class="aw-verlauf"></div>';
     return;
   }
   const a=auswertungRechnen();
@@ -9015,8 +9033,7 @@ function renderAuswertung(){
   const kalTage= tage/AW_MANN;
   const wochen = kalTage/AW_TAGE_WOCHE;
   const lohnA  = a.stdA*stdSatz;
-  if(tit) tit.textContent='Auswertung · '+esc(LV.titel||'LV');
-  if(unt) unt.textContent=a.zeilen.length+' Positionen · Stundensatz '+fmt(stdSatz)+' €/h · '
+  const unterTxt=a.zeilen.length+' Positionen · Stundensatz '+fmt(stdSatz)+' €/h · '
         +'jederzeit neu gerechnet aus den offenen Positionen';
 
   const matRoh = a.matA;
@@ -9034,9 +9051,15 @@ function renderAuswertung(){
   let h='';
   // --- Cockpit ---
   h+='<div class="aw-hero">'
+    +'<div class="aw-kopfz"><div><div class="eyeb">Auswertung</div>'
+    +  '<div class="sub" id="aw-unter">'+esc(unterTxt)+'</div></div>'
+    +  '<div style="display:flex;gap:8px;align-items:center">'
+    +    '<button class="aw-knopf" onclick="lvUmbenennen()" title="LV umbenennen">✏️ Umbenennen</button>'
+    +    '<button class="aw-knopf" onclick="renderAuswertung()">🔄 Neu rechnen</button></div>'
+    +'</div>'
     +'<div class="aw-top">'
     +  '<div><div class="aw-eyebrow"><span class="punkt"></span>Angebot · Stand heute</div>'
-    +  '<div class="aw-obj">'+esc(LV.titel||'Leistungsverzeichnis')+'</div></div>'
+    +  '<div class="aw-obj" id="aw-titel">'+esc(LV.titel||'Leistungsverzeichnis')+'</div></div>'
     +  '<div style="text-align:right">'
     +    '<div class="aw-haupt" style="justify-content:flex-end">'
     +      '<span class="zahl">'+fmt(a.nettoA)+'</span><span class="eh">€ netto</span></div>'
@@ -9057,18 +9080,16 @@ function renderAuswertung(){
     // --- Personalplanung, jetzt IM Cockpit ---
     +'<div class="aw-plan">'
     +'<div class="aw-plan-lab">Personalplanung</div>'
-    +'<div class="aw-plan-feld"><span>Mann</span>'
+    +'<div class="aw-plan-feld"><span>Mann auf der Baustelle</span>'
     +'<input type="number" min="1" step="1" value="'+AW_MANN+'" onchange="awSetzen(\'mann\',this.value)" '
     +'oninput="awSetzen(\'mann\',this.value)"></div>'
-    +'<div class="aw-plan-feld"><span>Std/Tag</span>'
+    +'<div class="aw-plan-feld"><span>Stunden je Tag</span>'
     +'<input type="number" min="1" step="0.5" value="'+AW_STD_TAG+'" onchange="awSetzen(\'std\',this.value)" '
     +'oninput="awSetzen(\'std\',this.value)"></div>'
-    +'<div class="aw-plan-feld"><span>Tage/Woche</span>'
+    +'<div class="aw-plan-feld"><span>Arbeitstage je Woche</span>'
     +'<input type="number" min="1" max="7" step="1" value="'+AW_TAGE_WOCHE+'" onchange="awSetzen(\'tage\',this.value)" '
     +'oninput="awSetzen(\'tage\',this.value)"></div>'
-    +'<div class="aw-plan-satz" id="aw-satz"><b>'+AW_MANN+' Mann</b> · '+fmt(a.stdA,0)+' h ÷ '
-    +fmt(AW_STD_TAG,0)+' h ÷ '+AW_MANN+' = <b>'+awTage(kalTage)+' Arbeitstage</b> bei '
-    +Math.round(AW_TAGE_WOCHE)+' Tagen je Woche</div>'
+    +'<div class="aw-plan-satz" id="aw-satz">'+awSatzHtml(a.stdA, kalTage, wochen)+'</div>'
     +'</div>'
     +'<div class="aw-rail">'
     +  '<div class="spur"><i class="lohnf" style="width:'+lohnPct.toFixed(1)+'%"></i>'
@@ -9078,7 +9099,8 @@ function renderAuswertung(){
     +  Math.round(100-lohnPct)+' %</span>'
     +  '<span style="opacity:.75">Materialeinkauf roh <b>'+fmt(matRoh)+' €</b></span>'
     +  '</div></div>'
-    +'</div>';
+    +'</div>'
+    +'<div class="aw-verlauf"></div>';
 
   // --- Bedarfspositionen ---
   if(a.nettoB>0 || a.stdB>0){
@@ -9095,8 +9117,8 @@ function renderAuswertung(){
   const maxGp=Math.max.apply(null, gk.map(function(k){ return a.gruppen[k].gp||0; }).concat([1]));
   h+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;'
     +'color:var(--accent);margin:4px 0 6px">Mengen und Stunden je Gewerk</div>'
-    +'<div style="overflow-x:auto"><table style="min-width:820px">'
-    +'<thead><tr><th>Gruppe</th><th style="text-align:right">Menge</th><th style="width:52px">Einh.</th>'
+    +'<div class="aw-karte"><div style="overflow-x:auto"><table style="min-width:820px">'
+    +'<thead><tr><th style="padding-left:16px">Gruppe</th><th style="text-align:right">Menge</th><th style="width:52px">Einh.</th>'
     +'<th style="text-align:right">Angebot €</th><th style="text-align:right">Std</th><th style="width:90px"></th>'
     +'<th style="text-align:right">Bedarf</th><th style="text-align:right">Bedarf €</th>'
     +'<th style="text-align:right">Std</th></tr></thead><tbody>';
@@ -9119,7 +9141,7 @@ function renderAuswertung(){
     +'<td style="text-align:right">'+fmt(a.stdA)+'</td><td></td><td></td>'
     +'<td style="text-align:right;color:#5a4bb8">'+fmt(a.nettoB)+'</td>'
     +'<td style="text-align:right;color:#5a4bb8">'+fmt(a.stdB)+'</td></tr>'
-    +'</tbody></table></div>';
+    +'</tbody></table></div></div>';
 
   if(a.ohne){
     h+='<div style="font-size:12px;color:var(--muted);margin-top:8px">'
@@ -9136,8 +9158,8 @@ function renderAuswertung(){
     +(AW_ALLE?'nur die 15 größten':'alle '+a.zeilen.length+' zeigen')+'</button></div>';
   const liste=a.zeilen.slice().sort(function(x,y){ return (y.std||0)-(x.std||0); });
   const zeig=AW_ALLE?liste:liste.slice(0,15);
-  h+='<div style="overflow-x:auto"><table style="min-width:820px">'
-    +'<thead><tr><th style="width:92px">Pos.</th><th>Leistung</th><th style="text-align:right">Menge</th>'
+  h+='<div class="aw-karte"><div style="overflow-x:auto"><table style="min-width:820px">'
+    +'<thead><tr><th style="width:92px;padding-left:16px">Pos.</th><th>Leistung</th><th style="text-align:right">Menge</th>'
     +'<th style="width:52px">Einh.</th><th style="text-align:right">EP €</th><th style="text-align:right">GP €</th>'
     +'<th style="text-align:right">h/Einh.</th><th style="text-align:right">Stunden</th></tr></thead><tbody>';
   zeig.forEach(function(r){
@@ -9154,7 +9176,7 @@ function renderAuswertung(){
       +'<td style="text-align:right;font-weight:600'+(r.bedarf?';color:#5a4bb8':'')+'">'
       +(r.std!==null?fmt(r.std):'–')+'</td></tr>';
   });
-  h+='</tbody></table></div>';
+  h+='</tbody></table></div></div>';
   box.innerHTML=h;
   AW_ROLLE['aw-z-manntage']=Math.ceil(tage);
   AW_ROLLE['aw-z-dauer']=Math.ceil(kalTage);
