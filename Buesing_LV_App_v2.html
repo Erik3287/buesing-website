@@ -109,9 +109,17 @@ tr:hover td{background:#fafafa}
    einem langen, umgebrochenen Namen irgendwo in der Mitte. */
 .lvk-name h2{display:inline;margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em;
   color:#fff;line-height:1.25}
-.lvk-stift{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px;border-radius:7px;
-  opacity:.65;transition:opacity .15s,background .15s;margin-left:5px;vertical-align:2px}
-.lvk-stift:hover{opacity:1;background:rgba(255,255,255,.14)}
+/* Der Stift bekommt ein eigenes Feld - frei auf dem dunklen Balken war er
+   nicht als Knopf zu erkennen (Erik am 31.08.2026: "der sieht aktuell sehr
+   verloren dort aus"). */
+.lvk-stift{display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;
+  line-height:1;padding:5px 10px;border-radius:9px;margin-left:9px;vertical-align:3px;
+  color:rgba(255,255,255,.9);background:rgba(255,255,255,.14);
+  border:1px solid rgba(255,255,255,.26);
+  transition:background .15s,border-color .15s,transform .1s}
+.lvk-stift:hover{background:rgba(255,255,255,.26);border-color:rgba(255,255,255,.45)}
+.lvk-stift:active{transform:scale(.96)}
+.lvk-stift:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .lvk-summe{text-align:right;white-space:nowrap;margin-left:auto}
 .lvk-netto{font-size:26px;font-weight:700;letter-spacing:-.02em;color:#fff;
   font-variant-numeric:tabular-nums;line-height:1.1}
@@ -337,7 +345,7 @@ option{background:#fff;color:#1d1d1f;font-weight:400}
         <div class="lvk-zeile1">
           <div class="lvk-name">
             <h2 id="lv-tit">LV-Kalkulation</h2>
-            <button class="lvk-stift" title="LV umbenennen" onclick="lvUmbenennen()">✏️</button>
+            <button class="lvk-stift" title="LV umbenennen" onclick="lvUmbenennen()">✏️ Umbenennen</button>
           </div>
           <div class="lvk-summe">
             <div class="lvk-netto"><span id="lv-sum">–</span><small>€ netto</small></div>
@@ -892,7 +900,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '31.08.2026 · 201';
+const APP_STAND = '31.08.2026 · 202';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
