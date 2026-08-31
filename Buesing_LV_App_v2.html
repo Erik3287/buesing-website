@@ -148,6 +148,79 @@ tr:hover td{background:#fafafa}
   .lvk-zeile1{align-items:flex-start;flex-direction:column;gap:8px}
   .lvk-summe{text-align:left;margin-left:0}
 }
+/* ===== COCKPIT-KOPF DER AUSWERTUNG =====================================
+   Erik am 31.08.2026: "Kannst du den Kopf der Auswertungsseite mit diesen
+   Kacheln spektakulaerer und futuristischer gestalten?" Dunkles Feld,
+   Leuchtkanten, grosse Ziffern in Tabellenbreite - der Rest der App bleibt
+   hell und ruhig. */
+.aw-hero{position:relative;overflow:hidden;border-radius:18px;padding:22px 24px 20px;
+  background:radial-gradient(120% 140% at 12% -10%,#1b3a63 0%,#101a2c 46%,#0a0e17 100%);
+  color:#eaf1ff;box-shadow:0 14px 40px rgba(10,20,40,.28);margin-bottom:16px}
+.aw-hero::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(120,180,255,.055) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(120,180,255,.055) 1px,transparent 1px);
+  background-size:38px 38px;mask-image:radial-gradient(80% 90% at 20% 0%,#000 35%,transparent 100%)}
+.aw-hero::after{content:"";position:absolute;top:-70px;right:-50px;width:280px;height:280px;
+  border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(64,150,255,.30) 0%,rgba(64,150,255,0) 68%)}
+.aw-hero>*{position:relative;z-index:1}
+.aw-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;
+  margin-bottom:16px}
+.aw-eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
+  color:#7fb2ff;display:flex;align-items:center;gap:8px}
+.aw-eyebrow .punkt{width:6px;height:6px;border-radius:50%;background:#4d9bff;
+  box-shadow:0 0 0 4px rgba(77,155,255,.18)}
+.aw-obj{font-size:17px;font-weight:600;letter-spacing:-.01em;margin-top:5px;color:#fff}
+.aw-haupt{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.aw-haupt .zahl{font-size:44px;font-weight:700;letter-spacing:-.035em;line-height:1;
+  font-variant-numeric:tabular-nums;
+  background:linear-gradient(180deg,#ffffff 0%,#a8ccff 130%);-webkit-background-clip:text;
+  background-clip:text;color:transparent}
+.aw-haupt .eh{font-size:15px;font-weight:600;color:#8fb8ee}
+.aw-gitter{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:1px;
+  background:rgba(140,180,240,.16);border:1px solid rgba(140,180,240,.16);border-radius:12px;
+  overflow:hidden}
+.aw-zelle{background:rgba(9,14,24,.72);padding:13px 15px 12px;display:flex;flex-direction:column;gap:3px;
+  transition:background .2s}
+.aw-zelle:hover{background:rgba(24,40,68,.85)}
+.aw-zelle .w{font-size:22px;font-weight:700;letter-spacing:-.025em;font-variant-numeric:tabular-nums;
+  color:#fff;line-height:1.15}
+.aw-zelle .w small{font-size:12.5px;font-weight:600;color:#8fb8ee;margin-left:3px}
+.aw-zelle .l{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:#7e9ac2}
+.aw-zelle.akz .w{color:#6fb4ff}
+.aw-zelle.bed .w{color:#b9a6ff}
+/* Personalplanung im Cockpit */
+.aw-plan{margin-top:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  background:rgba(9,14,24,.55);border:1px solid rgba(140,180,240,.16);border-radius:12px;
+  padding:11px 14px}
+.aw-plan-lab{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#7fb2ff}
+.aw-plan-feld{display:flex;align-items:center;gap:7px}
+.aw-plan-feld span{font-size:11.5px;color:#8fb8ee;white-space:nowrap}
+.aw-plan-feld input{width:66px;padding:5px 8px;text-align:right;font-size:13px;font-weight:600;
+  color:#eaf1ff;background:rgba(20,32,54,.9);border:1px solid rgba(140,180,240,.28);border-radius:8px;
+  font-variant-numeric:tabular-nums}
+.aw-plan-feld input:focus{outline:none;border-color:#4d9bff;box-shadow:0 0 0 3px rgba(77,155,255,.22)}
+.aw-plan-satz{flex:1;min-width:250px;font-size:12.5px;color:#a8c6ea;text-align:right}
+.aw-plan-satz b{color:#fff}
+/* Zahlenrolle */
+.aw-zelle .w.rollt{color:#9fd0ff;text-shadow:0 0 14px rgba(77,155,255,.5)}
+.aw-zelle.gew .w{color:#5fe0a8}
+.aw-zelle.neg .w{color:#ff8f7d}
+.aw-rail{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+.aw-rail .spur{height:8px;border-radius:5px;background:rgba(140,180,240,.14);overflow:hidden;display:flex}
+.aw-rail .spur i{display:block;height:100%}
+.aw-rail .lohnf{background:linear-gradient(90deg,#4d9bff,#7fd0ff)}
+.aw-rail .matf{background:linear-gradient(90deg,#3a5f96,#4a7ec0)}
+.aw-rail .leg{display:flex;gap:16px;font-size:11px;color:#8fb8ee;flex-wrap:wrap}
+.aw-rail .leg b{color:#eaf1ff;font-variant-numeric:tabular-nums}
+.aw-rail .leg span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;
+  margin-right:6px;vertical-align:baseline}
+.aw-rail .leg .l1::before{background:#4d9bff}
+.aw-rail .leg .l2::before{background:#3a5f96}
+@media (prefers-reduced-motion:no-preference){
+  .aw-zelle{animation:awauf .42s cubic-bezier(.2,.7,.3,1) backwards}
+  @keyframes awauf{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+}
 optgroup{background:#0071e3;color:#fff;font-weight:700;font-style:normal;padding:3px 0}
 option{background:#fff;color:#1d1d1f;font-weight:400}
 #toast{position:fixed;bottom:24px;right:24px;background:#1d1d1f;color:#fff;padding:12px 20px;border-radius:14px;font-weight:600;font-size:14px;display:none;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.2)}
@@ -900,7 +973,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '31.08.2026 · 202';
+const APP_STAND = '31.08.2026 · 203';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
