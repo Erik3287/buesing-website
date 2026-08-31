@@ -357,7 +357,9 @@ option{background:#fff;color:#1d1d1f;font-weight:400}
     <div class="card">
       <div class="sh">
         <div>
-          <div class="ct" id="lv-tit">LV-Kalkulation</div>
+          <div class="ct" id="lv-tit" style="display:inline-block">LV-Kalkulation</div>
+          <button class="bg sm" style="padding:1px 8px;font-size:12px;margin-left:6px;vertical-align:middle"
+                  title="LV umbenennen" onclick="lvUmbenennen()">✏️</button>
           <div style="color:var(--muted);font-size:12px">Angebotssumme netto: <span id="lv-sum" style="color:var(--accent);font-weight:700">–</span></div>
           <div id="lv-bedarf" style="font-size:11.5px;color:var(--muted)"></div>
         </div>
@@ -648,7 +650,9 @@ option{background:#fff;color:#1d1d1f;font-weight:400}
   <div class="card">
     <div class="sh">
       <div>
-        <div class="ct" id="aw-titel">Auswertung</div>
+        <div class="ct" id="aw-titel" style="display:inline-block">Auswertung</div>
+        <button class="bg sm" style="padding:1px 8px;font-size:12px;margin-left:6px;vertical-align:middle"
+                title="LV umbenennen" onclick="lvUmbenennen()">✏️</button>
         <div style="color:var(--muted);font-size:12px" id="aw-unter">–</div>
       </div>
       <div class="np"><button class="bg sm" onclick="renderAuswertung()">🔄 Neu rechnen</button></div>
@@ -891,7 +895,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '31.08.2026 · 198';
+const APP_STAND = '31.08.2026 · 199';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -8010,6 +8014,33 @@ function upd(i,f,v){
 }
 function delP(i){LV.pos.splice(i,1);renderLV();doSave(true);}
 function addPos(){LV.pos.push({nr:'',desc:'Neue Position',menge:0,einheit:'m²',ep:0,status:'rot',notiz:''});renderLV();scheduleSave();}
+// ============================================================
+// LV UMBENENNEN
+// Erik am 31.08.2026: "ausserdem muss ich irgendwo die Moeglichkeit haben,
+// den Namen des LVs zu aendern, sodass dieser auch in allen Unterkategorien
+// entsprechend gleich angezeigt wird."
+// Der Name steht nur an EINER Stelle - LV.titel. Alles andere liest von dort:
+// die LV-Ansicht, die Auswertung, das Archiv, jeder Export, jedes PDF.
+// ============================================================
+function lvUmbenennen(){
+  if(!(LV && LV.pos && LV.pos.length)){ toast('Kein LV geöffnet'); return; }
+  const alt = LV.titel || '';
+  const neu = prompt('Wie soll das LV heißen?\n\n'
+    + 'Der Name erscheint überall gleich: in der Kalkulation, in der Auswertung,\n'
+    + 'im Archiv und in jedem Export.', alt);
+  if(neu===null) return;                       // abgebrochen
+  const sauber = String(neu).trim();
+  if(!sauber){ toast('Der Name darf nicht leer sein'); return; }
+  if(sauber===alt) return;
+  LV.titel = sauber;
+  const t1=document.getElementById('lv-tit');  if(t1) t1.textContent=sauber;
+  const t2=document.getElementById('aw-titel');if(t2) t2.textContent='Auswertung · '+sauber;
+  renderLV();
+  try{ renderAuswertung(); }catch(e){}
+  doSave(true);
+  try{ renderArchiv(); }catch(e){}
+  toast('LV heißt jetzt „'+sauber+'"');
+}
 function neuesLV(){LV={titel:'',pos:[]};document.getElementById('lv-main').style.display='none';document.getElementById('lv-up').style.display='block';}
 
 // Sucht in der Preisdatenbank nach einem passenden Artikel zur Beschreibung
@@ -8839,6 +8870,10 @@ function awAlleZeigen(){ AW_ALLE=!AW_ALLE; renderAuswertung(); }
 // Zahl wie bei einem Flipper-Automat aktualisieren." Also kein Umspringen,
 // sondern Durchlaufen: die Ziffern rollen in einer knappen halben Sekunde von
 // der alten zur neuen Zahl, am Ende leicht abbremsend.
+// Tage und Wochen sind Planungsgroessen - Erik am 31.08.2026: "Wir brauchen
+// keine Tage oder Wochenangaben mit Komma." Aufgerundet, denn einen halben
+// Tag kann man nicht einplanen.
+function awTage(v){ return String(Math.ceil((parseFloat(v)||0) - 1e-9)); }
 const AW_ROLLE={};   // merkt sich je Feld den zuletzt gezeigten Wert
 function awRollen(id, ziel, nachkomma, einheit){
   const el=document.getElementById(id);
@@ -8868,17 +8903,17 @@ function awPlanungAktualisieren(){
   if(!(LV && LV.pos && LV.pos.length)) return;
   const a=auswertungRechnen();
   const tage=a.stdA/AW_STD_TAG, kalTage=tage/AW_MANN, wochen=kalTage/AW_TAGE_WOCHE;
-  awRollen('aw-z-manntage', tage, 2, ' Tage');
-  awRollen('aw-z-dauer', kalTage, 2, ' Tage');
-  awRollen('aw-z-wochen', wochen, 2, ' Wo.');
+  awRollen('aw-z-manntage', Math.ceil(tage), 0, ' Tage');
+  awRollen('aw-z-dauer', Math.ceil(kalTage), 0, ' Tage');
+  awRollen('aw-z-wochen', Math.ceil(wochen), 0, ' Wo.');
   const l1=document.getElementById('aw-l-dauer'); if(l1) l1.textContent='mit '+AW_MANN+' Mann';
-  const l2=document.getElementById('aw-l-manntage'); if(l2) l2.textContent='Manntage à '+fmt(AW_STD_TAG)+' h';
+  const l2=document.getElementById('aw-l-manntage'); if(l2) l2.textContent='Manntage à '+fmt(AW_STD_TAG,0)+' h';
   const l3=document.getElementById('aw-l-wochen'); if(l3) l3.textContent='Bauzeit · '+Math.round(AW_TAGE_WOCHE)+' Tage/Woche';
   const satz=document.getElementById('aw-satz');
-  if(satz) satz.innerHTML='<b>'+AW_MANN+' Mann</b> · '+fmt(a.stdA)+' h ÷ '+fmt(AW_STD_TAG)
-    +' h ÷ '+AW_MANN+' = <b>'+fmt(kalTage)+' Arbeitstage</b> bei '+Math.round(AW_TAGE_WOCHE)+' Tagen je Woche';
+  if(satz) satz.innerHTML='<b>'+AW_MANN+' Mann</b> · '+fmt(a.stdA,0)+' h ÷ '+fmt(AW_STD_TAG,0)
+    +' h ÷ '+AW_MANN+' = <b>'+awTage(kalTage)+' Arbeitstage</b> bei '+Math.round(AW_TAGE_WOCHE)+' Tagen je Woche';
   const bed=document.getElementById('aw-bedarf-tage');
-  if(bed) bed.textContent=fmt((a.stdA+a.stdB)/AW_STD_TAG/AW_MANN);
+  if(bed) bed.textContent=awTage((a.stdA+a.stdB)/AW_STD_TAG/AW_MANN);
 }
 
 function renderAuswertung(){
@@ -8929,10 +8964,10 @@ function renderAuswertung(){
     +  '</div>'
     +'</div>'
     +'<div class="aw-gitter">'
-    + zelle(fmt(a.stdA), ' h', 'Arbeitszeit', 'akz', 0, 'aw-z-std')
-    + zelle(fmt(tage), ' Tage', 'Manntage à '+fmt(AW_STD_TAG)+' h', '', 40, 'aw-z-manntage', 'aw-l-manntage')
-    + zelle(fmt(kalTage), ' Tage', 'mit '+AW_MANN+' Mann', 'akz', 80, 'aw-z-dauer', 'aw-l-dauer')
-    + zelle(fmt(wochen), ' Wo.', 'Bauzeit · '+Math.round(AW_TAGE_WOCHE)+' Tage/Woche', '', 120, 'aw-z-wochen', 'aw-l-wochen')
+    + zelle(fmt(a.stdA,0), ' h', 'Arbeitszeit', 'akz', 0, 'aw-z-std')
+    + zelle(awTage(tage), ' Tage', 'Manntage à '+fmt(AW_STD_TAG,0)+' h', '', 40, 'aw-z-manntage', 'aw-l-manntage')
+    + zelle(awTage(kalTage), ' Tage', 'mit '+AW_MANN+' Mann', 'akz', 80, 'aw-z-dauer', 'aw-l-dauer')
+    + zelle(awTage(wochen), ' Wo.', 'Bauzeit · '+Math.round(AW_TAGE_WOCHE)+' Tage/Woche', '', 120, 'aw-z-wochen', 'aw-l-wochen')
     + zelle(fmt(a.nettoA/(a.stdA||1)), ' €/h', 'Erlös je Stunde', '', 160)
     + (gewinn!==null
         ? zelle(fmt(gewinn), ' €', 'Gewinn bei '+fmt(kSatz)+' €/h Kosten', (gewinn>=0?'gew':'neg'), 200)
@@ -8950,8 +8985,8 @@ function renderAuswertung(){
     +'<div class="aw-plan-feld"><span>Tage/Woche</span>'
     +'<input type="number" min="1" max="7" step="1" value="'+AW_TAGE_WOCHE+'" onchange="awSetzen(\'tage\',this.value)" '
     +'oninput="awSetzen(\'tage\',this.value)"></div>'
-    +'<div class="aw-plan-satz" id="aw-satz"><b>'+AW_MANN+' Mann</b> · '+fmt(a.stdA)+' h ÷ '
-    +fmt(AW_STD_TAG)+' h ÷ '+AW_MANN+' = <b>'+fmt(kalTage)+' Arbeitstage</b> bei '
+    +'<div class="aw-plan-satz" id="aw-satz"><b>'+AW_MANN+' Mann</b> · '+fmt(a.stdA,0)+' h ÷ '
+    +fmt(AW_STD_TAG,0)+' h ÷ '+AW_MANN+' = <b>'+awTage(kalTage)+' Arbeitstage</b> bei '
     +Math.round(AW_TAGE_WOCHE)+' Tagen je Woche</div>'
     +'</div>'
     +'<div class="aw-rail">'
@@ -8969,9 +9004,9 @@ function renderAuswertung(){
     h+='<div style="background:#f6f4ff;border:1px solid #d9d2f5;border-radius:12px;padding:12px 16px;'
       +'margin-bottom:16px;font-size:13px">'
       +'<b style="color:#5a4bb8">Bedarfs- und Wahlpositionen</b> – zählen nicht in die Summe, kommen aber dazu, '
-      +'wenn sie abgerufen werden:<br><b>'+fmt(a.nettoB)+' €</b> und <b>'+fmt(a.stdB)+' h</b> '
-      +'(dann insgesamt '+fmt(a.stdA+a.stdB)+' h, mit '+AW_MANN+' Mann '
-      +'<span id="aw-bedarf-tage">'+fmt((a.stdA+a.stdB)/AW_STD_TAG/AW_MANN)+'</span> Arbeitstage).</div>';
+      +'wenn sie abgerufen werden:<br><b>'+fmt(a.nettoB)+' €</b> und <b>'+fmt(a.stdB,0)+' h</b> '
+      +'(dann insgesamt '+fmt(a.stdA+a.stdB,0)+' h, mit '+AW_MANN+' Mann '
+      +'<span id="aw-bedarf-tage">'+awTage((a.stdA+a.stdB)/AW_STD_TAG/AW_MANN)+'</span> Arbeitstage).</div>';
   }
 
   // --- Gruppen ---
@@ -9040,9 +9075,9 @@ function renderAuswertung(){
   });
   h+='</tbody></table></div>';
   box.innerHTML=h;
-  AW_ROLLE['aw-z-manntage']=tage;
-  AW_ROLLE['aw-z-dauer']=kalTage;
-  AW_ROLLE['aw-z-wochen']=wochen;
+  AW_ROLLE['aw-z-manntage']=Math.ceil(tage);
+  AW_ROLLE['aw-z-dauer']=Math.ceil(kalTage);
+  AW_ROLLE['aw-z-wochen']=Math.ceil(wochen);
 }
 
 // ===== PRODUKTDATENBLAETTER-Block folgt =====
