@@ -228,6 +228,10 @@ tr:hover td{background:#fafafa}
 /* Zahlenrolle */
 .aw-zelle .w.rollt{color:#9fd0ff;text-shadow:0 0 14px rgba(77,155,255,.5)}
 .aw-zelle.gew .w{color:#5fe0a8}
+.aw-zelle.fehlt{cursor:pointer;border:1px dashed rgba(140,180,240,.4)}
+.aw-zelle.fehlt .w{color:#7e9ac2}
+.aw-zelle.fehlt:hover{background:rgba(24,40,68,.9)}
+.aw-zelle.fehlt:hover .w{color:#9fd0ff}
 .aw-zelle.neg .w{color:#ff8f7d}
 .aw-rail{margin-top:14px;display:flex;flex-direction:column;gap:6px}
 .aw-rail .spur{height:8px;border-radius:5px;background:rgba(140,180,240,.14);overflow:hidden;display:flex}
@@ -989,7 +993,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '31.08.2026 · 205';
+const APP_STAND = '31.08.2026 · 206';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -8011,7 +8015,9 @@ function renderLV(){
   document.getElementById('lv-sum').textContent=fmt(tot);
   const bedEl=document.getElementById('lv-bedarf');
   if(bedEl) bedEl.innerHTML = nBedarf
-    ? ('zzgl. <b style="color:#5a4bb8">'+nBedarf+' Bedarfsposition'+(nBedarf===1?'':'en')+'</b> '
+    // KEINE Farbe hier hineinschreiben - sonst schlaegt sie die Regel im
+    // Stylesheet (Orange). Genau daran lag es am 31.08.2026.
+    ? ('zzgl. <b>'+nBedarf+' Bedarfsposition'+(nBedarf===1?'':'en')+'</b> '
        +'über '+fmt(totBedarf)+' € – nicht in der Summe')
     : '';
 
@@ -8956,6 +8962,22 @@ function awSatzHtml(stunden, kalTage, wochen){
     + '<span style="font-size:12.5px">'+fmt(stunden,0)+' h ÷ '+fmt(AW_STD_TAG,0)+' h ÷ '+AW_MANN
     + ' Mann · rund <b>'+awTage(wochen)+' Wochen</b> bei '+Math.round(AW_TAGE_WOCHE)+' Tagen je Woche</span>';
 }
+// Fuehrt direkt zum fehlenden Wert, statt ihn nur zu vermissen.
+function awKostensatzSetzen(){
+  const roh = prompt('Was kostet dich eine Arbeitsstunde wirklich?\n\n'
+    + 'Lohn, Lohnnebenkosten, Fahrzeug, Werkzeug, Büro – alles anteilig.\n'
+    + 'Nicht der Verrechnungslohn von '+fmt(KALK.lohn_facharbeiter)+' € – das ist dein Verkaufspreis.\n\n'
+    + 'Der Wert steht danach in den Kalkulationswerten unter „Selbstkosten".',
+    KOSTEN_STUNDE>0 ? String(KOSTEN_STUNDE) : '');
+  if(roh===null) return;
+  const v=parseFloat(String(roh).replace(',','.'));
+  if(!(isFinite(v) && v>0)){ toast('Bitte einen Betrag eintragen, z. B. 42,50'); return; }
+  KOSTEN_STUNDE=v;
+  if(lvWerteHat()) LV.werte.KOSTEN_STUNDE=v;
+  werteSetzen('KOSTEN_STUNDE', v);
+  renderAuswertung();
+  toast('Kostensatz '+fmt(v)+' €/h – der Gewinn wird jetzt gerechnet');
+}
 function awSetzen(feld, wert){
   const v=parseFloat(String(wert).replace(',','.'))||0;
   if(feld==='mann')  AW_MANN=Math.max(1, Math.round(v));
@@ -9073,9 +9095,16 @@ function renderAuswertung(){
     + zelle(awTage(kalTage), ' Tage', 'mit '+AW_MANN+' Mann', 'akz', 80, 'aw-z-dauer', 'aw-l-dauer')
     + zelle(awTage(wochen), ' Wo.', 'Bauzeit · '+Math.round(AW_TAGE_WOCHE)+' Tage/Woche', '', 120, 'aw-z-wochen', 'aw-l-wochen')
     + zelle(fmt(a.nettoA/(a.stdA||1)), ' €/h', 'Erlös je Stunde', '', 160)
+    // Ohne Kostensatz KEINE grosse Zahl an dieser Stelle. Erik am 31.08.2026:
+    // "ich finde, dass der wert ziemlich hoch angesetzt ist, das kann nicht
+    // stimmen" - der Rohertrag ist eben KEIN Gewinn, er enthaelt noch den
+    // gesamten Lohn. Eine Zahl, die man fuer Gewinn haelt, ist schlimmer als
+    // gar keine.
     + (gewinn!==null
         ? zelle(fmt(gewinn), ' €', 'Gewinn bei '+fmt(kSatz)+' €/h Kosten', (gewinn>=0?'gew':'neg'), 200)
-        : zelle(fmt(rohertrag), ' €', 'Rohertrag (Kostensatz fehlt)', 'gew', 200))
+        : '<div class="aw-zelle fehlt" style="animation-delay:200ms" '
+          +'onclick="awKostensatzSetzen()" title="Kostensatz je Arbeitsstunde eintragen">'
+          +'<div class="w">–</div><div class="l">Gewinn · Kostensatz eintragen</div></div>')
     +'</div>'
     // --- Personalplanung, jetzt IM Cockpit ---
     +'<div class="aw-plan">'
