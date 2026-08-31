@@ -94,33 +94,43 @@ tr:hover td{background:#fafafa}
 .sl-z.sum{border-top:1px solid var(--border);margin-top:4px;padding-top:8px;font-weight:700}
 .sl-erg{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border-radius:10px;background:var(--accent);color:#fff;font-weight:700;font-size:16px;margin-top:8px}
 .sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-/* ===== KOPF DER LV-ANSICHT =============================================
-   Erik am 31.08.2026: "Teile das ganze bitte schoen symmetrisch und
-   uebersichtlich sowie intuitiv ein" und "Der Kopf, in welchem der Name des
-   LV steht, soll in einem dunklen mittelgrau erscheinen und der Name des LVs
-   dann in weiss."
-   Aufbau: dunkler Kopfbalken mit Name und Summe, darunter vier gleich grosse
-   blaue Felder im Raster 2x2, darunter die graue Einstellungszeile. */
-.lvk{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
-/* Der Kopfbalken traegt dasselbe dunkle Blau wie das Cockpit der Auswertung -
-   damit hat die App EINE Handschrift fuer Koepfe. Erik am 31.08.2026: "das
-   Blau muss dunkler werden ... sodass er ins ganze System passt". */
-.lvk-zeile1{position:relative;overflow:hidden;display:flex;align-items:flex-end;
-  justify-content:space-between;gap:20px;flex-wrap:wrap;border-radius:14px;padding:17px 20px 16px;
-  background:radial-gradient(120% 160% at 10% -20%,#1b3a63 0%,#122544 48%,#0d1626 100%)}
-.lvk-zeile1::before{content:"";position:absolute;inset:0;pointer-events:none;
+/* ===== COCKPIT-KOPF DER LV-ANSICHT =====================================
+   Erik am 31.08.2026: "wenn wir jetzt bei dem futuristischen design
+   bleiben, dann auch richtig und so wie auch in Auswertungen. Dunkles Feld
+   viel groesser, ganz nach oben und bitte Ausgeben, Datei etc. in das Feld
+   integrieren ... ob man wenigstens die Buttons sehr speziell animiert."
+   Aufbau wie das Cockpit der Auswertung: buendig unter dem Menueband, die
+   vier Ampelkacheln und die vier Werkzeugfelder IM dunklen Feld, unten der
+   weiche Uebergang ins Helle. Die Knoepfe tragen Variante C ("Impuls"):
+   anheben, Symbol wippt einmal hoch, beim Klick laeuft eine Welle vom
+   Druckpunkt nach aussen. */
+.lvk{margin-bottom:0}
+.lvk-hero{position:relative;overflow:hidden;margin:-28px -24px 0;border-radius:0 0 22px 22px;
+  padding:22px 26px 24px;color:#eaf1ff;
+  background:radial-gradient(120% 150% at 10% -15%,#1b3a63 0%,#122544 46%,#0d1626 100%)}
+.lvk-hero::before{content:"";position:absolute;inset:0;pointer-events:none;
   background-image:linear-gradient(rgba(120,180,255,.05) 1px,transparent 1px),
                    linear-gradient(90deg,rgba(120,180,255,.05) 1px,transparent 1px);
-  background-size:34px 34px;mask-image:radial-gradient(75% 95% at 18% 0%,#000 30%,transparent 100%)}
-.lvk-zeile1::after{content:"";position:absolute;top:-70px;right:-40px;width:240px;height:240px;
+  background-size:36px 36px;mask-image:radial-gradient(80% 95% at 18% 0%,#000 32%,transparent 100%)}
+.lvk-hero::after{content:"";position:absolute;top:-90px;right:-60px;width:320px;height:320px;
   border-radius:50%;pointer-events:none;
-  background:radial-gradient(circle,rgba(64,150,255,.26) 0%,rgba(64,150,255,0) 68%)}
-.lvk-zeile1>*{position:relative;z-index:1}
+  background:radial-gradient(circle,rgba(64,150,255,.28) 0%,rgba(64,150,255,0) 68%)}
+.lvk-hero>*{position:relative;z-index:1}
+/* Weicher Uebergang vom dunklen Kopf in den hellen Inhalt */
+.lvk-verlauf{height:58px;margin:-18px -24px 4px;pointer-events:none;
+  background:linear-gradient(180deg,rgba(13,22,38,.5) 0%,rgba(13,22,38,.15) 45%,rgba(13,22,38,0) 100%)}
+.lvk-kopf{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;
+  flex-wrap:wrap;margin-bottom:14px}
+.lvk-eyeb{font-size:10.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;
+  color:#7fb2ff;display:flex;align-items:center;gap:8px}
+.lvk-eyeb i{width:6px;height:6px;border-radius:50%;background:#4d9bff;
+  box-shadow:0 0 0 4px rgba(77,155,255,.18)}
 .lvk-name{flex:1 1 320px;min-width:0}
 /* Der Stift steht INLINE hinter dem letzten Wort - sonst haengt er bei
    einem langen, umgebrochenen Namen irgendwo in der Mitte. */
-.lvk-name h2{display:inline;margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em;
+.lvk-name h2{display:inline;margin:0;font-size:23px;font-weight:700;letter-spacing:-.02em;
   color:#fff;line-height:1.25}
+.lvk-titelzeile{margin-top:6px}
 /* Der Stift bekommt ein eigenes Feld - frei auf dem dunklen Balken war er
    nicht als Knopf zu erkennen (Erik am 31.08.2026: "der sieht aktuell sehr
    verloren dort aus"). */
@@ -133,37 +143,94 @@ tr:hover td{background:#fafafa}
 .lvk-stift:active{transform:scale(.96)}
 .lvk-stift:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .lvk-summe{text-align:right;white-space:nowrap;margin-left:auto}
-.lvk-netto{font-size:28px;font-weight:700;letter-spacing:-.025em;
+.lvk-netto{font-size:34px;font-weight:700;letter-spacing:-.03em;
   font-variant-numeric:tabular-nums;line-height:1.1;
   background:linear-gradient(180deg,#ffffff 0%,#a8ccff 140%);-webkit-background-clip:text;
   background-clip:text;color:transparent}
 .lvk-netto small{font-size:13px;font-weight:600;color:#8fb8ee;margin-left:5px;
   -webkit-text-fill-color:#8fb8ee}
 /* Erik am 31.08.2026: "'43 Bedarfspositionen...' ist kaum zu sehen und sollte
-   in orange dargestellt werden." Orange traegt auf dem dunklen Grau weiter
+   in orange dargestellt werden." Orange traegt auf dem dunklen Grund weiter
    als das Violett und beisst sich nicht mit dem Blau der App. */
 .lvk-bedarf{font-size:12.5px;color:#a8c6ea;margin-top:5px}
 .lvk-bedarf b{color:#ffa640;font-weight:700}
-/* Vier gleich grosse Felder, zwei mal zwei */
+/* Die vier Ampelkacheln - frueher helle Kaesten UEBER dem Kopf, jetzt im
+   dunklen Feld wie die Kacheln der Auswertung. Anklickbar bleiben sie. */
+.lvk-ampel{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+  background:rgba(140,180,240,.16);border:1px solid rgba(140,180,240,.16);border-radius:13px;
+  overflow:hidden;margin-bottom:14px}
+.lvk-kachel{background:rgba(9,14,24,.72);padding:14px 16px;cursor:pointer;
+  transition:background .18s,box-shadow .18s}
+.lvk-kachel:hover{background:rgba(24,40,68,.9)}
+.lvk-kachel .w{font-size:25px;font-weight:700;letter-spacing:-.025em;
+  font-variant-numeric:tabular-nums;color:#fff;line-height:1.15}
+.lvk-kachel .l{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#7e9ac2;
+  margin-top:2px}
+.lvk-kachel.gr .w{color:#5fe0a8}
+.lvk-kachel.ge .w{color:#ffd166}
+.lvk-kachel.ro .w{color:#ff8f7d}
+/* Der aktive Filter leuchtet - frueher eine helle Umrandung aus dem
+   Hellmodus, die auf dem dunklen Feld nicht zu sehen war. */
+.lvk-kachel.an{background:rgba(24,40,68,.95);box-shadow:inset 0 0 0 2px #4d9bff}
+/* Vier gleich grosse Werkzeugfelder, zwei mal zwei */
 .lvk-leiste{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch}
-.lvk-gruppe{display:flex;align-items:center;gap:7px;padding:10px 13px;
-  background:#eef4fc;border:1px solid #d3e3f7;border-radius:12px}
-.lvk-knoepfe{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto;justify-content:flex-end}
-.lvk-lab{font-size:9.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
-  color:#0060c9;white-space:nowrap}
-.lvk-gruppe .bg{background:#fff;border-color:#cfe0f5}
-.lvk-gruppe .bg:hover{border-color:#0071e3}
-.lvk-gruppe .btn{background:#1d1d1f;border-color:#1d1d1f;color:#fff}
-.lvk-gruppe .btn:hover{background:#000;border-color:#000}
-.lvk-status{font-size:11.5px;color:var(--muted);white-space:nowrap}
-.lvk-einst{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);
-  border:1px solid var(--line);border-radius:12px;flex-wrap:wrap}
-.lvk-einst select{width:auto;padding:5px 10px;font-size:13px}
-.lvk-einst .lvk-lab{color:var(--muted)}
-.lvk-hinweis{font-size:12px;color:var(--muted)}
+.lvk-gruppe{display:flex;align-items:center;gap:9px;padding:11px 14px;border-radius:13px;
+  background:rgba(9,14,24,.6);border:1px solid rgba(140,180,240,.18)}
+.lvk-knoepfe{display:flex;gap:7px;flex-wrap:wrap;margin-left:auto;justify-content:flex-end}
+.lvk-lab{font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  color:#7fb2ff;white-space:nowrap}
+/* --- Variante C "Impuls" -------------------------------------------------
+   Erik hat sie am 31.08.2026 aus drei Vorschlaegen gewaehlt. */
+.lvk-hero .bg,.lvk-hero .btn{position:relative;overflow:hidden;isolation:isolate;
+  display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:11px;
+  font-size:12.5px;font-weight:600;color:#eaf1ff;
+  background:rgba(255,255,255,.07);border:1px solid rgba(140,180,240,.28);box-shadow:none;
+  transition:transform .16s cubic-bezier(.2,.8,.3,1),background .2s,border-color .2s,box-shadow .2s}
+.lvk-ic{font-size:14px;line-height:1;transition:transform .3s cubic-bezier(.2,.8,.3,1)}
+.lvk-hero .bg:hover,.lvk-hero .btn:hover{transform:translateY(-3px);
+  background:rgba(77,155,255,.2);border-color:rgba(127,208,255,.7);
+  box-shadow:0 8px 22px rgba(13,22,38,.5)}
+.lvk-hero .bg:hover .lvk-ic,.lvk-hero .btn:hover .lvk-ic{animation:lvkwippe .6s cubic-bezier(.3,.8,.3,1)}
+@keyframes lvkwippe{0%{transform:translateY(0)}35%{transform:translateY(-5px) scale(1.2)}
+  100%{transform:translateY(0)}}
+/* Die Welle beim Klick: ein Punkt in der Mitte, der nach aussen laeuft.
+   z-index:-1 haelt sie hinter der Beschriftung, overflow:hidden im Knopf. */
+.lvk-hero .bg::after,.lvk-hero .btn::after{content:"";position:absolute;left:50%;top:50%;
+  width:8px;height:8px;border-radius:50%;z-index:-1;background:rgba(160,215,255,.75);
+  transform:translate(-50%,-50%) scale(0);opacity:0}
+.lvk-hero .bg:active::after,.lvk-hero .btn:active::after{animation:lvkwelle .5s ease-out}
+@keyframes lvkwelle{0%{transform:translate(-50%,-50%) scale(0);opacity:.8}
+  100%{transform:translate(-50%,-50%) scale(22);opacity:0}}
+.lvk-hero .bg:active,.lvk-hero .btn:active{transform:translateY(-1px) scale(.98)}
+.lvk-hero .bg:focus-visible,.lvk-hero .btn:focus-visible{outline:2px solid #7fd0ff;outline-offset:2px}
+/* "Speichern" ist der eine wichtige Knopf - er atmet leise. */
+.lvk-hero .btn{background:linear-gradient(180deg,#1d6fe0,#0b4fae);border-color:#2b7ff0;color:#fff}
+.lvk-hero .btn:hover{background:linear-gradient(180deg,#2b7ff0,#1160c8)}
+.lvk-status{font-size:11.5px;color:#8fb8ee;white-space:nowrap}
+.lvk-einst{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin-top:10px;
+  padding:10px 14px;border-radius:13px;background:rgba(9,14,24,.45);
+  border:1px solid rgba(140,180,240,.13)}
+.lvk-einst select{width:auto;padding:6px 10px;font-size:13px;color:#eaf1ff;
+  background:rgba(20,32,54,.9);border:1px solid rgba(140,180,240,.3);border-radius:9px}
+.lvk-einst select:focus{outline:none;border-color:#4d9bff;box-shadow:0 0 0 3px rgba(77,155,255,.22)}
+.lvk-hinweis{font-size:12px;color:#8fb8ee}
+@media (prefers-reduced-motion:no-preference){
+  .lvk-eyeb i{animation:lvkpuls 2.6s ease-in-out infinite}
+  @keyframes lvkpuls{0%,100%{box-shadow:0 0 0 4px rgba(77,155,255,.18)}
+    50%{box-shadow:0 0 0 7px rgba(77,155,255,.05)}}
+  .lvk-kachel,.lvk-gruppe{animation:lvkrein .48s cubic-bezier(.2,.7,.3,1) backwards}
+  .lvk-kachel:nth-child(2),.lvk-gruppe:nth-child(3){animation-delay:.06s}
+  .lvk-kachel:nth-child(3),.lvk-gruppe:nth-child(4){animation-delay:.12s}
+  .lvk-kachel:nth-child(4),.lvk-gruppe:nth-child(5){animation-delay:.18s}
+  @keyframes lvkrein{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+  .lvk-hero .btn{animation:lvkatmen 3.4s ease-in-out infinite}
+  @keyframes lvkatmen{0%,100%{box-shadow:0 0 0 0 rgba(45,127,240,0)}
+    50%{box-shadow:0 0 22px 0 rgba(45,127,240,.45)}}
+}
 @media (max-width:860px){
   .lvk-leiste{grid-template-columns:1fr}
-  .lvk-zeile1{align-items:flex-start;flex-direction:column;gap:8px}
+  .lvk-hero{margin:-28px -16px 0;padding:18px 16px 20px}
+  .lvk-verlauf{margin:-18px -16px 4px}
   .lvk-summe{text-align:left;margin-left:0}
 }
 /* ===== COCKPIT-KOPF DER AUSWERTUNG =====================================
@@ -444,54 +511,58 @@ option{background:#fff;color:#1d1d1f;font-weight:400}
   </div>
 
   <div id="lv-main" style="display:none">
-    <div class="g4" style="margin-bottom:16px">
-      <div class="sc" id="k-alle"   onclick="ampelFilter('')"      style="cursor:pointer" title="Alle Positionen zeigen"><div class="sv" id="s-pos">0</div><div class="sl">Positionen</div></div>
-      <div class="sc" id="k-gruen"  onclick="ampelFilter('gruen')" style="cursor:pointer" title="Nur bepreiste zeigen"><div class="sv" style="color:var(--green)" id="s-g">0</div><div class="sl">Bepreist ✓</div></div>
-      <div class="sc" id="k-gelb"   onclick="ampelFilter('gelb')"  style="cursor:pointer" title="Nur Schätzungen zeigen"><div class="sv" style="color:var(--yellow)" id="s-y">0</div><div class="sl">Schätzung ~</div></div>
-      <div class="sc" id="k-rot"    onclick="ampelFilter('rot')"   style="cursor:pointer" title="Nur offene zeigen"><div class="sv" style="color:var(--red)" id="s-r">0</div><div class="sl">Offen !</div></div>
-    </div>
-    <div class="card">
-      <!-- KOPF DER LV-ANSICHT
-           Erik am 31.08.2026: "koenntest du hier den Kopf auch noch etwas
-           aufraeumen? Das ist aeusserst chaotisch ... Es fehlt komplett die
-           struktur." Jetzt drei klare Baender: Name und Summe, darunter die
-           Knoepfe nach Zweck gruppiert, darunter die Einstellungen. -->
-      <div class="lvk">
-        <div class="lvk-zeile1">
+    <!-- COCKPIT-KOPF DER LV-ANSICHT
+         Erik am 31.08.2026: "Dunkles Feld viel groesser, ganz nach oben und
+         bitte Ausgeben, Datei etc. in das Feld integrieren." Ampelkacheln,
+         Werkzeugfelder und Einstellungen liegen jetzt alle IM dunklen Feld,
+         das buendig unter dem Menueband beginnt - dieselbe Handschrift wie
+         das Cockpit der Auswertung. -->
+    <div class="lvk">
+      <div class="lvk-hero">
+        <div class="lvk-kopf">
           <div class="lvk-name">
-            <h2 id="lv-tit">LV-Kalkulation</h2>
-            <button class="lvk-stift" title="LV umbenennen" onclick="lvUmbenennen()">✏️ Umbenennen</button>
+            <div class="lvk-eyeb"><i></i>LV-Kalkulation</div>
+            <div class="lvk-titelzeile">
+              <h2 id="lv-tit">LV-Kalkulation</h2>
+              <button class="lvk-stift" title="LV umbenennen" onclick="lvUmbenennen()">✏️ Umbenennen</button>
+            </div>
           </div>
           <div class="lvk-summe">
             <div class="lvk-netto"><span id="lv-sum">–</span><small>€ netto</small></div>
             <div id="lv-bedarf" class="lvk-bedarf"></div>
           </div>
         </div>
+        <div class="lvk-ampel np">
+          <div class="lvk-kachel"    id="k-alle"  onclick="ampelFilter('')"      title="Alle Positionen zeigen"><div class="w" id="s-pos">0</div><div class="l">Positionen</div></div>
+          <div class="lvk-kachel gr" id="k-gruen" onclick="ampelFilter('gruen')" title="Nur bepreiste zeigen"><div class="w" id="s-g">0</div><div class="l">Bepreist ✓</div></div>
+          <div class="lvk-kachel ge" id="k-gelb"  onclick="ampelFilter('gelb')"  title="Nur Schätzungen zeigen"><div class="w" id="s-y">0</div><div class="l">Schätzung ~</div></div>
+          <div class="lvk-kachel ro" id="k-rot"   onclick="ampelFilter('rot')"   title="Nur offene zeigen"><div class="w" id="s-r">0</div><div class="l">Offen !</div></div>
+        </div>
         <div class="lvk-leiste np">
           <div class="lvk-gruppe"><span class="lvk-lab">Ausgeben</span>
             <div class="lvk-knoepfe">
-              <button class="bg sm" onclick="doExportPDF()" title="Angebot als PDF">📄 PDF-Angebot</button>
-              <button class="bg sm" onclick="doExportLV()" title="Das ausgefüllte LV im Layout der Ausschreibung, mit Zusammenfassungsblatt">📑 LV-Export</button>
-              <button class="bg sm" onclick="doExportBesprechung()" title="Kompakte Datei mit allen Rechenwegen – zum Hochladen ins Gespräch">📦 Für Claude</button>
+              <button class="bg sm" onclick="doExportPDF()" title="Angebot als PDF"><span class="lvk-ic">📄</span>PDF-Angebot</button>
+              <button class="bg sm" onclick="doExportLV()" title="Das ausgefüllte LV im Layout der Ausschreibung, mit Zusammenfassungsblatt"><span class="lvk-ic">📑</span>LV-Export</button>
+              <button class="bg sm" onclick="doExportBesprechung()" title="Kompakte Datei mit allen Rechenwegen – zum Hochladen ins Gespräch"><span class="lvk-ic">📦</span>Für Claude</button>
             </div>
           </div>
           <div class="lvk-gruppe"><span class="lvk-lab">Datei</span>
             <div class="lvk-knoepfe">
-              <button class="bg sm" onclick="doExportDaten()" title="Alle Positionen als Datei sichern">💾 Sichern</button>
-              <button class="bg sm" onclick="document.getElementById('pos-datei').click()" title="Eine gesicherte Positionsdatei in DIESES LV einlesen">📂 Einlesen</button>
+              <button class="bg sm" onclick="doExportDaten()" title="Alle Positionen als Datei sichern"><span class="lvk-ic">💾</span>Sichern</button>
+              <button class="bg sm" onclick="document.getElementById('pos-datei').click()" title="Eine gesicherte Positionsdatei in DIESES LV einlesen"><span class="lvk-ic">📂</span>Einlesen</button>
               <input type="file" id="pos-datei" accept=".json" style="display:none" onchange="positionsdateiLaden(this.files[0]); this.value='';">
             </div>
           </div>
           <div class="lvk-gruppe"><span class="lvk-lab">Neu rechnen</span>
             <div class="lvk-knoepfe">
-              <button class="bg sm" onclick="typenNeuErkennen()" title="Alle Positions-Typen neu bestimmen">🔄 Typen</button>
-              <button class="bg sm" onclick="alleEpNeuBerechnen()" title="Alle EP über das Regelwerk neu rechnen – geprüfte (grüne) Positionen bleiben unangetastet">🧮 Alle EP</button>
+              <button class="bg sm" onclick="typenNeuErkennen()" title="Alle Positions-Typen neu bestimmen"><span class="lvk-ic">🔄</span>Typen</button>
+              <button class="bg sm" onclick="alleEpNeuBerechnen()" title="Alle EP über das Regelwerk neu rechnen – geprüfte (grüne) Positionen bleiben unangetastet"><span class="lvk-ic">🧮</span>Alle EP</button>
             </div>
           </div>
           <div class="lvk-gruppe"><span class="lvk-lab">Dieses LV</span>
             <div class="lvk-knoepfe">
-              <button class="bg sm" onclick="neuesLV()" title="Ein neues, leeres LV anlegen">＋ Neues LV</button>
-              <button class="btn sm" onclick="doSave()">💾 Speichern</button>
+              <button class="bg sm" onclick="neuesLV()" title="Ein neues, leeres LV anlegen"><span class="lvk-ic">＋</span>Neues LV</button>
+              <button class="btn sm" onclick="doSave()"><span class="lvk-ic">💾</span>Speichern</button>
             </div>
           </div>
         </div>
@@ -503,9 +574,12 @@ option{background:#fff;color:#1d1d1f;font-weight:400}
           </select>
           <span class="lvk-hinweis">bestimmt Kleber, Grundierung, Abdichtung … (außer Fuge)</span>
           <span id="save-status" class="lvk-status" style="margin-left:auto"></span>
-          <button class="bg sm" onclick="lvKalkOeffnen()" title="Die Kalkulationswerte, mit denen NUR dieses LV rechnet">⚙️ Kalkulation dieses LV</button>
+          <button class="bg sm" onclick="lvKalkOeffnen()" title="Die Kalkulationswerte, mit denen NUR dieses LV rechnet"><span class="lvk-ic">⚙️</span>Kalkulation dieses LV</button>
         </div>
       </div>
+      <div class="lvk-verlauf"></div>
+    </div>
+    <div class="card">
       <div style="margin:6px 0 12px;display:flex;align-items:center;gap:8px">
         <div class="sw" style="flex:1;max-width:420px"><span class="si">🔍</span>
           <input type="text" id="lv-search" placeholder="Position suchen … (z.B. Emco, Silikon, 1.5.60, Abdichtung)" oninput="filterLV(this.value)">
@@ -1008,7 +1082,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '31.08.2026 · 208';
+const APP_STAND = '31.08.2026 · 209';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -7784,9 +7858,9 @@ function ampelFilter(status){
   Object.keys(marke).forEach(function(k){
     const el = document.getElementById(marke[k]);
     if(!el) return;
-    const an = (k === AMPEL_FILTER) && k !== '';
-    el.style.outline = an ? '2px solid var(--accent)' : '';
-    el.style.background = an ? 'var(--surface2)' : '';
+    // Die Kachel liegt im dunklen Cockpit - der aktive Filter wird ueber
+    // eine Klasse markiert, nicht ueber Farben aus dem hellen Bereich.
+    el.classList.toggle('an', (k === AMPEL_FILTER) && k !== '');
   });
   const suche = document.getElementById('lv-search');
   filterLV(suche ? suche.value : '');
