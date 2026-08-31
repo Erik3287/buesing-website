@@ -804,7 +804,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '30.08.2026 · 194';
+const APP_STAND = '31.08.2026 · 195';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -6262,8 +6262,20 @@ function wieVorUebernehmen(liste){
     });
     if(geerbt.length){
       p._wieVor = v.nr || ('#'+(liste.indexOf(v)+1));
-      autoEP(p, LV.system||'sakret');
-      p.notiz=(p.notiz?p.notiz+' · ':'')+'„wie vor" – Ausführung von Pos. '+p._wieVor+' übernommen';
+      // NEU RECHNEN NUR, WENN NOCH KEIN PREIS DRINSTEHT. Diese Stelle lief
+      // bisher an der Regel "wer einen Preis hat, ist fertig" vorbei: sie
+      // wird bei JEDEM Oeffnen des LV ausgefuehrt, und sobald ein Feld
+      // geerbt wurde, rechnete sie die Position neu - auch eine laengst
+      // fertige. Erik am 31.08.2026: "irgendwie veraendern sich die werte
+      // staendig ohne das jemand etwas macht".
+      const warFertig = (p._warOhnePreis === false);
+      if(!warFertig){
+        autoEP(p, LV.system||'sakret');
+        p.notiz=(p.notiz?p.notiz+' · ':'')+'„wie vor" – Ausführung von Pos. '+p._wieVor+' übernommen';
+      } else {
+        p.notiz=(p.notiz?p.notiz+' · ':'')+'„wie vor" – Ausführung von Pos. '+p._wieVor
+              +' übernommen (Preis unverändert)';
+      }
       uebernommen++;
     }
   }
@@ -7952,7 +7964,7 @@ function doSave(silent){
   // stehen beim naechsten Oeffnen des LV zwanzig Rechner offen (Erik
   // 28.08.2026: "das nervt").
   const positionenOhneAnsicht=(LV.pos||[]).map(function(q){
-    const k={}; for(const f in q){ if(f!=='_calcOpen') k[f]=q[f]; } return k;
+    const k={}; for(const f in q){ if(f!=='_calcOpen' && f!=='_warOhnePreis') k[f]=q[f]; } return k;
   });
   const payload={
     id: LV.id||0,
@@ -10154,6 +10166,10 @@ async function versionZurueck(vid){
 // 'Duschelement' mit Mosaikzeilen.
 function lvKomplettPruefen(){
   if(!(LV && LV.pos && LV.pos.length)) return 0;
+  // Wer beim Oeffnen schon einen Preis hatte, ist fertig. Das wird HIER
+  // festgehalten - spaeter im Durchlauf hat auch eine frisch gerechnete
+  // Position einen Preis, und daran darf man es nicht mehr festmachen.
+  LV.pos.forEach(function(q){ q._warOhnePreis = !(parseFloat(q.ep) > 0); });
   // Jedes LV bekommt beim ersten Oeffnen seine eigenen Kalkulationswerte -
   // eine Kopie der Vorlage aus dem Haupt-Kalkulator. Ab da rechnet es
   // unabhaengig davon (Erik am 30.08.2026).
