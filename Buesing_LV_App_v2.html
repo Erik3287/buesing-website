@@ -102,8 +102,10 @@ tr:hover td{background:#fafafa}
    Aufbau: dunkler Kopfbalken mit Name und Summe, darunter vier gleich grosse
    blaue Felder im Raster 2x2, darunter die graue Einstellungszeile. */
 .lvk{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+/* Erik am 31.08.2026: "bitte ersetze das grau durch das blau wie die buttons
+   von LV-Kalkulation und Dashboard" - also genau das Akzentblau der App. */
 .lvk-zeile1{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;
-  background:#4b4f57;border-radius:13px;padding:15px 18px 14px}
+  background:var(--accent);border-radius:13px;padding:15px 18px 14px}
 .lvk-name{flex:1 1 320px;min-width:0}
 /* Der Stift steht INLINE hinter dem letzten Wort - sonst haengt er bei
    einem langen, umgebrochenen Namen irgendwo in der Mitte. */
@@ -123,12 +125,12 @@ tr:hover td{background:#fafafa}
 .lvk-summe{text-align:right;white-space:nowrap;margin-left:auto}
 .lvk-netto{font-size:26px;font-weight:700;letter-spacing:-.02em;color:#fff;
   font-variant-numeric:tabular-nums;line-height:1.1}
-.lvk-netto small{font-size:13px;font-weight:600;color:rgba(255,255,255,.62);margin-left:5px}
+.lvk-netto small{font-size:13px;font-weight:600;color:rgba(255,255,255,.72);margin-left:5px}
 /* Erik am 31.08.2026: "'43 Bedarfspositionen...' ist kaum zu sehen und sollte
    in orange dargestellt werden." Orange traegt auf dem dunklen Grau weiter
    als das Violett und beisst sich nicht mit dem Blau der App. */
-.lvk-bedarf{font-size:12.5px;color:rgba(255,255,255,.86);margin-top:4px}
-.lvk-bedarf b{color:#ffa640;font-weight:700}
+.lvk-bedarf{font-size:12.5px;color:rgba(255,255,255,.9);margin-top:4px}
+.lvk-bedarf b{color:#ffc061;font-weight:700}
 /* Vier gleich grosse Felder, zwei mal zwei */
 .lvk-leiste{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch}
 .lvk-gruppe{display:flex;align-items:center;gap:7px;padding:9px 12px;
@@ -993,7 +995,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '31.08.2026 · 206';
+const APP_STAND = '31.08.2026 · 207';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
