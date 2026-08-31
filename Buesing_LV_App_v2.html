@@ -102,10 +102,20 @@ tr:hover td{background:#fafafa}
    Aufbau: dunkler Kopfbalken mit Name und Summe, darunter vier gleich grosse
    blaue Felder im Raster 2x2, darunter die graue Einstellungszeile. */
 .lvk{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
-/* Erik am 31.08.2026: "bitte ersetze das grau durch das blau wie die buttons
-   von LV-Kalkulation und Dashboard" - also genau das Akzentblau der App. */
-.lvk-zeile1{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;
-  background:var(--accent);border-radius:13px;padding:15px 18px 14px}
+/* Der Kopfbalken traegt dasselbe dunkle Blau wie das Cockpit der Auswertung -
+   damit hat die App EINE Handschrift fuer Koepfe. Erik am 31.08.2026: "das
+   Blau muss dunkler werden ... sodass er ins ganze System passt". */
+.lvk-zeile1{position:relative;overflow:hidden;display:flex;align-items:flex-end;
+  justify-content:space-between;gap:20px;flex-wrap:wrap;border-radius:14px;padding:17px 20px 16px;
+  background:radial-gradient(120% 160% at 10% -20%,#1b3a63 0%,#122544 48%,#0d1626 100%)}
+.lvk-zeile1::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(120,180,255,.05) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(120,180,255,.05) 1px,transparent 1px);
+  background-size:34px 34px;mask-image:radial-gradient(75% 95% at 18% 0%,#000 30%,transparent 100%)}
+.lvk-zeile1::after{content:"";position:absolute;top:-70px;right:-40px;width:240px;height:240px;
+  border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(64,150,255,.26) 0%,rgba(64,150,255,0) 68%)}
+.lvk-zeile1>*{position:relative;z-index:1}
 .lvk-name{flex:1 1 320px;min-width:0}
 /* Der Stift steht INLINE hinter dem letzten Wort - sonst haengt er bei
    einem langen, umgebrochenen Namen irgendwo in der Mitte. */
@@ -123,18 +133,21 @@ tr:hover td{background:#fafafa}
 .lvk-stift:active{transform:scale(.96)}
 .lvk-stift:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .lvk-summe{text-align:right;white-space:nowrap;margin-left:auto}
-.lvk-netto{font-size:26px;font-weight:700;letter-spacing:-.02em;color:#fff;
-  font-variant-numeric:tabular-nums;line-height:1.1}
-.lvk-netto small{font-size:13px;font-weight:600;color:rgba(255,255,255,.72);margin-left:5px}
+.lvk-netto{font-size:28px;font-weight:700;letter-spacing:-.025em;
+  font-variant-numeric:tabular-nums;line-height:1.1;
+  background:linear-gradient(180deg,#ffffff 0%,#a8ccff 140%);-webkit-background-clip:text;
+  background-clip:text;color:transparent}
+.lvk-netto small{font-size:13px;font-weight:600;color:#8fb8ee;margin-left:5px;
+  -webkit-text-fill-color:#8fb8ee}
 /* Erik am 31.08.2026: "'43 Bedarfspositionen...' ist kaum zu sehen und sollte
    in orange dargestellt werden." Orange traegt auf dem dunklen Grau weiter
    als das Violett und beisst sich nicht mit dem Blau der App. */
-.lvk-bedarf{font-size:12.5px;color:rgba(255,255,255,.9);margin-top:4px}
-.lvk-bedarf b{color:#ffc061;font-weight:700}
+.lvk-bedarf{font-size:12.5px;color:#a8c6ea;margin-top:5px}
+.lvk-bedarf b{color:#ffa640;font-weight:700}
 /* Vier gleich grosse Felder, zwei mal zwei */
 .lvk-leiste{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch}
-.lvk-gruppe{display:flex;align-items:center;gap:7px;padding:9px 12px;
-  background:#e9f2fe;border:1px solid #bfd9f8;border-radius:12px}
+.lvk-gruppe{display:flex;align-items:center;gap:7px;padding:10px 13px;
+  background:#eef4fc;border:1px solid #d3e3f7;border-radius:12px}
 .lvk-knoepfe{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto;justify-content:flex-end}
 .lvk-lab{font-size:9.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
   color:#0060c9;white-space:nowrap}
@@ -995,7 +1008,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '31.08.2026 · 207';
+const APP_STAND = '31.08.2026 · 208';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
