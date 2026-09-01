@@ -1082,7 +1082,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '01.09.2026 · 210';
+const APP_STAND = '01.09.2026 · 211';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -6248,11 +6248,22 @@ function autoEPRoh(p, system){
                     .some(function(f){ return fabrikatGleich(p.fabrikat, f); });
     if(!imText) hinweis.push('Fabrikat „'+p.fabrikat+'" steht NICHT im LV-Text und wurde nicht von Hand gewählt – bestätigen oder Fliese ändern');
   }
-  // Widersprechen sich KI und Stichwortregeln beim Typ, entscheidet Erik.
+  // Widersprechen sich KI und Stichwortregeln beim Typ, entscheidet Erik -
+  // und bis er entschieden hat, steht hier KEIN Preis.
+  // Bisher gewann stillschweigend die Regel. Im LV Seelze (01.09.2026) lagen
+  // damit 17 Positionen im Streit, und die Regel hatte nur in 3 davon recht:
+  // "Bodenbelag Betonwerkstein" bekam den Fliesenpreis (36.232 EUR),
+  // "Erstreinigung Wandfliesen" ebenfalls (16.620 EUR), "Reinigen von
+  // Bodenflaechen" auch (6.648 EUR). Ein geratener Preis, der gruen aussieht,
+  // ist gefaehrlicher als eine leere Zeile - Erik: "es soll einfach
+  // zuverlaessig funktionieren." Also: rot, beide Vorschlaege zur Wahl, ein
+  // Klick genuegt.
+  let typStreit = null;
   if(p._kiTyp && p._kiTyp!==p.typ && !p._typHand){
+    typStreit = {ki:p._kiTyp, regel:p.typ};
     const lblKi   = (TYPEN.find(function(t){return t[0]===p._kiTyp;})||['',p._kiTyp])[1];
     const lblReg  = (TYPEN.find(function(t){return t[0]===p.typ;})||['',p.typ])[1];
-    hinweis.push('Die KI liest diese Position als „'+lblKi+'", die Regeln als „'+lblReg+'" – Typ prüfen (im Auswahlfeld umstellbar)');
+    hinweis.push('Typ unklar: die KI liest „'+lblKi+'", die Regeln „'+lblReg+'" – bitte wählen');
   }
   if(p._typHand) delete p._kiTyp;
   // Fehlende EINGABEN (ein Preis, eine Wahl) kann man nicht "zur Kenntnis
@@ -6265,9 +6276,12 @@ function autoEPRoh(p, system){
   p._hinweisTxt = hinweisTxt;   // fuer den OK-Knopf: exakt DIESER Wortlaut wird bestaetigt
   const bestaetigt = hinweis.length > 0 && !eingaben.length && p.hinweisOk === hinweisTxt;
   if(hinweis.length && !bestaetigt) delete p.hinweisOk;
-  p._okZeigen = hinweis.length > 0 && !eingaben.length;
+  p._okZeigen = hinweis.length > 0 && !eingaben.length && !typStreit;
+  // Die beiden Vorschlaege fuer die Knoepfe in der Zeile
+  if(typStreit) p._typStreit = typStreit; else delete p._typStreit;
 
-  if(flieseFehlt)      { p.status='rot'; p.notiz='Fliesenpreis fehlt – Preis anfragen'; }
+  if(typStreit)        { p.status='rot'; p.notiz=''; p.ep=0; }
+  else if(flieseFehlt) { p.status='rot'; p.notiz='Fliesenpreis fehlt – Preis anfragen'; }
   else if(fehlend.length){ p.status='rot'; p.notiz='fehlt: ' + fehlend.join(', '); }
   else if(!(p.ep > 0)) { p.status='rot'; p.notiz='kein Preis ermittelbar – bitte prüfen'; }
   else if(hinweis.length && !bestaetigt){ p.status='gelb'; p.notiz=''; }
@@ -8099,9 +8113,9 @@ function renderLV(){
     const bc=p.status==='gruen'?'var(--green)':p.status==='gelb'?'var(--yellow)':'var(--red)';
     return `<tr class="pos-row" data-i="${i}" data-such="${suchtext}">
       <td style="font-weight:700;color:var(--accent);font-size:13px;border-left:6px solid ${bc};padding-left:8px">${p.nr||''}</td>
-      <td><div style="font-size:13px;font-weight:600">${p.desc||''}${bedarf?` <span style="color:#0047c7;font-weight:800;font-size:12.5px;letter-spacing:.3px;cursor:pointer" onclick="bedarfUmschalten(${i})" title="Zählt nicht in die Angebotssumme – klicken zum Umstellen">BEDARFSPOSITION</span>`:''}</div>${langtextBlock(p,i)}${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${p.notiz}${(p.status==='gelb'&&p._okZeigen)?` <button class="bg sm" style="padding:1px 9px;font-size:11px;font-weight:700;margin-left:6px" onclick="hinweisBestaetigen(${i})" title="Hinweis gelesen – Position auf Grün setzen">OK</button>`:''}</div>`:''}</td>
+      <td><div style="font-size:13px;font-weight:600">${p.desc||''}${bedarf?` <span style="color:#0047c7;font-weight:800;font-size:12.5px;letter-spacing:.3px;cursor:pointer" onclick="bedarfUmschalten(${i})" title="Zählt nicht in die Angebotssumme – klicken zum Umstellen">BEDARFSPOSITION</span>`:''}</div>${langtextBlock(p,i)}${(p.notiz && p.notiz.indexOf('Vorschlag:')!==0)?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${p.notiz}${(p.status==='gelb'&&p._okZeigen)?` <button class="bg sm" style="padding:1px 9px;font-size:11px;font-weight:700;margin-left:6px" onclick="hinweisBestaetigen(${i})" title="Hinweis gelesen – Position auf Grün setzen">OK</button>`:''}${typWahlHtml(p,i)}</div>`:''}</td>
       <td><select style="padding:4px 5px;font-size:11px;width:118px" onchange="upd(${i},'typ',this.value)">${typOptions(p.typ)}</select></td>
-      <td><input type="number" step="0.01" value="${p.menge||''}" placeholder="0" oninput="upd(${i},'menge',this.value)" style="text-align:right;width:70px;padding:4px 6px"></td>
+      <td><input type="number" step="0.01" value="${p.menge||''}" placeholder="0" oninput="upd(${i},'menge',this.value)" onchange="mengeFertig(${i})" style="text-align:right;width:70px;padding:4px 6px"></td>
       <td><input type="text" value="${(p.einheit||'').replace(/"/g,'&quot;')}" onchange="upd(${i},'einheit',this.value)"
            title="Einheit aus dem LV – änderbar, falls der Import sie falsch gelesen hat"
            style="width:52px;padding:3px 4px;font-size:13px;color:var(--muted);border:1px solid transparent;background:transparent;border-radius:4px"
@@ -8222,6 +8236,43 @@ function upd(i,f,v){
     gpCell.style.color = bed ? '#0047c7' : (gp>0?'var(--accent)':'var(--muted)');
   }
   scheduleSave();
+}
+// Eine nachgetragene Menge muss die Position auch wirklich heilen. Bisher
+// rechnete das Mengenfeld gar nichts nach: Erik trug die fehlende Menge ein,
+// und die Zeile blieb rot mit "MENGE FEHLT (0)" stehen - bei einem LV mit
+// zehn fehlenden Mengen zehnmal. Erik am 01.09.2026: "auch bei der
+// Baustelleneinrichtung wurde keine Menge erkannt, obwohl deutlich zu sehen
+// war, dass es 1 ist ... es soll einfach zuverlaessig funktionieren."
+// Geprueftes und von Hand eingetragene Preise bleiben unangetastet.
+function mengeFertig(i){
+  const p = LV.pos[i];
+  if(!p || p.typ==='ueberschrift') return;
+  if(p._epHand) return;                              // selbst eingetragener Preis
+  if(p.status==='gruen' && !p.gruenAuto) return;     // von Erik geprueft
+  autoEP(p, LV.system||'sakret');
+  renderLV(); scheduleSave();
+}
+// Zwei Knoepfe bei unklarem Typ: ein Klick entscheidet, der Preis wird
+// sofort gerechnet. Die Wahl gilt als Handarbeit (_typHand) und wird von
+// "Typen neu erkennen" nie wieder angefasst.
+function typWahlHtml(p, i){
+  if(!p._typStreit) return '';
+  const s = p._typStreit;
+  const kn = function(t){
+    const lbl = (TYPEN.find(function(x){return x[0]===t;})||['',t])[1];
+    return '<button class="bg sm" style="padding:1px 9px;font-size:11px;font-weight:700;margin-left:6px"'
+         + ' onclick="typWaehlen(' + i + ',\'' + t + '\')">' + esc(lbl) + '</button>';
+  };
+  return kn(s.ki) + kn(s.regel);
+}
+function typWaehlen(i, typ){
+  const p = LV.pos[i];
+  if(!p) return;
+  p.typ = typ; p._typHand = true;
+  delete p._kiTyp; delete p._typStreit;
+  delete p.stufe; delete p.oberflaeche; delete p.rutsch; delete p.umfang;
+  autoEP(p, LV.system||'sakret');
+  renderLV(); scheduleSave();
 }
 function delP(i){LV.pos.splice(i,1);renderLV();doSave(true);}
 function addPos(){LV.pos.push({nr:'',desc:'Neue Position',menge:0,einheit:'m²',ep:0,status:'rot',notiz:''});renderLV();scheduleSave();}
