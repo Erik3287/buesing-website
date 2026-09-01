@@ -1105,7 +1105,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '01.09.2026 · 213';
+const APP_STAND = '01.09.2026 · 214';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -8579,42 +8579,13 @@ function setSaveStatus(txt){
   el.textContent = txt + (txt.indexOf('gespeichert')>-1 ? ' · '+new Date().toLocaleTimeString('de-DE') : '');
 }
 
-function loadDemo(){
-  LV.titel='LV 71629 – Flüchtlingsheim Laatzen';
-  LV.pos=[
-    {nr:'20.1.10',desc:'Randstreifen abschneiden',menge:0,einheit:'m',ep:0.90,status:'gruen',notiz:''},
-    {nr:'20.1.15',desc:'Estrich-Untergrund vorbereiten',menge:0,einheit:'m²',ep:0,status:'rot',notiz:''},
-    {nr:'20.1.20',desc:'Grundieren Boden (nicht saugend)',menge:0,einheit:'m²',ep:8.50,status:'gelb',notiz:'Sakret Schnellhaftgrund 0,125L/m²'},
-    {nr:'20.1.30',desc:'Ausgleichsschicht / Nivelliermasse',menge:0,einheit:'m²',ep:0,status:'rot',notiz:''},
-    {nr:'20.1.40',desc:'Abdichtung Verbundabdichtung',menge:0,einheit:'m²',ep:0,status:'rot',notiz:''},
-    {nr:'20.1.50',desc:'Dichtband Wannenanschluss',menge:0,einheit:'m',ep:0,status:'rot',notiz:''},
-    {nr:'20.1.60',desc:'Dichtecken innen',menge:0,einheit:'Stk',ep:0,status:'rot',notiz:''},
-    {nr:'20.1.80',desc:'Feinsteinzeug R10 30×60 Sanitär (Boden+verfugen)',menge:0,einheit:'m²',ep:98.00,status:'gelb',notiz:'Newcon taupe + Kleber OK + Nanofug'},
-    {nr:'20.1.90',desc:'Feinsteinzeug R9 30×60 Küche (Boden+verfugen)',menge:0,einheit:'m²',ep:92.00,status:'gelb',notiz:'Concept weiß + Kleber OK + Nanofug'},
-    {nr:'20.1.100',desc:'Feinsteinzeug Treppenbereich',menge:0,einheit:'m²',ep:0,status:'rot',notiz:''},
-    {nr:'20.1.110',desc:'Sockelleiste Fliese',menge:0,einheit:'m',ep:0,status:'rot',notiz:''},
-    {nr:'20.1.120',desc:'Rand- und Bewegungsfugen Boden',menge:0,einheit:'m',ep:0,status:'rot',notiz:''},
-    {nr:'20.1.130',desc:'Mosaikfliese 10×10 Boden',menge:0,einheit:'m²',ep:0,status:'rot',notiz:''},
-    {nr:'20.1.160',desc:'Demontage/Entsorgung Altbelag',menge:0,einheit:'m²',ep:0,status:'rot',notiz:''},
-    {nr:'20.2.10',desc:'Grundieren Wand (saugend)',menge:0,einheit:'m²',ep:7.50,status:'gelb',notiz:'Sakret Universalgrundierung 0,200L/m²'},
-    {nr:'20.2.20',desc:'Abdichtung Wand Verbundabdichtung',menge:0,einheit:'m²',ep:0,status:'rot',notiz:''},
-    {nr:'20.2.30',desc:'Wandfliesen 30×60 Nassräume (verlegen+verfugen)',menge:0,einheit:'m²',ep:98.00,status:'gelb',notiz:'Concept weiß + Kleber OK + Nanofug'},
-    {nr:'20.2.40',desc:'Fliesenspiegel Küche 30×60',menge:0,einheit:'m²',ep:98.00,status:'gelb',notiz:'Concept weiß + Kleber OK + Nanofug'},
-    {nr:'20.2.50',desc:'Mosaikfliese Wand',menge:0,einheit:'m²',ep:0,status:'rot',notiz:''},
-    {nr:'20.3.10',desc:'Edelstahlschienen V2A gebürstet',menge:0,einheit:'m',ep:12.00,status:'gelb',notiz:'Rinklake FE 100: 2,79 €/m'},
-    {nr:'20.3.20',desc:'Jolly-Schienen hellanthrazit',menge:0,einheit:'m',ep:18.00,status:'gelb',notiz:'Schlüter Jolly: 7,43 €/m'},
-    {nr:'20.3.30',desc:'PVC-Profile weiß',menge:0,einheit:'m',ep:0,status:'rot',notiz:''},
-    {nr:'20.3.40',desc:'Sauberlaufmatten 60×45 cm',menge:21,einheit:'Stk',ep:200.00,status:'gelb',notiz:'Diplomat Original 522: 79,31 €/Stk + Rahmen'},
-    {nr:'20.3.50',desc:'Sauberlaufmatten 150×100 cm',menge:1,einheit:'Stk',ep:750.00,status:'gelb',notiz:'Diplomat Premium nach Maß'},
-    {nr:'20.3.60',desc:'Einbaurahmen Sauberlaufmatte Alu',menge:0,einheit:'m',ep:0,status:'rot',notiz:''},
-    {nr:'20.3.80',desc:'Rand- und Bewegungsfugen Silikon',menge:0,einheit:'m',ep:8.00,status:'gelb',notiz:'PCI Silcofug E'},
-  ];
-  document.getElementById('lv-up').style.display='none';
-  document.getElementById('lv-main').style.display='block';
-  document.getElementById('lv-tit').textContent=LV.titel;
-  renderLV();
-  toast('Demo-LV 71629 geladen ✓');
-}
+// loadDemo() ist am 01.09.2026 entfallen. Die Funktion wurde von nirgends
+// mehr aufgerufen, hatte aber ein vollstaendiges Beispiel-LV im Programm
+// stehen ('LV 71629 - Fluechtlingsheim Laatzen'). Wer es irgendwann einmal
+// geladen hatte, trug es als Sicherungskopie im Browser mit sich herum -
+// ohne Archivnummer, also auch nicht ueber das Archiv loeschbar. Es tauchte
+// bei jedem Seitenaufruf wieder auf und sah aus wie ein Fehler beim
+// Einlesen (Erik am 01.09.2026). Beispieldaten gehoeren nicht ins Programm.
 
 // ============================================
 // POSITIONEN ALS DATEI SICHERN
