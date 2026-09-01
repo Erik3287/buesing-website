@@ -1106,7 +1106,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '01.09.2026 · 217';
+const APP_STAND = '01.09.2026 · 218';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -2216,7 +2216,7 @@ async function handleFile(file,typ){
       // ueber das LV, das gerade noch offen war.
       LV.id = 0;
       LV.neu = true;   // ausdruecklich neu - siehe doSave
-      LV.abgabeTermin=''; LV.abgegebenAm=''; LV.abgegebenAn=''; LV.abgegebenVon='';
+      LV.abgabeTermin=''; LV.abgegebenAm=''; LV.abgegebenAn=''; LV.abgegebenVon=''; LV.abgelegt=''; LV.abgelegt='';
       LV.titel=file.name.replace(/\.[^.]+$/,'');
       // EP kommt aus dem Regelwerk (importPos -> autoEP -> berechneEP),
       // nie mehr direkt aus einem Artikel-EK.
@@ -2312,7 +2312,7 @@ async function kiLV(text,datei){
     }
     LV.id = 0;   // neues LV, kein Update des zuletzt geoeffneten
     LV.neu = true;   // ausdruecklich neu - siehe doSave
-    LV.abgabeTermin=''; LV.abgegebenAm=''; LV.abgegebenAn=''; LV.abgegebenVon='';
+    LV.abgabeTermin=''; LV.abgegebenAm=''; LV.abgegebenAn=''; LV.abgegebenVon=''; LV.abgelegt='';
     LV.titel=datei.replace(/\.[^.]+$/,'');
     // EP kommt aus dem Regelwerk (importPos -> autoEP -> berechneEP).
     LV.pos=roh.map(importPos);
@@ -8611,7 +8611,8 @@ function doSave(silent){
     abgabe_termin: LV.abgabeTermin || '',
     abgegeben_am:  LV.abgegebenAm  || '',
     abgegeben_an:  LV.abgegebenAn  || '',
-    abgegeben_von: LV.abgegebenVon || ''
+    abgegeben_von: LV.abgegebenVon || '',
+    abgelegt:      LV.abgelegt      || ''
   };
   fetch(API_URL+'?action=save_lv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(r=>r.json()).then(d=>{
@@ -11034,35 +11035,143 @@ async function renderArchiv(){
   try{
     const res = await fetch(API_URL+'?action=get_lvs');
     const data = await res.json();
-    if(data.ok && data.lvs && data.lvs.length){
-      const statusLabels = {bearbeitung:'In Bearbeitung', abgeschickt:'Abgeschickt', gewonnen:'Gewonnen', verloren:'Verloren'};
-      const statusColors = {bearbeitung:'var(--muted)', abgeschickt:'#0071e3', gewonnen:'var(--green)', verloren:'var(--red)'};
-      body.innerHTML = data.lvs.map(lv=>{
-        const datum = lv.updated_at ? new Date(lv.updated_at).toLocaleDateString('de-DE') : '';
-        const st = lv.status || 'bearbeitung';
-        const leer = (lv.poslen!=null) && (parseInt(lv.poslen)||0) <= 2;
-        return `<tr>
-          <td><strong>${esc(lv.titel||'(ohne Titel)')}</strong>
-              <div style="font-size:11px;color:${leer?'var(--red)':'var(--muted)'};margin-top:2px">
-                Nr. ${lv.id}${leer?' · LEER – keine Positionen':(lv.poslen!=null?(' · '+Math.round(lv.poslen/1000)+' kB Positionen'):'')}
-              </div></td>
-          <td style="white-space:nowrap">${archivTermin(lv)}</td>
-          <td>${esc(lv.auftraggeber||'')}</td>
-          <td>${esc(lv.nutzer||'')}</td>
-          <td style="text-align:right">${fmt(parseFloat(lv.summe)||0)} €</td>
-          <td><span style="color:${statusColors[st]};font-weight:600">${statusLabels[st]||st}</span></td>
-          <td>${datum}</td>
-          <td class="np"><button class="bg sm" onclick="ladeLV(${lv.id})">Öffnen</button>
-            <button class="bg sm" style="margin-left:4px" onclick="lvVerlauf(${lv.id})" title="Frühere Stände dieses LV">Verlauf</button>
-            <button class="bg sm" style="margin-left:4px" onclick="delLV(${lv.id}, '${esc(lv.titel||'').replace(/'/g,"\\'")}')">Löschen</button></td>
-        </tr>`;
-      }).join('');
-    } else {
+    if(!(data.ok && data.lvs && data.lvs.length)){
       body.innerHTML = '<tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px">Noch keine LVs gespeichert</td></tr>';
+      return;
     }
+    // Zwei Bereiche. Erik am 01.09.2026: "wenn das erfolgt ist (die
+    // Markierung) soll das LV anschliessend in einen Unterordner abgelegt und
+    // WIRKLICH archiviert werden." Abgelegtes verschwindet aus der Arbeits-
+    // liste und sitzt darunter in einem zugeklappten Fach.
+    const arbeit  = data.lvs.filter(function(l){ return !String(l.abgelegt||'').trim(); });
+    const abgelegt= data.lvs.filter(function(l){ return  String(l.abgelegt||'').trim(); });
+    let h = '';
+    if(arbeit.length){
+      h += archivUeberschrift('In Arbeit', arbeit.length, '');
+      h += arbeit.map(archivZeile).join('');
+    } else {
+      h += '<tr><td colspan="8" style="color:var(--muted);text-align:center;padding:18px">'
+         + 'Kein LV in Arbeit – alle sind abgelegt.</td></tr>';
+    }
+    if(abgelegt.length){
+      h += archivUeberschrift('Abgelegt · versendet', abgelegt.length,
+             ' onclick="ARCHIV_FACH=!ARCHIV_FACH;renderArchiv()" style="cursor:pointer"');
+      if(ARCHIV_FACH) h += abgelegt.map(archivZeile).join('');
+    }
+    body.innerHTML = h;
   }catch(e){
     body.innerHTML = '<tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px">Server gerade nicht erreichbar. <button class="bg sm" style="margin-left:8px" onclick="renderArchiv()">Erneut versuchen</button></td></tr>';
   }
+}
+let ARCHIV_FACH = false;   // ist das Ablage-Fach aufgeklappt?
+function archivUeberschrift(txt, n, extra){
+  const fach = extra ? (' <span style="font-weight:400">'+(ARCHIV_FACH?'▾ zugeklappt lassen':'▸ aufklappen')+'</span>') : '';
+  return '<tr'+extra+'><td colspan="8" style="background:var(--surface2);font-size:11px;font-weight:700;'
+    + 'letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:9px 12px;'
+    + 'border-top:1px solid var(--line)">'+txt+' · '+n+fach+'</td></tr>';
+}
+function archivZeile(lv){
+  const statusLabels = {bearbeitung:'In Bearbeitung', abgeschickt:'Abgeschickt', gewonnen:'Gewonnen', verloren:'Verloren'};
+  const statusColors = {bearbeitung:'var(--muted)', abgeschickt:'#0071e3', gewonnen:'var(--green)', verloren:'var(--red)'};
+  const datum = lv.updated_at ? new Date(lv.updated_at).toLocaleDateString('de-DE') : '';
+  const st = lv.status || 'bearbeitung';
+  const leer = (lv.poslen!=null) && (parseInt(lv.poslen)||0) <= 2;
+  const weg  = !!String(lv.abgelegt||'').trim();
+  const titelEsc = esc(lv.titel||'').replace(/'/g,"\\'");
+  return `<tr${weg?' style="opacity:.72"':''}>
+    <td><strong>${esc(lv.titel||'(ohne Titel)')}</strong>
+        <div style="font-size:11px;color:${leer?'var(--red)':'var(--muted)'};margin-top:2px">
+          Nr. ${lv.id}${leer?' · LEER – keine Positionen':(lv.poslen!=null?(' · '+Math.round(lv.poslen/1000)+' kB Positionen'):'')}
+        </div></td>
+    <td style="white-space:nowrap">${archivTermin(lv)}</td>
+    <td>${esc(lv.auftraggeber||'')}</td>
+    <td>${esc(lv.nutzer||'')}</td>
+    <td style="text-align:right">${fmt(parseFloat(lv.summe)||0)} €</td>
+    <td><span style="color:${statusColors[st]};font-weight:600">${statusLabels[st]||st}</span></td>
+    <td>${datum}</td>
+    <td class="np" style="white-space:nowrap">
+      <button class="bg sm" onclick="ladeLV(${lv.id})">Öffnen</button>
+      <button class="bg sm" style="margin-left:4px" onclick="versandDialog(${lv.id}, '${titelEsc}')" title="Wann, an wen und von wem versendet – und ablegen">📤 Versand</button>
+      ${weg ? `<button class="bg sm" style="margin-left:4px" onclick="archivZurueckholen(${lv.id})" title="Zurück in die Arbeitsliste">↩︎ Zurückholen</button>` : ''}
+      <button class="bg sm" style="margin-left:4px" onclick="lvVerlauf(${lv.id})" title="Frühere Stände dieses LV">Verlauf</button>
+      <button class="bg sm" style="margin-left:4px" onclick="delLV(${lv.id}, '${titelEsc}')">Löschen</button></td>
+  </tr>`;
+}
+// Versandvermerk direkt aus dem Archiv - ohne das LV zu oeffnen. Aus dem
+// Archiv sind die Positionen nicht geladen; deshalb geht das ueber den
+// eigenen Endpunkt lv_versand, der NUR die Vermerkfelder anfasst.
+let VERSAND_LV = null;
+async function versandDialog(id, titel){
+  let lv = null;
+  try{
+    const r = await fetch(API_URL+'?action=get_lvs');
+    const d = await r.json();
+    lv = (d.lvs||[]).find(function(x){ return parseInt(x.id)===parseInt(id); });
+  }catch(e){}
+  if(!lv){ toast('LV nicht gefunden'); return; }
+  VERSAND_LV = id;
+  const v = function(x){ return String(x||'').replace(/"/g,'&quot;'); };
+  const feld = function(lab, fid, typ, wert, hinweis){
+    return '<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">'+lab+'</div>'
+      + '<input type="'+typ+'" id="'+fid+'" value="'+v(wert)+'" style="width:100%;padding:8px 10px;font-size:14px">'
+      + (hinweis?'<div style="font-size:11px;color:var(--muted);margin-top:3px">'+hinweis+'</div>':'')+'</div>';
+  };
+  const heute = new Date().toISOString().slice(0,10);
+  const weg = !!String(lv.abgelegt||'').trim();
+  const h = '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">'+esc(lv.titel||'')+' · Nr. '+id+'</div>'
+    + feld('Abgabetermin', 'v-termin', 'datetime-local', lv.abgabe_termin||'', 'Wann muss es beim Auftraggeber sein?')
+    + '<div style="border-top:1px solid var(--line);margin:16px 0 13px;padding-top:13px">'
+    + '<div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Versand</div>'
+    + feld('Versendet am', 'v-am', 'date', (lv.abgegeben_am||'').slice(0,10), '')
+    + feld('An wen', 'v-an', 'text', lv.abgegeben_an||'', 'Auftraggeber, Architekt, Vergabestelle …')
+    + feld('Von wem', 'v-von', 'text', lv.abgegeben_von||((currentUser&&currentUser.name)||''), '')
+    + '</div>'
+    + '<label style="display:flex;align-items:center;gap:9px;font-size:13px;padding:11px 13px;border-radius:10px;'
+    + 'background:var(--surface2);border:1px solid var(--line);cursor:pointer">'
+    + '<input type="checkbox" id="v-ablegen" '+(weg?'checked':'')+' style="width:17px;height:17px;cursor:pointer">'
+    + '<span><b>Ablegen</b> – aus der Arbeitsliste heraus ins Fach „Abgelegt". Jederzeit zurückholbar.</span></label>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'
+    + '<button class="bg sm" onclick="liefBoxZu()">Abbrechen</button>'
+    + '<button class="btn sm" onclick="versandSpeichern()">Übernehmen</button></div>';
+  liefBoxAuf('Versand eintragen', h);
+  setTimeout(function(){ const e=document.getElementById('v-am'); if(e && !e.value) e.value=heute; }, 40);
+}
+async function versandSpeichern(){
+  const w = function(id){ const e=document.getElementById(id); return e ? e.value.trim() : ''; };
+  const am = w('v-am');
+  const ablegen = !!(document.getElementById('v-ablegen')||{}).checked;
+  if(ablegen && !am){ alert('Zum Ablegen bitte eintragen, wann das LV versendet wurde.'); return; }
+  const daten = {id: VERSAND_LV, abgabe_termin: w('v-termin'), abgegeben_am: am,
+                 abgegeben_an: w('v-an'), abgegeben_von: w('v-von'),
+                 abgelegt: ablegen ? (am || new Date().toISOString().slice(0,10)) : ''};
+  if(am) daten.status = 'abgeschickt';
+  try{
+    const r = await fetch(API_URL+'?action=lv_versand',{method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify(daten)});
+    const d = await r.json();
+    if(!d.ok){ alert('Konnte nicht gespeichert werden: '+(d.error||'unbekannt')); return; }
+  }catch(e){ alert('Server nicht erreichbar: '+e.message); return; }
+  // Ist genau dieses LV gerade offen, zieht die Kopfleiste mit.
+  if(parseInt(LV.id)===parseInt(VERSAND_LV)){
+    LV.abgabeTermin=daten.abgabe_termin; LV.abgegebenAm=daten.abgegeben_am;
+    LV.abgegebenAn=daten.abgegeben_an;   LV.abgegebenVon=daten.abgegeben_von;
+    if(daten.status) LV.status=daten.status;
+    try{ lvkTerminZeichnen(); }catch(e){}
+  }
+  liefBoxZu();
+  if(ablegen) ARCHIV_FACH = true;      // damit er sieht, wo es gelandet ist
+  await renderArchiv();
+  toast(ablegen ? 'Versand eingetragen · LV abgelegt' : 'Versand eingetragen');
+}
+async function archivZurueckholen(id){
+  try{
+    const r = await fetch(API_URL+'?action=lv_versand',{method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:id, abgelegt:''})});
+    const d = await r.json();
+    if(!d.ok){ alert('Konnte nicht zurückgeholt werden: '+(d.error||'unbekannt')); return; }
+  }catch(e){ alert('Server nicht erreichbar: '+e.message); return; }
+  await renderArchiv();
+  toast('LV ist wieder in der Arbeitsliste');
 }
 
 async function delLV(id, titel){
@@ -11306,6 +11415,7 @@ async function ladeLV(id){
       LV.abgegebenAm  = data.lv.abgegeben_am  || '';
       LV.abgegebenAn  = data.lv.abgegeben_an  || '';
       LV.abgegebenVon = data.lv.abgegeben_von || '';
+      LV.abgelegt     = data.lv.abgelegt      || '';
       LV.pos = data.lv.positionen || [];
     // Aus frueher gespeicherten Staenden: alle Rechner zu.
     LV.pos.forEach(function(q){ delete q._calcOpen; });

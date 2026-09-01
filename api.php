@@ -245,7 +245,7 @@ switch ($action) {
         // nichts drin steht).
         lv_felder_sichern($pdo);
         $rows = $pdo->query("SELECT id, titel, auftraggeber, status, summe, nutzer, created_at, updated_at,
-                                    abgabe_termin, abgegeben_am, abgegeben_an, abgegeben_von,
+                                    abgabe_termin, abgegeben_am, abgegeben_an, abgegeben_von, abgelegt,
                                     CHAR_LENGTH(positionen) AS poslen
                              FROM lvs ORDER BY (abgabe_termin = '') ASC, abgabe_termin ASC, updated_at DESC")->fetchAll();
         echo json_encode(['ok' => true, 'lvs' => $rows]);
@@ -285,9 +285,9 @@ switch ($action) {
             // Erst sichern, dann ueberschreiben. Nie umgekehrt.
             $sich = lv_sichern($pdo, $id, $liste);
             $stmt = $pdo->prepare("UPDATE lvs SET titel=?, auftraggeber=?, status=?, positionen=?, summe=?, nutzer=?,
-                                                  abgabe_termin=?, abgegeben_am=?, abgegeben_an=?, abgegeben_von=? WHERE id=?");
+                                                  abgabe_termin=?, abgegeben_am=?, abgegeben_an=?, abgegeben_von=?, abgelegt=? WHERE id=?");
             $stmt->execute([$data['titel'] ?? '', $data['auftraggeber'] ?? '', $data['status'] ?? 'bearbeitung', $pos, $data['summe'] ?? 0, $data['nutzer'] ?? '',
-                            $data['abgabe_termin'] ?? '', $data['abgegeben_am'] ?? '', $data['abgegeben_an'] ?? '', $data['abgegeben_von'] ?? '', $id]);
+                            $data['abgabe_termin'] ?? '', $data['abgegeben_am'] ?? '', $data['abgegeben_an'] ?? '', $data['abgegeben_von'] ?? '', $data['abgelegt'] ?? '', $id]);
             $antwort = ['ok' => true, 'id' => $id];
             if ($sich && $sich['verlust']) {
                 $antwort['verlust'] = true;
@@ -299,12 +299,37 @@ switch ($action) {
             echo json_encode($antwort);
         } else {
             $stmt = $pdo->prepare("INSERT INTO lvs (titel, auftraggeber, status, positionen, summe, nutzer,
-                                                    abgabe_termin, abgegeben_am, abgegeben_an, abgegeben_von)
-                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                                                    abgabe_termin, abgegeben_am, abgegeben_an, abgegeben_von, abgelegt)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$data['titel'] ?? '', $data['auftraggeber'] ?? '', $data['status'] ?? 'bearbeitung', $pos, $data['summe'] ?? 0, $data['nutzer'] ?? '',
-                            $data['abgabe_termin'] ?? '', $data['abgegeben_am'] ?? '', $data['abgegeben_an'] ?? '', $data['abgegeben_von'] ?? '']);
+                            $data['abgabe_termin'] ?? '', $data['abgegeben_am'] ?? '', $data['abgegeben_an'] ?? '', $data['abgegeben_von'] ?? '', $data['abgelegt'] ?? '']);
             echo json_encode(['ok' => true, 'id' => $pdo->lastInsertId()]);
         }
+        break;
+
+    // ===== VERSANDVERMERK UND ABLAGE =====
+    // Erik am 01.09.2026: "ich kann immer noch nicht eintragen, ob ein bereits
+    // bearbeitetes LV von wem und wann versand wurde."
+    // Bewusst ein EIGENER Endpunkt und nicht save_lv: aus dem Archiv heraus
+    // sind die Positionen gar nicht geladen. Ein save_lv von dort haette sie
+    // mit einer leeren Liste ueberschrieben. Hier werden ausschliesslich die
+    // fuenf Vermerk-Felder angefasst, die Positionen nie.
+    case 'lv_versand':
+        $data = json_decode(file_get_contents('php://input'), true);
+        lv_felder_sichern($pdo);
+        $id = intval($data['id'] ?? 0);
+        if ($id <= 0) { echo json_encode(['ok' => false, 'error' => 'Keine LV-Nummer']); break; }
+        $st = $pdo->prepare("SELECT id FROM lvs WHERE id = ?");
+        $st->execute([$id]);
+        if (!$st->fetch()) { echo json_encode(['ok' => false, 'error' => 'LV nicht gefunden']); break; }
+        $felder = []; $werte = [];
+        foreach (['abgabe_termin','abgegeben_am','abgegeben_an','abgegeben_von','abgelegt','status'] as $f) {
+            if (array_key_exists($f, $data)) { $felder[] = "`$f`=?"; $werte[] = (string)$data[$f]; }
+        }
+        if (!$felder) { echo json_encode(['ok' => false, 'error' => 'Nichts zu ändern']); break; }
+        $werte[] = $id;
+        $pdo->prepare("UPDATE lvs SET " . implode(', ', $felder) . " WHERE id = ?")->execute($werte);
+        echo json_encode(['ok' => true, 'id' => $id]);
         break;
 
     // ===== PRODUKTDATENBLAETTER: LISTE =====
@@ -657,6 +682,10 @@ function lv_felder_sichern($pdo) {
         'abgegeben_am'  => "VARCHAR(20)  NOT NULL DEFAULT ''",
         'abgegeben_an'  => "VARCHAR(190) NOT NULL DEFAULT ''",
         'abgegeben_von' => "VARCHAR(100) NOT NULL DEFAULT ''",
+        // Erik am 01.09.2026: "wenn das erfolgt ist (die Markierung) soll das
+        // LV anschliessend in einen Unterordner abgelegt und WIRKLICH
+        // archiviert werden." Traegt das Datum der Ablage; leer = in Arbeit.
+        'abgelegt'      => "VARCHAR(20)  NOT NULL DEFAULT ''",
     ];
     try {
         $da = [];
