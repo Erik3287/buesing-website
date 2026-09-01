@@ -1,2 +1,4 @@
-config.php
-*.local.php
+# Echte Projektdaten gehoeren nicht ins Programm-Archiv:
+# LV-Exporte tragen Auftraggeber, Adressen und Preise.
+werkzeug/LV*.json
+werkzeug/*_Positionen.json
