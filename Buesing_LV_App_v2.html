@@ -1105,7 +1105,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '01.09.2026 · 215';
+const APP_STAND = '01.09.2026 · 216';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -2097,12 +2097,23 @@ async function handleFile(file,typ){
       const quellPDF=await PDFLib.PDFDocument.load(arrayBuffer);
       const seitenGesamt=quellPDF.getPageCount();
       const proHaeppchen=4; // 4 Seiten pro KI-Anfrage
-      const haeppchenGesamt=Math.ceil(seitenGesamt/proHaeppchen);
+      // EINE SEITE UEBERLAPPUNG. Erik am 01.09.2026: "scheinbar gibt es
+      // Probleme mit den Mengen, wenn die Position einen Seitenwechsel hat."
+      // Nachgezaehlt am LV Seelze: von 27 Positionen, deren Menge auf der
+      // Folgeseite steht, gingen genau die 10 verloren, bei denen zwischen
+      // Ueberschrift und Mengenzeile der HAEPPCHEN-Schnitt lag. Die anderen
+      // 17 (Seitenwechsel innerhalb desselben Haeppchens) kamen vollstaendig
+      // an. Die KI sah also die Ueberschrift ohne Menge - und im naechsten
+      // Haeppchen die Menge ohne Ueberschrift. Mit einer Seite Ueberlappung
+      // ist jede Position mindestens einmal ganz in einem Haeppchen; die
+      // Dopplungen raeumt positionenZusammenfuehren() weg.
+      const schritt=proHaeppchen-1;
+      const haeppchenGesamt=Math.max(1, Math.ceil((seitenGesamt-1)/schritt));
       let alleRoh=[];
       let haeppchenNr=0;
       let luecken=[];          // Seitenbereiche, die nicht gelesen werden konnten
 
-      for(let start=0; start<seitenGesamt; start+=proHaeppchen){
+      for(let start=0; start<seitenGesamt; start+=schritt){
         if(lvAbbruch){
           document.getElementById('lv-proc').style.display='none';
           document.getElementById('lv-up').style.display='block';
@@ -2208,7 +2219,7 @@ async function handleFile(file,typ){
       LV.titel=file.name.replace(/\.[^.]+$/,'');
       // EP kommt aus dem Regelwerk (importPos -> autoEP -> berechneEP),
       // nie mehr direkt aus einem Artikel-EK.
-      LV.pos=alleRoh.map(importPos);
+      LV.pos=positionenZusammenfuehren(alleRoh).map(importPos);
       wieVorUebernehmen(LV.pos);
       document.getElementById('lv-proc').style.display='none';
       document.getElementById('lv-main').style.display='block';
@@ -6391,6 +6402,39 @@ function langtextSaeubern(nr, text){
   return s.slice(0, schnitt).replace(/[\s–—\-]+$/,'').trim();
 }
 
+// Die Haeppchen ueberlappen sich um eine Seite - Positionen auf der
+// Nahtstelle kommen deshalb zweimal an, einmal aus jedem Haeppchen. Hier
+// wird je Positionsnummer die VOLLSTAENDIGERE Fassung behalten:
+//   1. eine mit Menge schlaegt eine ohne
+//   2. bei Gleichstand die mit dem laengeren Langtext
+//   3. fehlende Einzelangaben werden aus der anderen Fassung ergaenzt
+// Positionen ohne Nummer koennen nicht zugeordnet werden und bleiben alle
+// stehen - lieber eine doppelte Zeile im LV als eine verlorene.
+function positionenZusammenfuehren(roh){
+  const nachNr = {}, ohneNr = [], reihenfolge = [];
+  const zahl = function(x){ const v=parseFloat(String(x).replace(',','.')); return isFinite(v)?v:0; };
+  const laenger = function(a,b){ return String(b||'').length > String(a||'').length ? b : a; };
+  (roh||[]).forEach(function(p){
+    const nr = String((p && p.pos) || '').trim();
+    if(!nr){ ohneNr.push(p); return; }
+    const da = nachNr[nr];
+    if(!da){ nachNr[nr] = Object.assign({}, p); reihenfolge.push(nr); return; }
+    // FELDWEISE das Bessere behalten - nicht "ein Sieger nimmt alles". Bei
+    // 2.01.30 trug das eine Bruchstueck den vollen Beschreibungstext ohne
+    // Menge, das andere die Menge ohne Text. Beides wird gebraucht.
+    if(!(zahl(da.menge) > 0) && zahl(p.menge) > 0){
+      da.menge = p.menge;
+      if(p.einheit) da.einheit = p.einheit;          // Einheit gehoert zur Menge
+    }
+    da.langtext     = laenger(da.langtext, p.langtext);
+    da.beschreibung = laenger(da.beschreibung, p.beschreibung);
+    if(!da.einheit && p.einheit) da.einheit = p.einheit;
+    if((!da.kategorie || da.kategorie==='unbekannt') && p.kategorie) da.kategorie = p.kategorie;
+    if(da.bedarf===undefined && p.bedarf!==undefined) da.bedarf = p.bedarf;
+    else if(p.bedarf===true) da.bedarf = true;       // einmal Bedarf, immer Bedarf
+  });
+  return reihenfolge.map(function(nr){ return nachNr[nr]; }).concat(ohneNr);
+}
 function importPos(roh){
   const p = {
     nr:       roh.pos || '',
