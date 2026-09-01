@@ -1105,7 +1105,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '01.09.2026 · 214';
+const APP_STAND = '01.09.2026 · 215';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -5830,7 +5830,12 @@ function werksteinArtikel(p){
 // "Laufbreite: ca. 130 cm" ist die LAENGE der Stufe, "Stufenbreite: ca. 25 cm"
 // ihre Tiefe. Beides steht im Text; beides ist im Rechner ueberschreibbar.
 function stufeMasseWerkstein(p){
-  const t=(p.desc||'')+' '+(p.langtext||'');
+  // Die Bieterangabe zaehlt mit. Bei 15.03.13 und 15.03.16 im LV-15 steht die
+  // Laenge NICHT im LV-Text, sondern in der Stufenart, die Erik selbst
+  // bestaetigt hat: "Trittstufe 4 cm gerade R2201 gesaegt 32 Stk. a Laenge
+  // 130 cm bis 33 cm tief". Der Rechner las nur Titel und Langtext, fand kein
+  // Mass und lieferte 0,00 EUR - obwohl das Mass danebenstand (01.09.2026).
+  const t=(p.desc||'')+' '+(p.langtext||'')+' '+(p.stufeArt||'')+' '+(p.fabrikat||'');
   const lies=function(re){
     const m=t.match(re); if(!m) return 0;
     const v=parseFloat(String(m[1]).replace(',','.'));
@@ -5843,13 +5848,15 @@ function stufeMasseWerkstein(p){
   // Rechner deshalb am 28.08.2026 gar kein Mass. Darum mehrere Schreibweisen
   // und mehr Platz zwischen Wort und Zahl.
   let laenge=(parseFloat(p.stufeLaenge)>0) ? parseFloat(p.stufeLaenge)
-           : lies(/(?:laufbreite|plattenl(?:ä|ae)nge|stufenl(?:ä|ae)nge)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i);
+           : lies(/(?:laufbreite|plattenl(?:ä|ae)nge|stufenl(?:ä|ae)nge|\bl(?:ä|ae)nge)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i);
   // Bei der Setzstufe zaehlt die Steigungshoehe, nicht der Auftritt.
   const setz = /setzstufe/i.test(t) && !/trittstufe|winkelstufe/i.test(t);
   const wink = /winkelstufe/i.test(t);
   let tiefe =(parseFloat(p.stufeTiefeW)>0) ? parseFloat(p.stufeTiefeW)
            : (setz ? lies(/(?:steigungsh(?:ö|oe)he|stufenh(?:ö|oe)he|h(?:ö|oe)he)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i)
-                   : lies(/(?:stufenbreite|auftrittbreite|auftritt|stufentiefe)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i));
+                   : (lies(/(?:stufenbreite|auftrittbreite|auftritt|stufentiefe)[^\d]{0,25}(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i)
+                      // "bis 33 cm tief" - so schreiben es die Bieterangaben
+                      || lies(/(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?\s*tief/i)));
   if(!laenge) laenge=lies(/(\d+(?:[.,]\d+)?)\s*(m)\b/i);
   // Bei der Winkelstufe liegt zusaetzlich der senkrechte Schenkel im Moertel
   // und der Randstreifen laeuft an den Stufenenden hoch. Erik am 28.08.2026:

@@ -2,3 +2,4 @@
 # LV-Exporte tragen Auftraggeber, Adressen und Preise.
 werkzeug/LV*.json
 werkzeug/*_Positionen.json
+werkzeug/Preisdatenbank.json

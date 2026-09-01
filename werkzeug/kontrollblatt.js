@@ -13,6 +13,21 @@ const AKTEN=[
   ['LV-14  Hainhölzer Str. 8', 'LV14_vollstaendig.json'],
   ['LV-15  Gandistr. 7',       'LV15_NEU_korrigiert_31082026.json'],
 ];
+// Die echte Preisdatenbank vom Server einspielen. Ohne sie rechnen alle
+// Positionen, die einen Artikel brauchen, mit 0 Material - das Blatt
+// meldete dann Abweichungen, die es in Wahrheit nicht gibt.
+const PFAD=''; // Dateien liegen neben diesem Skript
+(function(){
+  let db; try{ db=readJSON(PFAD+'Preisdatenbank.json'); }catch(e){
+    console.log('!! Preisdatenbank.json fehlt - Artikelpreise fehlen, die Zahlen sind unbrauchbar\n'); return; }
+  const liste=(db.artikel||db.preise||db);
+  PREISE = liste.map(function(p){
+    return {id:parseInt(p.id), name:p.name, kat:p.kat, ek:parseFloat(p.ek), eu:p.eu,
+            format:p.format, lief:p.lief, dat:p.dat, geprueft:p.geprueft,
+            einzelpreis:p.einzelpreis, je_grundeinheit:p.je_grundeinheit, grundeinheit:p.grundeinheit};
+  });
+  console.log('Preisdatenbank: '+PREISE.length+' Artikel (Stand '+(db.gesichert||'?').slice(0,10)+')');
+})();
 const f2=n=>Number(n).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
 let gAbw=0, gPos=0, gDelta=0, gTyp=0;
 
@@ -21,7 +36,7 @@ console.log('App-Stand: '+APP_STAND);
 
 AKTEN.forEach(function(a){
   let d;
-  try{ d=readJSON(a[1]); }catch(e){ console.log('\n--- '+a[0]+': Datei fehlt'); return; }
+  try{ d=readJSON(PFAD+a[1]); }catch(e){ console.log('\n--- '+a[0]+': Datei fehlt'); return; }
   const pos=(d.positionen||d.pos||[]).map(function(p){
     return Object.assign({}, p, {desc:p.titel||p.desc||''});
   });
