@@ -1105,7 +1105,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '01.09.2026 · 212';
+const APP_STAND = '01.09.2026 · 213';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -2065,6 +2065,14 @@ async function handleFile(file,typ){
   if(typ==='lv' && ext==='json'){ await positionsdateiLaden(file); return; }
   const istPDF = (ext==='pdf') || (file.type==='application/pdf');
   if(typ==='lv'){
+    // Die Ansicht MUSS sofort leer werden. Bisher blieb das zuletzt offene LV
+    // waehrend der ganzen Leseminuten unter dem Ladebalken stehen - Erik am
+    // 01.09.2026: "ich habe das lv in das dropin feld gezogen und sofort war
+    // alles wieder da." Es kam nichts zurueck, es war nie weggeraeumt worden.
+    // Nebenwirkung, die genauso wichtig ist: solange LV noch das alte LV mit
+    // seiner id trug, konnte ein Zwischenspeichern waehrend des Lesens den
+    // alten Stand erneut ins Archiv schreiben.
+    lvAnsichtLeeren();
     if(!istPDF){
       // CSV/Excel: alten Text-Weg nutzen
       document.getElementById('lv-up').style.display='none';
@@ -11024,11 +11032,25 @@ async function delLV(id, titel){
   await renderArchiv();
   toast('LV gelöscht');
 }
+// Raeumt nur die ANSICHT und das offene LV weg - die Sicherungskopie im
+// Browser bleibt liegen. Beim Einlesen ist das die Rueckversicherung: geht
+// das Lesen schief, ist der vorherige Stand nach einem Neuladen noch da.
+// Ein Zwischenspeichern kann nichts anrichten, weil doSave ein LV ohne
+// Positionen gar nicht erst wegschreibt.
+function lvAnsichtLeeren(){
+  LV = {titel:'', pos:[]};
+  const m=document.getElementById('lv-main'); if(m) m.style.display='none';
+  const t=document.getElementById('lv-tit');  if(t) t.textContent='LV-Kalkulation';
+  const s=document.getElementById('lv-sum');  if(s) s.textContent='–';
+  const b=document.getElementById('lv-bedarf'); if(b) b.innerHTML='';
+  ['s-pos','s-g','s-y','s-r'].forEach(function(id){
+    const e=document.getElementById(id); if(e) e.textContent='0';
+  });
+}
 // Setzt die Ansicht auf "kein LV offen" zurueck und raeumt den Browser-Speicher.
 function lvOertlichVerwerfen(){
-  LV = {titel:'', pos:[]};
+  lvAnsichtLeeren();
   try{ localStorage.removeItem('buesing_v2'); }catch(e){}
-  const m=document.getElementById('lv-main'); if(m) m.style.display='none';
   const u=document.getElementById('lv-up');   if(u) u.style.display='block';
 }
 
