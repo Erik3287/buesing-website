@@ -243,13 +243,18 @@ switch ($action) {
         // Positionen mitzuschicken (Erik am 28.08.2026: "und wir haben wieder
         // ein leeres LV!!!" - so ist auf einen Blick zu sehen, ob wirklich
         // nichts drin steht).
-        $rows = $pdo->query("SELECT id, titel, auftraggeber, status, summe, nutzer, created_at, updated_at, CHAR_LENGTH(positionen) AS poslen FROM lvs ORDER BY updated_at DESC")->fetchAll();
+        lv_felder_sichern($pdo);
+        $rows = $pdo->query("SELECT id, titel, auftraggeber, status, summe, nutzer, created_at, updated_at,
+                                    abgabe_termin, abgegeben_am, abgegeben_an, abgegeben_von,
+                                    CHAR_LENGTH(positionen) AS poslen
+                             FROM lvs ORDER BY (abgabe_termin = '') ASC, abgabe_termin ASC, updated_at DESC")->fetchAll();
         echo json_encode(['ok' => true, 'lvs' => $rows]);
         break;
 
     // ===== EINZELNES LV LADEN (mit Positionen) =====
     case 'get_lv':
         $id = intval($_GET['id'] ?? 0);
+        lv_felder_sichern($pdo);
         $stmt = $pdo->prepare("SELECT * FROM lvs WHERE id = ?");
         $stmt->execute([$id]);
         $lv = $stmt->fetch();
@@ -260,6 +265,7 @@ switch ($action) {
     // ===== LV SPEICHERN (neu oder update) =====
     case 'save_lv':
         $data = json_decode(file_get_contents('php://input'), true);
+        lv_felder_sichern($pdo);
         $id = intval($data['id'] ?? 0);
         $liste = $data['positionen'] ?? [];
         $pos = json_encode($liste);
@@ -278,8 +284,10 @@ switch ($action) {
         if ($id > 0) {
             // Erst sichern, dann ueberschreiben. Nie umgekehrt.
             $sich = lv_sichern($pdo, $id, $liste);
-            $stmt = $pdo->prepare("UPDATE lvs SET titel=?, auftraggeber=?, status=?, positionen=?, summe=?, nutzer=? WHERE id=?");
-            $stmt->execute([$data['titel'] ?? '', $data['auftraggeber'] ?? '', $data['status'] ?? 'bearbeitung', $pos, $data['summe'] ?? 0, $data['nutzer'] ?? '', $id]);
+            $stmt = $pdo->prepare("UPDATE lvs SET titel=?, auftraggeber=?, status=?, positionen=?, summe=?, nutzer=?,
+                                                  abgabe_termin=?, abgegeben_am=?, abgegeben_an=?, abgegeben_von=? WHERE id=?");
+            $stmt->execute([$data['titel'] ?? '', $data['auftraggeber'] ?? '', $data['status'] ?? 'bearbeitung', $pos, $data['summe'] ?? 0, $data['nutzer'] ?? '',
+                            $data['abgabe_termin'] ?? '', $data['abgegeben_am'] ?? '', $data['abgegeben_an'] ?? '', $data['abgegeben_von'] ?? '', $id]);
             $antwort = ['ok' => true, 'id' => $id];
             if ($sich && $sich['verlust']) {
                 $antwort['verlust'] = true;
@@ -290,8 +298,11 @@ switch ($action) {
             }
             echo json_encode($antwort);
         } else {
-            $stmt = $pdo->prepare("INSERT INTO lvs (titel, auftraggeber, status, positionen, summe, nutzer) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$data['titel'] ?? '', $data['auftraggeber'] ?? '', $data['status'] ?? 'bearbeitung', $pos, $data['summe'] ?? 0, $data['nutzer'] ?? '']);
+            $stmt = $pdo->prepare("INSERT INTO lvs (titel, auftraggeber, status, positionen, summe, nutzer,
+                                                    abgabe_termin, abgegeben_am, abgegeben_an, abgegeben_von)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$data['titel'] ?? '', $data['auftraggeber'] ?? '', $data['status'] ?? 'bearbeitung', $pos, $data['summe'] ?? 0, $data['nutzer'] ?? '',
+                            $data['abgabe_termin'] ?? '', $data['abgegeben_am'] ?? '', $data['abgegeben_an'] ?? '', $data['abgegeben_von'] ?? '']);
             echo json_encode(['ok' => true, 'id' => $pdo->lastInsertId()]);
         }
         break;
@@ -627,6 +638,35 @@ switch ($action) {
 // VORHERIGEN Stand in lv_verlauf ab. Nichts geht mehr unwiederbringlich
 // verloren, egal welcher Fehler noch kommt.
 // ============================================================
+// ============================================================
+// ABGABETERMIN UND ABGABE-VERMERK
+// Erik am 01.09.2026: "nach dem Upload MUSS das Abgabedatum mit Uhrzeit
+// eingetragen werden. Wenn das nicht geschieht, erscheint ein roter Hinweis
+// im Archiv. Des Weiteren muss man auch markieren koennen, wann das LV
+// abgegeben wurde, an wen geschickt und von wem geschickt."
+// Vier eigene Spalten statt eines Eintrags in den Positionen: das Archiv
+// liest die Positionen nicht mit (nur ihre Laenge), sonst waere der Termin
+// in der Liste unsichtbar. Wird bei jedem Zugriff auf lvs nachgezogen, damit
+// es keinen gesonderten Wartungsschritt braucht.
+function lv_felder_sichern($pdo) {
+    static $erledigt = false;
+    if ($erledigt) return;
+    $erledigt = true;
+    $neu = [
+        'abgabe_termin' => "VARCHAR(20)  NOT NULL DEFAULT ''",  // 2026-09-15T11:00
+        'abgegeben_am'  => "VARCHAR(20)  NOT NULL DEFAULT ''",
+        'abgegeben_an'  => "VARCHAR(190) NOT NULL DEFAULT ''",
+        'abgegeben_von' => "VARCHAR(100) NOT NULL DEFAULT ''",
+    ];
+    try {
+        $da = [];
+        foreach ($pdo->query("SHOW COLUMNS FROM `lvs`")->fetchAll(PDO::FETCH_ASSOC) as $c) $da[] = $c['Field'];
+        foreach ($neu as $name => $typ) {
+            if (in_array($name, $da)) continue;
+            $pdo->exec("ALTER TABLE `lvs` ADD COLUMN `$name` $typ");
+        }
+    } catch (Exception $e) { /* Archiv laeuft auch ohne - nur ohne Termin */ }
+}
 function lv_verlauf_tabelle($pdo) {
     $pdo->exec("CREATE TABLE IF NOT EXISTS lv_verlauf (
         id INT AUTO_INCREMENT PRIMARY KEY,

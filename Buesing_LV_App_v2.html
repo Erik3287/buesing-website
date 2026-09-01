@@ -154,6 +154,27 @@ tr:hover td{background:#fafafa}
    als das Violett und beisst sich nicht mit dem Blau der App. */
 .lvk-bedarf{font-size:12.5px;color:#a8c6ea;margin-top:5px}
 .lvk-bedarf b{color:#ffa640;font-weight:700}
+/* Abgabetermin - die eine Angabe, die nie fehlen darf. Erik am 01.09.2026:
+   "nach dem Upload MUSS das Abgabedatum mit Uhrzeit eingetragen werden."
+   Fehlt er, leuchtet die Leiste rot und pulsiert leise; steht er, zeigt sie
+   Datum, Uhrzeit und die verbleibenden Tage. */
+.lvk-termin{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;
+  padding:11px 15px;border-radius:13px;font-size:13px;
+  background:rgba(9,14,24,.6);border:1px solid rgba(140,180,240,.18);color:#a8c6ea}
+.lvk-termin b{color:#fff;font-weight:700}
+.lvk-termin .rest{color:#7fb2ff;font-weight:600}
+.lvk-termin .knal{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap}
+.lvk-termin.fehlt{background:rgba(70,14,18,.72);border-color:rgba(255,120,105,.55);color:#ffc9c0}
+.lvk-termin.fehlt b{color:#ff8f7d}
+.lvk-termin.knapp{background:rgba(70,44,10,.6);border-color:rgba(255,180,90,.45);color:#ffd9a8}
+.lvk-termin.knapp b{color:#ffa640}
+.lvk-termin.weg{background:rgba(9,24,18,.6);border-color:rgba(95,224,168,.35);color:#a9e6cc}
+.lvk-termin.weg b{color:#5fe0a8}
+@media (prefers-reduced-motion:no-preference){
+  .lvk-termin.fehlt{animation:lvktermin 2.4s ease-in-out infinite}
+  @keyframes lvktermin{0%,100%{box-shadow:0 0 0 0 rgba(255,120,105,0)}
+    50%{box-shadow:0 0 18px 0 rgba(255,120,105,.35)}}
+}
 /* Die vier Ampelkacheln - frueher helle Kaesten UEBER dem Kopf, jetzt im
    dunklen Feld wie die Kacheln der Auswertung. Anklickbar bleiben sie. */
 .lvk-ampel{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
@@ -532,6 +553,7 @@ option{background:#fff;color:#1d1d1f;font-weight:400}
             <div id="lv-bedarf" class="lvk-bedarf"></div>
           </div>
         </div>
+        <div id="lvk-termin" class="lvk-termin np"></div>
         <div class="lvk-ampel np">
           <div class="lvk-kachel"    id="k-alle"  onclick="ampelFilter('')"      title="Alle Positionen zeigen"><div class="w" id="s-pos">0</div><div class="l">Positionen</div></div>
           <div class="lvk-kachel gr" id="k-gruen" onclick="ampelFilter('gruen')" title="Nur bepreiste zeigen"><div class="w" id="s-g">0</div><div class="l">Bepreist ✓</div></div>
@@ -906,6 +928,7 @@ option{background:#fff;color:#1d1d1f;font-weight:400}
       <table>
         <thead><tr>
           <th>Projekt / Titel</th>
+          <th>Abgabe</th>
           <th>Auftraggeber</th>
           <th>Bearbeiter</th>
           <th style="text-align:right">Summe</th>
@@ -913,7 +936,7 @@ option{background:#fff;color:#1d1d1f;font-weight:400}
           <th>Datum</th>
           <th class="np"></th>
         </tr></thead>
-        <tbody id="archiv-body"><tr><td colspan="7" style="color:var(--muted);text-align:center;padding:20px">Noch keine LVs gespeichert</td></tr></tbody>
+        <tbody id="archiv-body"><tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px">Noch keine LVs gespeichert</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -1082,7 +1105,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '01.09.2026 · 211';
+const APP_STAND = '01.09.2026 · 212';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -2173,6 +2196,7 @@ async function handleFile(file,typ){
       // ueber das LV, das gerade noch offen war.
       LV.id = 0;
       LV.neu = true;   // ausdruecklich neu - siehe doSave
+      LV.abgabeTermin=''; LV.abgegebenAm=''; LV.abgegebenAn=''; LV.abgegebenVon='';
       LV.titel=file.name.replace(/\.[^.]+$/,'');
       // EP kommt aus dem Regelwerk (importPos -> autoEP -> berechneEP),
       // nie mehr direkt aus einem Artikel-EK.
@@ -2197,6 +2221,7 @@ async function handleFile(file,typ){
         delete LV.luecken;
         toast('✓ '+LV.pos.length+' Positionen aus '+seitenGesamt+' Seiten geladen');
       }
+      setTimeout(function(){ lvAbgabeDialog(true); }, 400);
     }catch(e){
       document.getElementById('lv-proc').style.display='none';
       document.getElementById('lv-up').style.display='block';
@@ -2259,6 +2284,7 @@ async function kiLV(text,datei){
     }
     LV.id = 0;   // neues LV, kein Update des zuletzt geoeffneten
     LV.neu = true;   // ausdruecklich neu - siehe doSave
+    LV.abgabeTermin=''; LV.abgegebenAm=''; LV.abgegebenAn=''; LV.abgegebenVon='';
     LV.titel=datei.replace(/\.[^.]+$/,'');
     // EP kommt aus dem Regelwerk (importPos -> autoEP -> berechneEP).
     LV.pos=roh.map(importPos);
@@ -2268,6 +2294,7 @@ async function kiLV(text,datei){
     const tit=document.getElementById('lv-tit'); if(tit) tit.textContent=LV.titel;
     renderLV();
     toast('✓ '+LV.pos.length+' Positionen erkannt');
+    setTimeout(function(){ lvAbgabeDialog(true); }, 400);
   }catch(e){
     document.getElementById('lv-proc').style.display='none';
     document.getElementById('lv-up').style.display='block';
@@ -8133,6 +8160,7 @@ function renderLV(){
     </tr>
     <tr class="calc-row" data-i="${i}" id="calc-${i}" style="${p._calcOpen?'':'display:none'}"><td colspan="9" style="background:#f7f9fc;padding:0 16px;border-left:6px solid ${bc}">${p._calcOpen?renderCalcHTML(i):''}</td></tr>`;
   }).join('');
+  try{ lvkTerminZeichnen(); }catch(e){}
   document.getElementById('s-pos').textContent=LV.pos.length;
   document.getElementById('s-g').textContent=g;
   document.getElementById('s-y').textContent=y;
@@ -8274,6 +8302,130 @@ function typWaehlen(i, typ){
   autoEP(p, LV.system||'sakret');
   renderLV(); scheduleSave();
 }
+// ============================================================
+// ABGABETERMIN UND ABGABE-VERMERK
+// Erik am 01.09.2026: "ich moechte, dass dort - das hatte ich bereits
+// ausdruecklich gesagt - nach dem Upload das Abgabedatum mit Uhrzeit (soweit
+// noetig) eingetragen werden muss. Wenn das nicht geschieht, erscheint ein
+// roter Hinweis im Archiv. Des Weiteren muss man auch markieren koennen,
+// wann das LV abgegeben wurde, an wen geschickt und von wem geschickt."
+// Der Termin steht im Kopf des LV und im Archiv - an beiden Stellen rot,
+// solange er fehlt.
+// ============================================================
+const WOCHENTAG = ['So.','Mo.','Di.','Mi.','Do.','Fr.','Sa.'];
+// '2026-09-15T11:00' -> 'Di. 15.09.2026, 11:00 Uhr' (ohne Zeit: nur das Datum)
+function terminText(w){
+  const d = terminDatum(w);
+  if(!d) return '';
+  const t = WOCHENTAG[d.getDay()] + ' ' + String(d.getDate()).padStart(2,'0') + '.'
+          + String(d.getMonth()+1).padStart(2,'0') + '.' + d.getFullYear();
+  return String(w).indexOf('T') > -1
+    ? t + ', ' + String(w).slice(11,16) + ' Uhr'
+    : t;
+}
+function terminDatum(w){
+  if(!w) return null;
+  const d = new Date(String(w).indexOf('T')>-1 ? w : (w+'T23:59'));
+  return isNaN(d.getTime()) ? null : d;
+}
+// Ganze Tage bis zum Termin. Heute = 0, gestern = -1.
+function terminTage(w){
+  const d = terminDatum(w); if(!d) return null;
+  const a = new Date(); a.setHours(0,0,0,0);
+  const b = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((b - a) / 86400000);
+}
+// Wie dringend ist es? Steuert die Farbe an beiden Stellen.
+function terminLage(lv){
+  const termin = lv.abgabeTermin || lv.abgabe_termin || '';
+  const abgegeben = lv.abgegebenAm || lv.abgegeben_am || '';
+  if(abgegeben) return 'weg';
+  if(!termin)   return 'fehlt';
+  const t = terminTage(termin);
+  return (t !== null && t <= 3) ? 'knapp' : 'ok';
+}
+function restText(w){
+  const t = terminTage(w);
+  if(t === null) return '';
+  if(t < 0)  return 'seit ' + (-t) + ' Tag' + (t===-1?'':'en') + ' überfällig';
+  if(t === 0) return 'HEUTE';
+  if(t === 1) return 'morgen';
+  return 'in ' + t + ' Tagen';
+}
+function lvkTerminZeichnen(){
+  const box = document.getElementById('lvk-termin');
+  if(!box) return;
+  const lage = terminLage(LV);
+  box.className = 'lvk-termin np' + (lage==='ok' ? '' : ' ' + lage);
+  const knopf = function(txt, fn){
+    return '<button class="bg sm" onclick="'+fn+'"><span class="lvk-ic">🗓️</span>'+txt+'</button>';
+  };
+  if(lage === 'fehlt'){
+    box.innerHTML = '<span>⚠ <b>Abgabetermin fehlt</b> – ohne Termin steht dieses LV im Archiv rot.</span>'
+      + '<span class="knal">' + knopf('Termin eintragen', 'lvAbgabeDialog()') + '</span>';
+    return;
+  }
+  const wann = terminText(LV.abgabeTermin);
+  let txt;
+  if(lage === 'weg'){
+    txt = '<span>✓ <b>abgegeben ' + esc(terminText(LV.abgegebenAm)) + '</b>'
+        + (LV.abgegebenAn ? ' an ' + esc(LV.abgegebenAn) : '')
+        + (LV.abgegebenVon ? ' · durch ' + esc(LV.abgegebenVon) : '')
+        + ' &nbsp;·&nbsp; Abgabetermin war ' + esc(wann) + '</span>';
+  } else {
+    txt = '<span>Abgabe <b>' + esc(wann) + '</b> &nbsp;·&nbsp; <span class="rest">'
+        + esc(restText(LV.abgabeTermin)) + '</span></span>';
+  }
+  box.innerHTML = txt + '<span class="knal">'
+    + knopf(lage==='weg' ? 'Ändern' : 'Termin & Abgabe', 'lvAbgabeDialog()') + '</span>';
+}
+// Der Dialog. Nach dem Einlesen wird er von selbst geoeffnet - dann zaehlt
+// nur der Termin; die Abgabe traegt Erik spaeter nach.
+function lvAbgabeDialog(nachUpload){
+  const v = function(x){ return String(x||'').replace(/"/g,'&quot;'); };
+  const heute = new Date().toISOString().slice(0,10);
+  const feld = function(lab, id, typ, wert, hinweis){
+    return '<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">'+lab+'</div>'
+      + '<input type="'+typ+'" id="'+id+'" value="'+v(wert)+'" style="width:100%;padding:8px 10px;font-size:14px">'
+      + (hinweis ? '<div style="font-size:11px;color:var(--muted);margin-top:3px">'+hinweis+'</div>' : '')
+      + '</div>';
+  };
+  const h = (nachUpload
+      ? '<div style="font-size:13px;margin-bottom:14px;padding:10px 12px;border-radius:9px;background:#fff4f2;border:1px solid #ffd0c7;color:#b3261e">'
+        + '<b>Wann muss dieses Angebot abgegeben sein?</b><br>Ohne Termin steht das LV im Archiv rot.</div>'
+      : '')
+    + feld('Abgabetermin' + (nachUpload?' *':''), 'ab-termin', 'datetime-local', LV.abgabeTermin || '',
+           'Uhrzeit nur eintragen, wenn das LV eine nennt – sonst zählt der Tag.')
+    + (nachUpload ? '' :
+        '<div style="border-top:1px solid var(--line);margin:16px 0 13px;padding-top:13px">'
+        + '<div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Abgabe vermerken</div>'
+        + feld('Abgegeben am', 'ab-am', 'date', (LV.abgegebenAm||'').slice(0,10), 'Leer lassen, solange es noch nicht raus ist.')
+        + feld('An wen geschickt', 'ab-an', 'text', LV.abgegebenAn || '', 'Auftraggeber, Architekt, Vergabestelle …')
+        + feld('Von wem geschickt', 'ab-von', 'text', LV.abgegebenVon || ((currentUser&&currentUser.name)||''), '')
+        + '</div>')
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">'
+    + (nachUpload ? '<button class="bg sm" onclick="liefBoxZu()">Später</button>' : '')
+    + '<button class="btn sm" onclick="lvAbgabeSpeichern(' + (nachUpload?'true':'false') + ')">Übernehmen</button></div>';
+  liefBoxAuf(nachUpload ? 'Abgabetermin eintragen' : 'Abgabetermin und Abgabe', h);
+  setTimeout(function(){ const e=document.getElementById('ab-termin'); if(e) e.focus(); }, 60);
+}
+function lvAbgabeSpeichern(nachUpload){
+  const w = function(id){ const e=document.getElementById(id); return e ? e.value.trim() : ''; };
+  const termin = w('ab-termin');
+  if(nachUpload && !termin){ alert('Bitte einen Abgabetermin eintragen – oder „Später" wählen.'); return; }
+  LV.abgabeTermin = termin;
+  if(!nachUpload){
+    LV.abgegebenAm  = w('ab-am');
+    LV.abgegebenAn  = w('ab-an');
+    LV.abgegebenVon = w('ab-von');
+    // Abgegeben heisst abgeschickt - der Status im Archiv zieht mit.
+    if(LV.abgegebenAm && LV.status==='bearbeitung') LV.status='abgeschickt';
+  }
+  liefBoxZu();
+  lvkTerminZeichnen();
+  doSave(true);
+  toast(LV.abgabeTermin ? ('Abgabe: '+terminText(LV.abgabeTermin)) : 'Abgabetermin gelöscht');
+}
 function delP(i){LV.pos.splice(i,1);renderLV();doSave(true);}
 function addPos(){LV.pos.push({nr:'',desc:'Neue Position',menge:0,einheit:'m²',ep:0,status:'rot',notiz:''});renderLV();scheduleSave();}
 // ============================================================
@@ -8303,7 +8455,9 @@ function lvUmbenennen(){
   try{ renderArchiv(); }catch(e){}
   toast('LV heißt jetzt „'+sauber+'"');
 }
-function neuesLV(){LV={titel:'',pos:[]};document.getElementById('lv-main').style.display='none';document.getElementById('lv-up').style.display='block';}
+// Auch hier muss der Browser-Speicher weg: sonst holt ein Seiten-Neuladen
+// das eben verlassene LV zurueck (Erik am 01.09.2026).
+function neuesLV(){ lvOertlichVerwerfen(); }
 
 // Sucht in der Preisdatenbank nach einem passenden Artikel zur Beschreibung
 // STILLGELEGT (Erik 21.08.). Diese Funktion hat nach EINEM passenden Wort ab
@@ -8365,7 +8519,14 @@ function doSave(silent){
     status: LV.status||'bearbeitung',
     positionen: positionenOhneAnsicht,
     summe: summe,
-    nutzer: (currentUser&&currentUser.name)||''
+    nutzer: (currentUser&&currentUser.name)||'',
+    // Erik am 01.09.2026: "nach dem Upload MUSS das Abgabedatum mit Uhrzeit
+    // eingetragen werden ... des Weiteren muss man auch markieren koennen,
+    // wann das LV abgegeben wurde, an wen geschickt und von wem geschickt."
+    abgabe_termin: LV.abgabeTermin || '',
+    abgegeben_am:  LV.abgegebenAm  || '',
+    abgegeben_an:  LV.abgegebenAn  || '',
+    abgegeben_von: LV.abgegebenVon || ''
   };
   fetch(API_URL+'?action=save_lv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(r=>r.json()).then(d=>{
@@ -10401,6 +10562,22 @@ try{
       setTimeout(function(){
         try{ lvKomplettPruefen(); }catch(e){ console.warn('Nachpruefung:', e); }
         renderLV();
+        try{ lvkTerminZeichnen(); }catch(e){}
+        // Der Riegel: war dieses LV im Archiv und ist dort geloescht worden,
+        // darf die lokale Kopie es nicht zurueckholen. Nur ein eindeutiges
+        // "gibt es nicht mehr" verwirft - bei einem Serverfehler bleibt
+        // alles stehen, damit keine Arbeit verloren geht.
+        if(parseInt(LV.id) > 0){
+          fetch(API_URL+'?action=get_lv&id='+parseInt(LV.id))
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+              if(d && d.ok && !d.lv){
+                lvOertlichVerwerfen();
+                toast('Das zuletzt geöffnete LV wurde im Archiv gelöscht – Ansicht geleert');
+              }
+            })
+            .catch(function(){});
+        }
       }, 0);
       renderLV();
     }
@@ -10768,6 +10945,32 @@ function renderRecentList(){
   }).join('');
 }
 
+// Die Abgabe-Spalte im Archiv. Erik am 01.09.2026: "wenn das nicht geschieht,
+// erscheint ein roter Hinweis im Archiv."
+function archivTermin(lv){
+  const lage = terminLage(lv);
+  if(lage === 'fehlt'){
+    return '<span style="color:var(--red);font-weight:700;font-size:12px">⚠ Termin fehlt</span>'
+         + '<div style="font-size:11px;color:var(--red);margin-top:2px">'
+         + '<a href="#" onclick="archivTerminSetzen(event,'+lv.id+')" style="color:var(--red)">jetzt eintragen</a></div>';
+  }
+  const t = lv.abgabe_termin || '';
+  if(lage === 'weg'){
+    return '<span style="color:var(--green);font-weight:600;font-size:12px">✓ abgegeben '
+         + esc(terminText(lv.abgegeben_am)) + '</span>'
+         + (lv.abgegeben_an ? '<div style="font-size:11px;color:var(--muted);margin-top:2px">an '+esc(lv.abgegeben_an)
+             + (lv.abgegeben_von ? ' · durch '+esc(lv.abgegeben_von) : '') + '</div>' : '');
+  }
+  const farbe = lage==='knapp' ? '#c26a00' : 'var(--text)';
+  return '<span style="color:'+farbe+';font-weight:600;font-size:12px">'+esc(terminText(t))+'</span>'
+       + '<div style="font-size:11px;color:'+farbe+';margin-top:2px">'+esc(restText(t))+'</div>';
+}
+// Aus dem Archiv heraus den Termin nachtragen: LV oeffnen, Dialog zeigen.
+async function archivTerminSetzen(ev, id){
+  if(ev) ev.preventDefault();
+  await ladeLV(id);
+  lvAbgabeDialog();
+}
 async function renderArchiv(){
   const body = document.getElementById('archiv-body');
   if(!body) return;
@@ -10786,6 +10989,7 @@ async function renderArchiv(){
               <div style="font-size:11px;color:${leer?'var(--red)':'var(--muted)'};margin-top:2px">
                 Nr. ${lv.id}${leer?' · LEER – keine Positionen':(lv.poslen!=null?(' · '+Math.round(lv.poslen/1000)+' kB Positionen'):'')}
               </div></td>
+          <td style="white-space:nowrap">${archivTermin(lv)}</td>
           <td>${esc(lv.auftraggeber||'')}</td>
           <td>${esc(lv.nutzer||'')}</td>
           <td style="text-align:right">${fmt(parseFloat(lv.summe)||0)} €</td>
@@ -10797,10 +11001,10 @@ async function renderArchiv(){
         </tr>`;
       }).join('');
     } else {
-      body.innerHTML = '<tr><td colspan="7" style="color:var(--muted);text-align:center;padding:20px">Noch keine LVs gespeichert</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px">Noch keine LVs gespeichert</td></tr>';
     }
   }catch(e){
-    body.innerHTML = '<tr><td colspan="7" style="color:var(--muted);text-align:center;padding:20px">Server gerade nicht erreichbar. <button class="bg sm" style="margin-left:8px" onclick="renderArchiv()">Erneut versuchen</button></td></tr>';
+    body.innerHTML = '<tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px">Server gerade nicht erreichbar. <button class="bg sm" style="margin-left:8px" onclick="renderArchiv()">Erneut versuchen</button></td></tr>';
   }
 }
 
@@ -10811,8 +11015,21 @@ async function delLV(id, titel){
     const data = await res.json();
     if(!data.ok){ alert('Konnte nicht gelöscht werden: '+(data.error||'unbekannter Fehler')); return; }
   }catch(e){ alert('Server nicht erreichbar: '+e.message); return; }
+  // Das Loeschen im Archiv muss auch die Kopie im Browser treffen. Sonst
+  // stellt der naechste Seitenaufruf das geloeschte LV aus dem lokalen
+  // Speicher wieder her. Erik am 01.09.2026: "ich habe das neue LV geloescht
+  // ... und es war sofort das alte LV, was ich geloescht hatte, wieder da
+  // (ich hatte nach dem Loeschen auch die Seite aktualisiert)."
+  if((LV && parseInt(LV.id)||0) === parseInt(id)) lvOertlichVerwerfen();
   await renderArchiv();
   toast('LV gelöscht');
+}
+// Setzt die Ansicht auf "kein LV offen" zurueck und raeumt den Browser-Speicher.
+function lvOertlichVerwerfen(){
+  LV = {titel:'', pos:[]};
+  try{ localStorage.removeItem('buesing_v2'); }catch(e){}
+  const m=document.getElementById('lv-main'); if(m) m.style.display='none';
+  const u=document.getElementById('lv-up');   if(u) u.style.display='block';
 }
 
 // ============================================
@@ -11014,6 +11231,10 @@ async function ladeLV(id){
       LV.auftraggeber = data.lv.auftraggeber || '';
       LV.status = data.lv.status || 'bearbeitung';
       LV.system = data.lv.system || 'sakret';
+      LV.abgabeTermin = data.lv.abgabe_termin || '';
+      LV.abgegebenAm  = data.lv.abgegeben_am  || '';
+      LV.abgegebenAn  = data.lv.abgegeben_an  || '';
+      LV.abgegebenVon = data.lv.abgegeben_von || '';
       LV.pos = data.lv.positionen || [];
     // Aus frueher gespeicherten Staenden: alle Rechner zu.
     LV.pos.forEach(function(q){ delete q._calcOpen; });
@@ -11027,6 +11248,7 @@ async function ladeLV(id){
       showTab('lv', document.querySelector('.nb')); // sauber zum LV-Tab wechseln
       if(wv) doSave(true);
       toast('LV geladen ✓'+(wv?(' · '+wv+'× „wie vor" übernommen'):''));
+      if(!LV.abgabeTermin) setTimeout(function(){ lvAbgabeDialog(true); }, 500);
     } else {
       toast('LV konnte nicht geladen werden');
     }
