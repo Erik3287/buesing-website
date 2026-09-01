@@ -553,6 +553,7 @@ option{background:#fff;color:#1d1d1f;font-weight:400}
             <div id="lv-bedarf" class="lvk-bedarf"></div>
           </div>
         </div>
+        <div id="lvk-archiv" class="lvk-termin fehlt np" style="display:none"></div>
         <div id="lvk-termin" class="lvk-termin np"></div>
         <div class="lvk-ampel np">
           <div class="lvk-kachel"    id="k-alle"  onclick="ampelFilter('')"      title="Alle Positionen zeigen"><div class="w" id="s-pos">0</div><div class="l">Positionen</div></div>
@@ -1105,7 +1106,7 @@ async function doLogin(){
 // Korrektur gemeldet, die laengst drin war - er sah noch die alte Datei.
 // Mit der Nummer im Bild ist das in einer Sekunde geklaert.
 // BEI JEDER AUSLIEFERUNG HOCHZAEHLEN.
-const APP_STAND = '01.09.2026 · 216';
+const APP_STAND = '01.09.2026 · 217';
 function setGreeting(){
   const g=document.getElementById('greeting');
   if(g && currentUser.name) g.textContent='Hallo '+currentUser.name+'  ·  Stand '+APP_STAND;
@@ -2225,6 +2226,14 @@ async function handleFile(file,typ){
       document.getElementById('lv-main').style.display='block';
       const tit=document.getElementById('lv-tit'); if(tit) tit.textContent=LV.titel;
       renderLV();
+      // SOFORT ins Archiv. Bisher stand ein frisch gelesenes LV nur im
+      // Browser: geschrieben wurde erst, wenn Erik etwas AENDERTE und der
+      // Zwischenspeicher 2,5 Sekunden spaeter ansprang. Wer nach dem Lesen
+      // die Seite wechselte oder neu lud, hatte das ganze Einlesen umsonst -
+      // das Seelze-LV war genau so weg (Erik am 01.09.2026: "jetzt ist das
+      // LV weg... das lv war laengst hochgeladen, ich habe es angefangen zu
+      // bearbeiten"). Minutenlanges Lesen darf nicht an einem Klick haengen.
+      doSave(true);
 
       // Luecken offen benennen. Ein LV, dem stillschweigend Seiten fehlen,
       // ist gefaehrlicher als eines, das gar nicht laedt.
@@ -2312,6 +2321,7 @@ async function kiLV(text,datei){
     document.getElementById('lv-main').style.display='block';
     const tit=document.getElementById('lv-tit'); if(tit) tit.textContent=LV.titel;
     renderLV();
+    doSave(true);                       // sofort ins Archiv, siehe PDF-Weg
     toast('✓ '+LV.pos.length+' Positionen erkannt');
     setTimeout(function(){ lvAbgabeDialog(true); }, 400);
   }catch(e){
@@ -8219,7 +8229,7 @@ function renderLV(){
     </tr>
     <tr class="calc-row" data-i="${i}" id="calc-${i}" style="${p._calcOpen?'':'display:none'}"><td colspan="9" style="background:#f7f9fc;padding:0 16px;border-left:6px solid ${bc}">${p._calcOpen?renderCalcHTML(i):''}</td></tr>`;
   }).join('');
-  try{ lvkTerminZeichnen(); }catch(e){}
+  try{ lvkTerminZeichnen(); lvkArchivZeichnen(); }catch(e){}
   document.getElementById('s-pos').textContent=LV.pos.length;
   document.getElementById('s-g').textContent=g;
   document.getElementById('s-y').textContent=y;
@@ -8411,6 +8421,22 @@ function restText(w){
   if(t === 1) return 'morgen';
   return 'in ' + t + ' Tagen';
 }
+// Solange ein LV nur im Browser liegt, muss das UNUEBERSEHBAR sein. Der
+// bisherige Hinweis stand als kleine graue Zeile "nur lokal - noch nicht im
+// Archiv" im Kopf und wurde nie gelesen. Erik hat sein Seelze-LV genau so
+// verloren (01.09.2026).
+function lvkArchivZeichnen(){
+  const box=document.getElementById('lvk-archiv');
+  if(!box) return;
+  const drin = parseInt(LV.id) > 0;
+  const hat  = !!(LV.pos && LV.pos.length);
+  if(drin || !hat){ box.style.display='none'; return; }
+  box.style.display='';
+  box.innerHTML = '<span>⚠ <b>Noch nicht im Archiv</b> – dieses LV liegt nur in diesem Browser. '
+    + 'Ein Seitenwechsel kann es kosten.</span>'
+    + '<span class="knal"><button class="bg sm" onclick="doSave()">'
+    + '<span class="lvk-ic">💾</span>Jetzt ins Archiv</button></span>';
+}
 function lvkTerminZeichnen(){
   const box = document.getElementById('lvk-termin');
   if(!box) return;
@@ -8590,6 +8616,7 @@ function doSave(silent){
   fetch(API_URL+'?action=save_lv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(r=>r.json()).then(d=>{
       if(d.ok){ if(d.id) LV.id=d.id; delete LV.neu;
+                try{ lvkArchivZeichnen(); }catch(e){}
                 // Der Server meldet, wenn beim Speichern Fertiges verschwunden
                 // ist. Der vorherige Stand liegt dann gesichert im Verlauf.
                 if(d.verlust){
